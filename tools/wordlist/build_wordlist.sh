@@ -4,6 +4,7 @@
 #   app/src/main/assets/common_words.txt  everyday words, for hints, lucky words and level design
 # Usage: tools/wordlist/build_wordlist.sh   (run from the repo root)
 set -euo pipefail
+export LC_ALL=C  # byte order sorting, the game searches the list by halving
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"

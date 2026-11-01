@@ -8,6 +8,18 @@ class WordFinderTest {
     private val dict = TestDict.dict
     private fun board(vararg rows: String) = Board.fromRows(rows.toList(), IdCounter())
 
+    @Test fun wordFilesAreSortedForFastSearch() {
+        val dir = java.io.File(System.getProperty("wordnoid.assets") ?: "app/src/main/assets")
+        for (name in listOf("words.txt", "common_words.txt")) {
+            val set = SortedWordSet(java.io.File(dir, name).readBytes())
+            assertTrue(set.isSorted(), "$name must be sorted A-Z (LC_ALL=C)")
+        }
+        val fast = Dictionary.fromSortedBytes(java.io.File(dir, "words.txt").readBytes(), java.io.File(dir, "common_words.txt").readBytes())
+        for (w in listOf("cat", "colour", "color", "zebra", "aardvark", "lakh")) assertTrue(fast.isWord(w), w)
+        for (w in listOf("xqz", "catt", "aaaa")) assertTrue(!fast.isWord(w), w)
+        assertTrue(fast.isCommon("cat"))
+    }
+
     @Test fun findsLeftToRight() {
         val words = WordFinder.findAll(board("XCATX", "QQQQQ", "QQQQQ"), dict).map { it.word }
         assertEquals(listOf("CAT"), words)

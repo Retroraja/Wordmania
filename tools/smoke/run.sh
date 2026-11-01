@@ -5,6 +5,7 @@ OUT=smoke-out
 mkdir -p $OUT
 adb install -r Wordnoid.apk
 adb logcat -c
+adb shell settings put secure immersive_mode_confirmations confirmed
 adb shell am start -n com.retroraja.wordnoid/.MainActivity
 sleep 25
 shot() { adb exec-out screencap -p > "$OUT/$1.png"; }

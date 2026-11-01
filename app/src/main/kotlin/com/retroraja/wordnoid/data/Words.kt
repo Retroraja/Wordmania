@@ -17,9 +17,9 @@ object Words {
             dict ?: run {
                 val start = SystemClock.elapsedRealtime()
                 val assets = context.applicationContext.assets
-                val words = assets.open("words.txt").bufferedReader().use { r -> r.readLines() }
-                val common = assets.open("common_words.txt").bufferedReader().use { r -> r.readLines() }
-                Dictionary.fromLines(words.asSequence(), common.asSequence()).also {
+                val words = assets.open("words.txt").use { it.readBytes() }
+                val common = assets.open("common_words.txt").use { it.readBytes() }
+                Dictionary.fromSortedBytes(words, common).also {
                     dict = it
                     Log.i("Wordnoid", "Loaded ${it.size} words in ${SystemClock.elapsedRealtime() - start} ms")
                 }
