@@ -512,7 +512,7 @@ class GameController(
         status = r.status
         busy = false
         if (meterFills > 0 && status == GameStatus.PLAYING) openMystery()
-        if (fx0.words.isNotEmpty()) afterWordTutorial()
+        if (fx0.words.isNotEmpty() && status == GameStatus.PLAYING) afterWordTutorial()
     }
 
     private fun praise(len: Int) = when {
