@@ -102,6 +102,8 @@ Every level must be tested to be winnable within its move limit. Early levels sh
 
 ## 6. Rewards and power-ups
 
+> The full rewards plan (coins, Power Meter, streaks, special tiles, daily rewards and more) is in [REWARDS_AND_ENGAGEMENT.md](REWARDS_AND_ENGAGEMENT.md). This section is the short version.
+
 The aim is to keep players feeling rewarded so they don't get frustrated and uninstall. Long words are hard on a small board, so rewards come from several kinds of clever play, not only long words.
 
 ### 6.1 Rewards for word length
