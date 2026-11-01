@@ -35,7 +35,7 @@ private sealed interface Screen {
 fun WordnoidApp() {
     val context = LocalContext.current
     val progress = remember { Progress(context) }
-    val sounds = remember { SoundFx() }
+    val sounds = remember { SoundFx(context) }
     val music = remember { Music() }
     val haptics = remember { Haptics(context) }
     DisposableEffect(Unit) { onDispose { sounds.release(); music.release() } }

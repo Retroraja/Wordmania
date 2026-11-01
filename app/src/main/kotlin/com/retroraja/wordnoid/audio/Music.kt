@@ -40,7 +40,8 @@ class Music {
             // The piece most likely needed first is made first.
             for (p in listOf(Piece.HOME, Piece.MAP, Piece.LEVEL)) {
                 val data = compose(p)
-                synchronized(tracks) { tracks[p] = makeTrack(data) }
+                val t = runCatching { makeTrack(data) }.getOrNull() ?: continue
+                synchronized(tracks) { tracks[p] = t }
                 if (wanted == p && current != p) launch(Dispatchers.Main) { play(p) }
             }
         }

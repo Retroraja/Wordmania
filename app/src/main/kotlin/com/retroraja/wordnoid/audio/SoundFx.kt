@@ -1,8 +1,12 @@
 package com.retroraja.wordnoid.audio
 
+import android.content.Context
 import android.media.AudioAttributes
-import android.media.AudioFormat
-import android.media.AudioTrack
+import android.media.SoundPool
+import java.io.File
+import java.io.FileOutputStream
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -16,12 +20,16 @@ import kotlin.random.Random
 /**
  * All game sounds are made here with code (no sound files), so there are no copyright issues.
  */
-class SoundFx {
+class SoundFx(context: Context) {
     private val rate = 44100
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private val tracks = HashMap<String, AudioTrack>()
-    private val spare = HashMap<String, AudioTrack>()
-    private val flip = HashMap<String, Boolean>()
+    // One SoundPool plays every sound (Android limits how many AudioTracks an app may open).
+    private val pool = SoundPool.Builder()
+        .setMaxStreams(12)
+        .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build())
+        .build()
+    private val ids = java.util.concurrent.ConcurrentHashMap<String, Int>()
+    private val dir = File(context.cacheDir, "sfx").apply { mkdirs() }
     var enabled = true
 
     // A pentatonic scale, so any run of notes sounds nice.
@@ -65,14 +73,8 @@ class SoundFx {
 
     fun play(name: String) {
         if (!enabled) return
-        val useSpare = flip[name] == true
-        flip[name] = !useSpare
-        val t = (if (useSpare) spare[name] else tracks[name]) ?: tracks[name] ?: return
-        try {
-            if (t.playState == AudioTrack.PLAYSTATE_PLAYING) t.stop()
-            t.reloadStaticData()
-            t.play()
-        } catch (_: IllegalStateException) { }
+        val id = ids[name] ?: return
+        runCatching { pool.play(id, 1f, 1f, 1, 0, 1f) }
     }
 
     /** Rising chime, one note per letter: longer words sound bigger. */
@@ -87,26 +89,22 @@ class SoundFx {
     }
 
     fun release() {
-        tracks.values.forEach { runCatching { it.release() } }
-        spare.values.forEach { runCatching { it.release() } }
-        tracks.clear()
-        spare.clear()
+        runCatching { pool.release() }
+        ids.clear()
     }
 
+    /** Saves the sound as a small WAV file and loads it into the pool. */
     private fun add(name: String, data: ShortArray) {
-        tracks[name] = build(data)
-        spare[name] = build(data)
-    }
-
-    private fun build(data: ShortArray): AudioTrack {
-        val track = AudioTrack.Builder()
-            .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build())
-            .setAudioFormat(AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT).setSampleRate(rate).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
-            .setTransferMode(AudioTrack.MODE_STATIC)
-            .setBufferSizeInBytes(data.size * 2)
-            .build()
-        track.write(data, 0, data.size)
-        return track
+        runCatching {
+            val file = File(dir, "$name.wav")
+            val bytes = ByteBuffer.allocate(44 + data.size * 2).order(ByteOrder.LITTLE_ENDIAN)
+            bytes.put("RIFF".toByteArray()).putInt(36 + data.size * 2).put("WAVE".toByteArray())
+            bytes.put("fmt ".toByteArray()).putInt(16).putShort(1).putShort(1).putInt(rate).putInt(rate * 2).putShort(2).putShort(16)
+            bytes.put("data".toByteArray()).putInt(data.size * 2)
+            for (v in data) bytes.putShort(v)
+            FileOutputStream(file).use { it.write(bytes.array()) }
+            ids[name] = pool.load(file.path, 1)
+        }
     }
 
     private fun toPcm(samples: DoubleArray): ShortArray =
