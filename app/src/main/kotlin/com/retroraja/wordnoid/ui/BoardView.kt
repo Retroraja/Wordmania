@@ -86,8 +86,8 @@ fun BoardView(c: GameController, cell: Dp, modifier: Modifier = Modifier) {
                     while (true) {
                         val event = awaitPointerEvent()
                         val ch = event.changes.firstOrNull() ?: break
-                        if (!ch.pressed) break
                         val d = ch.position - start
+                        // A quick flick may only report where the finger lifted, so the lift counts too.
                         if (!swiped && (abs(d.x) > cellPx * 0.35f || abs(d.y) > cellPx * 0.35f)) {
                             swiped = true
                             val to = if (abs(d.x) > abs(d.y)) Pos(from.row, from.col + if (d.x > 0) 1 else -1)
@@ -95,6 +95,7 @@ fun BoardView(c: GameController, cell: Dp, modifier: Modifier = Modifier) {
                             if (c.armed == null && board.contains(from)) c.drag(from, to)
                         }
                         if (ch.positionChange() != Offset.Zero) ch.consume()
+                        if (!ch.pressed) break
                     }
                     if (!swiped && board.contains(from)) c.tap(from)
                 }

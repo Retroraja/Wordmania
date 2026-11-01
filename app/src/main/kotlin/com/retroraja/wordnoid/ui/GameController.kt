@@ -276,6 +276,13 @@ class GameController(
     fun boosterTapped(b: Booster) {
         if (busy || status != GameStatus.PLAYING) return
         if (armed == b) { cancelAim(); return }
+        val t = tutorial
+        if (t != null && !t.dismissible && armed == null && t.booster != b) {
+            sounds.play("nope")
+            message = if (t.swap != null) "First swap the two glowing tiles 👆" else "Tap the glowing ${t.booster?.emoji ?: "tile"} 👆"
+            scope.launch { delay(1500); message = null }
+            return
+        }
         if (progress.count(b) <= 0 && !progress.hasFreeUse(b)) { buyAsk = b; return }
         nudge = null
         when (b.aim) {
