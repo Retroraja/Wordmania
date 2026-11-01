@@ -17,7 +17,7 @@ Think of a match-3 game like Gardenscapes or Candy Crush, but instead of matchin
 | Build | APK built for free by GitHub Actions |
 | Internet | Not needed. The game, levels and dictionary all work offline |
 | Language of words | English only for now |
-| Login | None in the first version. Progress is saved on the phone and restored by Android's built-in Google backup. Google sign-in through Firebase (free) can come later |
+| Login | First test version: none (everyone plays as a guest; progress is saved on the phone and restored by Android's built-in Google backup). Later: a welcome screen with **Play as Guest** and **Continue with Google** (Firebase, free). Guests can link Google later from Settings and keep their progress. Login is never forced |
 
 ## 3. Core gameplay
 
