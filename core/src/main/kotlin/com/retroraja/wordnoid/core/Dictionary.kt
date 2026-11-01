@@ -84,9 +84,7 @@ class SortedWordSet(private val bytes: ByteArray) : WordSet {
 }
 
 /**
- * The word lists.
- * words: every word the game accepts (lowercase).
- * common: everyday words. Used when the game suggests words (hints) and by the level maker's computer player.
+ * The word list. The game accepts only everyday words (play_words.txt), so [common] is normally the same list.
  */
 class Dictionary(private val words: WordSet, private val common: WordSet) {
 
@@ -106,6 +104,19 @@ class Dictionary(private val words: WordSet, private val common: WordSet) {
             val common = HashSet<String>(80_000)
             commonLines.forEach { line -> clean(line)?.let { if (it in words) common.add(it) } }
             return Dictionary(HashWordSet(words), HashWordSet(common))
+        }
+
+        /** One everyday list (play_words.txt) used for everything. */
+        fun fromLines(lines: Sequence<String>): Dictionary {
+            val words = HashSet<String>(60_000)
+            lines.forEach { line -> clean(line)?.let { words.add(it) } }
+            val set = HashWordSet(words)
+            return Dictionary(set, set)
+        }
+
+        fun fromSortedBytes(bytes: ByteArray): Dictionary {
+            val set = SortedWordSet(bytes)
+            return Dictionary(set, set)
         }
 
         /** Fast loading from the raw bytes of the sorted word files. */

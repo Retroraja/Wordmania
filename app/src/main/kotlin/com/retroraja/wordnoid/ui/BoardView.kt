@@ -1,8 +1,9 @@
 package com.retroraja.wordnoid.ui
 
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -10,15 +11,11 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -29,206 +26,159 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.retroraja.wordnoid.core.Aim
 import com.retroraja.wordnoid.core.Pos
-import com.retroraja.wordnoid.core.Tile
 import kotlin.math.abs
-import kotlin.math.cos
 import kotlin.math.roundToInt
-import kotlin.math.sin
 
+/** The board: a dark wooden tray with a gold rim, holding 3D tiles that fall, swap, lift and flip. */
 @Composable
-fun BoardView(c: GameController, modifier: Modifier = Modifier) {
-    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
-        val frame = 10.dp
-        val tile: Dp = minOf((maxWidth - frame * 2) / c.board.cols, (maxHeight - frame * 2) / c.board.rows)
-        val boardW = tile * c.board.cols
-        val boardH = tile * c.board.rows
-        val density = LocalDensity.current
-        val tilePx = with(density) { tile.toPx() }
-
-        // Screen shake for big words and combos.
-        val shake = remember { Animatable(0f) }
-        LaunchedEffect(c.shakeKey) {
-            if (c.shakeKey == 0) return@LaunchedEffect
-            for (x in listOf(10f, -9f, 7f, -5f, 3f, 0f)) shake.animateTo(x, tween(35))
+fun BoardView(c: GameController, cell: Dp, modifier: Modifier = Modifier) {
+    val board = c.board
+    val density = LocalDensity.current
+    val cellPx = with(density) { cell.toPx() }
+    val pad = 8.dp
+    val padPx = with(density) { pad.toPx() }
+    val anim = rememberInfiniteTransition(label = "board")
+    val pulse by anim.animateFloat(0f, 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "pulse")
+    val wiggle by anim.animateFloat(-6f, 6f, infiniteRepeatable(tween(140, easing = LinearEasing), RepeatMode.Reverse), label = "wiggle")
+    val wobble = remember { Animatable(0f) }
+    LaunchedEffect(c.wobbleKey) {
+        if (c.wobbleKey > 0) {
+            wobble.snapTo(0f)
+            wobble.animateTo(-25f, tween(180))
+            wobble.animateTo(0f, spring(dampingRatio = 0.35f, stiffness = Spring.StiffnessLow))
         }
-
-        Box(
-            Modifier
-                .offset { IntOffset(shake.value.roundToInt(), 0) }
-                .size(boardW + frame * 2, boardH + frame * 2)
-                .background(Brush.verticalGradient(listOf(Color(0xFF5C3418), Palette.frame)), RoundedCornerShape(16.dp))
-                .border(3.dp, Brush.verticalGradient(listOf(Palette.gold, Palette.goldDeep)), RoundedCornerShape(16.dp))
-                .padding(frame),
-        ) {
+    }
+    val armed = c.armed
+    Box(
+        modifier
+            .graphicsLayer { rotationY = wobble.value; cameraDistance = 14f * density.density }
+            .background(Brush.verticalGradient(listOf(Color(0xFF3A1E0B), Color(0xFF241105))), RoundedCornerShape(18.dp))
+            .border(4.dp, Brush.verticalGradient(listOf(Palette.gold, Palette.goldDeep, Palette.gold)), RoundedCornerShape(18.dp))
+            .padding(pad)
+            .size(cell * board.cols, cell * board.rows)
+            .onGloballyPositioned { coords ->
+                c.boardOrigin = coords.positionInRoot()
+                c.cellPx = cellPx
+            }
+            .pointerInput(board.cols, board.rows, cellPx) {
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    val start = down.position
+                    val from = Pos((start.y / cellPx).toInt(), (start.x / cellPx).toInt())
+                    var swiped = false
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val ch = event.changes.firstOrNull() ?: break
+                        if (!ch.pressed) break
+                        val d = ch.position - start
+                        if (!swiped && (abs(d.x) > cellPx * 0.35f || abs(d.y) > cellPx * 0.35f)) {
+                            swiped = true
+                            val to = if (abs(d.x) > abs(d.y)) Pos(from.row, from.col + if (d.x > 0) 1 else -1)
+                            else Pos(from.row + if (d.y > 0) 1 else -1, from.col)
+                            if (c.armed == null && board.contains(from)) c.drag(from, to)
+                        }
+                        if (ch.positionChange() != Offset.Zero) ch.consume()
+                    }
+                    if (!swiped && board.contains(from)) c.tap(from)
+                }
+            },
+    ) {
+        // Empty slots under the tiles.
+        for (p in board.positions()) {
             Box(
                 Modifier
-                    .size(boardW, boardH)
-                    .background(Color(0xFF2B160A), RoundedCornerShape(8.dp))
-                    .clipToBounds()
-            ) {
-                for (pos in c.board.positions()) {
-                    val t = c.board[pos]
-                    key(t.id) {
-                        TileView(
-                            tile = t,
-                            pos = pos,
-                            size = tile,
-                            selected = c.selected == pos,
-                            flashing = t.id in c.flashing,
-                            hinted = c.hint?.let { it.first == pos || it.second == pos } == true,
-                            onTap = { c.tap(it) },
-                            onDrag = { p, dr, dc -> c.drag(p, dr, dc) },
-                        )
-                    }
-                }
-                for (b in c.bursts) {
-                    key(b.id) { BurstView(b, tilePx) { c.removeBurst(b.id) } }
-                }
-                c.tutorial?.let { TutorialHand(it, tile) }
-            }
+                    .offset { IntOffset((p.col * cellPx).roundToInt(), (p.row * cellPx).roundToInt()) }
+                    .size(cell)
+                    .padding(2.dp)
+                    .background(Color(0x33000000), RoundedCornerShape(10.dp))
+            )
         }
-    }
-}
-
-@Composable
-private fun TileView(
-    tile: Tile,
-    pos: Pos,
-    size: Dp,
-    selected: Boolean,
-    flashing: Boolean,
-    hinted: Boolean,
-    onTap: (Pos) -> Unit,
-    onDrag: (Pos, Int, Int) -> Unit,
-) {
-    val density = LocalDensity.current
-    val sizePx = with(density) { size.toPx() }
-    val target = Offset(pos.col * sizePx, pos.row * sizePx)
-    val anim = remember { Animatable(Offset(target.x, (pos.row - tile.dropFrom) * sizePx), Offset.VectorConverter) }
-    LaunchedEffect(target) {
-        anim.animateTo(target, spring(dampingRatio = 0.6f, stiffness = 420f))
-    }
-    val currentPos by rememberUpdatedState(pos)
-    val scale by animateFloatAsState(
-        when {
-            flashing -> 1.16f
-            selected -> 1.1f
-            else -> 1f
-        },
-        spring(dampingRatio = 0.4f, stiffness = 600f), label = "scale",
-    )
-    val wiggle = if (hinted) {
-        val inf = rememberInfiniteTransition(label = "hint")
-        inf.animateFloat(-7f, 7f, infiniteRepeatable(tween(180, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "wiggle").value
-    } else 0f
-    val glow = if (flashing) {
-        val inf = rememberInfiniteTransition(label = "flash")
-        inf.animateFloat(0.15f, 0.7f, infiniteRepeatable(tween(140), RepeatMode.Reverse), label = "glow").value
-    } else 0f
-
-    val color = letterColor(tile.letter)
-    val shape = RoundedCornerShape(size * 0.12f)
-    Box(
-        Modifier
-            .offset { IntOffset(anim.value.x.roundToInt(), anim.value.y.roundToInt()) }
-            .size(size)
-            .padding(size * 0.045f)
-            .graphicsLayer { scaleX = scale; scaleY = scale; rotationZ = wiggle }
-            .pointerInput(Unit) { detectTapGestures(onTap = { onTap(currentPos) }) }
-            .pointerInput(Unit) {
-                var total = Offset.Zero
-                var fired = false
-                detectDragGestures(
-                    onDragStart = { total = Offset.Zero; fired = false },
-                    onDrag = { change, amount ->
-                        change.consume()
-                        total += amount
-                        val threshold = sizePx * 0.28f
-                        if (!fired && (abs(total.x) > threshold || abs(total.y) > threshold)) {
-                            fired = true
-                            if (abs(total.x) > abs(total.y)) onDrag(currentPos, 0, if (total.x > 0) 1 else -1)
-                            else onDrag(currentPos, if (total.y > 0) 1 else -1, 0)
-                        }
-                    },
+        val tut = c.tutorial
+        val handCells = tut?.swap?.toList() ?: emptyList()
+        for (p in board.positions()) {
+            val tile = board[p]
+            key(tile.id) {
+                val target = Offset(p.col * cellPx, p.row * cellPx)
+                val pos = remember { Animatable(Offset(target.x, target.y - tile.dropFrom * cellPx - (if (tile.dropFrom > 0) cellPx * 0.6f else 0f) - (if (tile.id < 1000) (board.rows - p.row) * cellPx * 1.2f else 0f)), Offset.VectorConverter) }
+                LaunchedEffect(target) {
+                    val falling = pos.value.y < target.y - 1f && abs(pos.value.x - target.x) < 1f
+                    if (falling) pos.animateTo(target, spring(dampingRatio = 0.55f, stiffness = 380f))
+                    else pos.animateTo(target, tween(190))
+                }
+                val popIndex = c.popping.indexOf(tile.id)
+                val lifted = popIndex >= 0
+                val lift by animateFloatAsState(if (lifted) 1f else 0f, spring(dampingRatio = 0.45f, stiffness = 500f), label = "lift")
+                val flip = remember { Animatable(0f) }
+                val flipping = tile.id in c.flipping
+                LaunchedEffect(flipping, lifted) {
+                    if (flipping || lifted) { flip.snapTo(0f); flip.animateTo(360f, tween(if (lifted) 420 else 520)) }
+                }
+                val isSelected = c.selected == p || c.aimFirst == p
+                val sel by animateFloatAsState(if (isSelected) 1f else 0f, spring(dampingRatio = 0.5f), label = "sel")
+                val inHint = c.hint?.let { it.first == p || it.second == p } == true
+                val inScan = p in c.scan
+                val inTut = p in (tut?.cells ?: emptyList()) || p in handCells
+                val glow = when {
+                    tile.id in c.glowing -> Palette.gold
+                    isSelected -> Palette.green
+                    inTut -> Color.White.copy(alpha = 0.4f + 0.6f * pulse)
+                    inHint -> Palette.cyan
+                    inScan -> Palette.cyan.copy(alpha = 0.4f + 0.6f * pulse)
+                    else -> null
+                }
+                val dim = armed != null && !aimable(armed.aim, tile) || (c.slideAt != null && c.slideAt != p)
+                Tile3D(
+                    tile, cell,
+                    Modifier
+                        .offset { IntOffset(pos.value.x.roundToInt(), pos.value.y.roundToInt()) }
+                        .graphicsLayer {
+                            val s = 1f + 0.22f * lift + 0.1f * sel + (if (inTut) 0.06f * pulse else 0f)
+                            scaleX = s; scaleY = s
+                            translationY = -cellPx * 0.18f * lift - cellPx * 0.06f * sel
+                            rotationX = if (lifted) flip.value else 0f
+                            rotationY = if (!lifted && flipping) flip.value else 0f
+                            rotationZ = if (inHint) wiggle else 0f
+                            cameraDistance = 10f * density.density
+                            shadowElevation = 0f
+                        },
+                    glow = glow,
+                    dim = dim,
                 )
             }
-    ) {
-        // 3D edge
-        Box(Modifier.fillMaxSize().background(color.darker(0.55f), shape))
-        // Face
-        Box(
-            Modifier
-                .fillMaxSize()
-                .padding(bottom = size * 0.07f)
-                .background(Brush.verticalGradient(listOf(color.lighter(0.22f), color)), shape)
-                .then(if (selected) Modifier.border(3.dp, Palette.gold, shape) else Modifier),
-            contentAlignment = Alignment.Center,
-        ) {
-            // Gloss
-            Box(
-                Modifier
-                    .align(Alignment.TopCenter)
-                    .fillMaxWidth()
-                    .padding(horizontal = size * 0.08f, vertical = size * 0.05f)
-                    .size(size * 0.14f)
-                    .background(Color.White.copy(alpha = 0.22f), RoundedCornerShape(50))
-            )
-            Text(
-                tile.letter.toString(),
-                style = TextStyle(
-                    fontFamily = ArcadeFont, fontWeight = Heavy, color = Color.White,
-                    fontSize = with(density) { (size * 0.52f).toSp() }, shadow = OutlineShadow,
-                ),
-            )
-            if (glow > 0f) Box(Modifier.fillMaxSize().background(Color.White.copy(alpha = glow), shape))
+        }
+        // Tutorial hand moving between the two tiles to swap.
+        if (tut?.swap != null) {
+            val (a, b) = tut.swap
+            val handT by anim.animateFloat(0f, 1f, infiniteRepeatable(tween(1100), RepeatMode.Reverse), label = "hand")
+            val x = (a.col + (b.col - a.col) * handT + 0.45f) * cellPx
+            val y = (a.row + (b.row - a.row) * handT + 0.55f) * cellPx
+            Text("👆", Modifier.offset { IntOffset(x.roundToInt(), y.roundToInt()) }, style = TextStyle(fontSize = (cell.value * 0.6f).sp))
         }
     }
 }
 
-@Composable
-private fun BurstView(burst: Burst, tilePx: Float, onDone: () -> Unit) {
-    val progress = remember { Animatable(0f) }
-    LaunchedEffect(Unit) {
-        progress.animateTo(1f, tween(700))
-        onDone()
-    }
-    Canvas(Modifier.fillMaxSize()) {
-        val p = progress.value
-        burst.centres.forEachIndexed { ci, (cx, cy, color) ->
-            for (i in 0 until 12) {
-                val angle = (i / 12f) * 6.283f + ci
-                val speed = 0.9f + ((i * 37 + ci * 11) % 7) / 10f
-                val dist = p * speed * tilePx * 0.9f
-                val x = cx * tilePx + cos(angle) * dist
-                val y = cy * tilePx + sin(angle) * dist + p * p * tilePx * 0.6f
-                val r = tilePx * 0.09f * (1f - p * 0.7f)
-                drawCircle(if (i % 3 == 0) Palette.gold else color.lighter(0.2f), r, Offset(x, y), alpha = 1f - p)
-            }
-        }
-    }
-}
-
-@Composable
-private fun TutorialHand(swap: Pair<Pos, Pos>, tile: Dp) {
-    val inf = rememberInfiniteTransition(label = "hand")
-    val t by inf.animateFloat(0f, 1f, infiniteRepeatable(tween(1100, easing = FastOutSlowInEasing), RepeatMode.Restart), label = "t")
-    val (a, b) = swap
-    val x = tile * (a.col + (b.col - a.col) * t + 0.55f)
-    val y = tile * (a.row + (b.row - a.row) * t + 0.55f)
-    Text("👆", modifier = Modifier.offset(x, y), style = TextStyle(fontSize = with(LocalDensity.current) { (tile * 0.6f).toSp() }))
+fun aimable(aim: Aim, t: com.retroraja.wordnoid.core.Tile): Boolean = when (aim) {
+    Aim.NONE -> true
+    Aim.TILE -> true
+    Aim.MOVABLE, Aim.TWO_TILES, Aim.SQUARE -> t.movable
+    Aim.ROW, Aim.COLUMN -> true
+    Aim.OBSTACLE -> t.isCrate || t.isIce || t.isChain
+    Aim.GOLD -> t.isGold
 }

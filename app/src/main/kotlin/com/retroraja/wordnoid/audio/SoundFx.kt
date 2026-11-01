@@ -20,6 +20,8 @@ class SoundFx {
     private val rate = 44100
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val tracks = HashMap<String, AudioTrack>()
+    private val spare = HashMap<String, AudioTrack>()
+    private val flip = HashMap<String, Boolean>()
     var enabled = true
 
     // A pentatonic scale, so any run of notes sounds nice.
@@ -36,12 +38,36 @@ class SoundFx {
             add("lose", concat(bell(392.0, 0.22, 0.35), bell(329.6, 0.22, 0.32), bell(261.6, 0.5, 0.3)))
             add("shuffle", sweep())
             add("tick", bell(1568.0, 0.05, 0.25))
+            add("pop", pop(0.5))
+            add("burst", mix(noiseHit(0.18, 0.45, 0.6), concat(silence(0.03), bell(2093.0, 0.25, 0.25))))
+            add("crack", concat(woodKnock(0.6), woodKnock(0.45)))
+            add("shatter", mix(noiseHit(0.35, 0.4, 0.95), bell(2637.0, 0.4, 0.2), concat(silence(0.05), bell(3136.0, 0.35, 0.18))))
+            add("snap", mix(bell(1760.0, 0.18, 0.3), bell(2349.0, 0.12, 0.25), noiseHit(0.05, 0.3, 0.9)))
+            add("bang", boom())
+            add("crackle", crackle())
+            add("whoosh", whoosh(0.4, rising = true))
+            add("rewind", whoosh(0.5, rising = false))
+            add("sparkle", concat(*doubleArrayOf(1568.0, 2093.0, 2637.0, 3136.0, 2637.0, 3520.0).map { bell(it, 0.06, 0.25) }.toTypedArray()))
+            add("flip", concat(bell(880.0, 0.04, 0.3), bell(1318.5, 0.08, 0.3)))
+            add("thunk", mix(boomShort(), woodKnock(0.5)))
+            add("chop", concat(woodKnock(0.7), silence(0.02), noiseHit(0.12, 0.4, 0.7)))
+            add("click", concat(bell(2637.0, 0.03, 0.35), silence(0.03), bell(1760.0, 0.05, 0.35)))
+            add("hum", hum())
+            add("rain", rain())
+            add("fanfare", concat(bell(783.99, 0.1, 0.4), bell(987.77, 0.1, 0.4), bell(1174.66, 0.1, 0.4), mix(bell(1567.98, 0.7, 0.35), bell(1174.66, 0.7, 0.3), bell(987.77, 0.7, 0.25))))
+            add("cash", concat(*List(8) { i -> bell(if (i % 2 == 0) 1975.5 else 2637.0, 0.05, 0.25) }.toTypedArray()))
+            add("star", mix(boomShort(), bell(1318.5, 0.5, 0.35), bell(1975.5, 0.5, 0.25)))
+            add("nope", concat(bell(311.1, 0.09, 0.3), bell(277.2, 0.14, 0.3)))
+            add("swap", whoosh(0.16, rising = true))
+            add("drop", concat(bell(659.25, 0.05, 0.25), bell(523.25, 0.08, 0.25)))
         }
     }
 
     fun play(name: String) {
         if (!enabled) return
-        val t = tracks[name] ?: return
+        val useSpare = flip[name] == true
+        flip[name] = !useSpare
+        val t = (if (useSpare) spare[name] else tracks[name]) ?: tracks[name] ?: return
         try {
             if (t.playState == AudioTrack.PLAYSTATE_PLAYING) t.stop()
             t.reloadStaticData()
@@ -62,10 +88,17 @@ class SoundFx {
 
     fun release() {
         tracks.values.forEach { runCatching { it.release() } }
+        spare.values.forEach { runCatching { it.release() } }
         tracks.clear()
+        spare.clear()
     }
 
     private fun add(name: String, data: ShortArray) {
+        tracks[name] = build(data)
+        spare[name] = build(data)
+    }
+
+    private fun build(data: ShortArray): AudioTrack {
         val track = AudioTrack.Builder()
             .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build())
             .setAudioFormat(AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT).setSampleRate(rate).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
@@ -73,7 +106,7 @@ class SoundFx {
             .setBufferSizeInBytes(data.size * 2)
             .build()
         track.write(data, 0, data.size)
-        tracks[name] = track
+        return track
     }
 
     private fun toPcm(samples: DoubleArray): ShortArray =
@@ -113,6 +146,109 @@ class SoundFx {
             val f = 300 + 1500 * t / 0.35
             phase += 2 * PI * f / rate
             0.3 * sin(phase) * exp(-t * 4) * minOf(1.0, t / 0.01)
+        }
+        return toPcm(s)
+    }
+
+    private fun silence(seconds: Double): ShortArray = ShortArray((rate * seconds).toInt())
+
+    private fun noiseHit(seconds: Double, volume: Double, bright: Double): ShortArray {
+        val n = (rate * seconds).toInt()
+        val rnd = Random(11)
+        var last = 0.0
+        return toPcm(DoubleArray(n) { i ->
+            val t = i.toDouble() / rate
+            val x = rnd.nextDouble(-1.0, 1.0)
+            last = last * (1 - bright) + x * bright
+            volume * last * exp(-t * 6 / seconds)
+        })
+    }
+
+    private fun pop(volume: Double): ShortArray {
+        val n = (rate * 0.12).toInt()
+        var phase = 0.0
+        return toPcm(DoubleArray(n) { i ->
+            val t = i.toDouble() / rate
+            val f = 400 + 900 * exp(-t * 25)
+            phase += 2 * PI * f / rate
+            volume * sin(phase) * exp(-t * 30)
+        })
+    }
+
+    private fun woodKnock(volume: Double): ShortArray {
+        val n = (rate * 0.09).toInt()
+        val rnd = Random(3)
+        return toPcm(DoubleArray(n) { i ->
+            val t = i.toDouble() / rate
+            volume * (0.6 * sin(2 * PI * 330 * t) * exp(-t * 50) + 0.4 * rnd.nextDouble(-1.0, 1.0) * exp(-t * 80) + 0.3 * sin(2 * PI * 1250 * t) * exp(-t * 90))
+        })
+    }
+
+    private fun boom(): ShortArray {
+        val n = (rate * 0.9).toInt()
+        val rnd = Random(9)
+        var last = 0.0
+        var phase = 0.0
+        return toPcm(DoubleArray(n) { i ->
+            val t = i.toDouble() / rate
+            last = last * 0.92 + rnd.nextDouble(-1.0, 1.0) * 0.08
+            phase += 2 * PI * (40 + 60 * exp(-t * 8)) / rate
+            0.6 * sin(phase) * exp(-t * 5) + 2.2 * last * exp(-t * 4)
+        })
+    }
+
+    private fun boomShort(): ShortArray {
+        val n = (rate * 0.25).toInt()
+        var phase = 0.0
+        return toPcm(DoubleArray(n) { i ->
+            val t = i.toDouble() / rate
+            phase += 2 * PI * (55 + 120 * exp(-t * 25)) / rate
+            0.7 * sin(phase) * exp(-t * 14)
+        })
+    }
+
+    private fun crackle(): ShortArray {
+        val n = (rate * 0.9).toInt()
+        val rnd = Random(21)
+        val s = DoubleArray(n)
+        repeat(38) {
+            val start = rnd.nextInt(n - 400)
+            val vol = rnd.nextDouble(0.15, 0.45)
+            for (k in 0 until 300) s[start + k] += vol * rnd.nextDouble(-1.0, 1.0) * exp(-k / 40.0)
+        }
+        return toPcm(s)
+    }
+
+    private fun whoosh(seconds: Double, rising: Boolean): ShortArray {
+        val n = (rate * seconds).toInt()
+        val rnd = Random(4)
+        var lp = 0.0
+        return toPcm(DoubleArray(n) { i ->
+            val t = i.toDouble() / rate
+            val p = t / seconds
+            val cut = if (rising) 0.03 + 0.4 * p else 0.43 - 0.4 * p
+            lp += (rnd.nextDouble(-1.0, 1.0) - lp) * cut
+            0.9 * lp * sin(PI * p)
+        })
+    }
+
+    private fun hum(): ShortArray {
+        val n = (rate * 0.6).toInt()
+        return toPcm(DoubleArray(n) { i ->
+            val t = i.toDouble() / rate
+            val env = minOf(1.0, t / 0.05) * minOf(1.0, (0.6 - t) / 0.1)
+            0.3 * env * (sin(2 * PI * 110 * t) + 0.5 * sin(2 * PI * 220 * t + sin(2 * PI * 7 * t)) + 0.3 * sin(2 * PI * 330 * t))
+        })
+    }
+
+    private fun rain(): ShortArray {
+        val n = (rate * 0.8).toInt()
+        val rnd = Random(8)
+        val s = DoubleArray(n)
+        repeat(30) {
+            val start = rnd.nextInt(n - 2000)
+            val f = rnd.nextDouble(1500.0, 3500.0)
+            for (k in 0 until 1800) s[start + k] += 0.12 * sin(2 * PI * f * k / rate) * exp(-k / 300.0)
         }
         return toPcm(s)
     }

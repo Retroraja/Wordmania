@@ -1,32 +1,33 @@
 package com.retroraja.wordnoid.ui
 
-import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -37,28 +38,28 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.sp
 import com.retroraja.wordnoid.audio.SoundFx
+import com.retroraja.wordnoid.core.Booster
 import com.retroraja.wordnoid.core.Dictionary
-import com.retroraja.wordnoid.core.GameStatus
+import com.retroraja.wordnoid.core.Game
 import com.retroraja.wordnoid.core.Level
-import com.retroraja.wordnoid.core.Levels
+import com.retroraja.wordnoid.core.Objective
 import com.retroraja.wordnoid.data.Progress
-import kotlinx.coroutines.delay
-
-/** One-time intro cards for levels that bring something new. */
-private fun introFor(level: Level): Pair<String, String>? = when (level.number) {
-    1 -> "How to play" to "Swap two neighbouring tiles to spell a word of 3+ letters, in any direction: across, down, or backwards.\n\nEvery swap uses 1 move, and tiles stay where you put them, so plan ahead!"
-    2 -> "Tip" to "Words of 4 or more letters give you +3 moves!"
-    4 -> "New goal: long word" to "This level needs at least one word with 4 or more letters.\nLong words also give +3 moves."
-    else -> null
-}
+import com.retroraja.wordnoid.data.Rewards
+import kotlin.math.roundToInt
 
 @Composable
 fun GameScreen(
@@ -66,239 +67,311 @@ fun GameScreen(
     dict: Dictionary,
     progress: Progress,
     sounds: SoundFx,
-    attempt: Int,
+    haptics: Haptics,
+    startBoosters: List<Booster>,
     onMap: () -> Unit,
     onRestart: () -> Unit,
     onNext: (Int) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    val haptics = LocalHapticFeedback.current
-    val helpMoves = if (progress.fails(level.number) >= Progress.HELP_AFTER_FAILS) Progress.EXTRA_MOVES else 0
-    val c = remember(level.number, attempt) {
-        GameController(level, dict, helpMoves, sounds, scope) { strong ->
-            if (progress.vibration) haptics.performHapticFeedback(if (strong) HapticFeedbackType.LongPress else HapticFeedbackType.TextHandleMove)
-        }
-    }
+    val bonus = if (progress.fails(level.number) >= 3) 3 else 0
+    val c = remember { GameController(level, dict, progress, sounds, haptics, scope, bonus, startBoosters) }
+    var intro by remember { mutableStateOf(introFor(level, progress)) }
     var paused by remember { mutableStateOf(false) }
-    var intro by remember(level.number) {
-        mutableStateOf(introFor(level)?.takeIf { !progress.tutorialSeen("intro_${level.number}") })
+    var more by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { if (intro == null) c.begin() }
+    LaunchedEffect(Unit) { if (bonus > 0) c.toast("+3 bonus moves to help you!", Offset(400f, 300f), Palette.green, big = true) }
+
+    val shake = remember { Animatable(0f) }
+    LaunchedEffect(c.shakeKey) {
+        if (c.shakeKey > 0) for (i in 0 until 8) { shake.animateTo(if (i % 2 == 0) 14f - i else -14f + i, tween(35)) }
+        shake.animateTo(0f, tween(40))
     }
 
-    LaunchedEffect(c) {
-        if (level.tutorialSwap != null && !progress.tutorialSeen("swap")) c.tutorial = level.tutorialSwap
-        if (helpMoves > 0) c.showPopup("Bonus +$helpMoves moves", "A little help for this level", big = false, millis = 2600)
-    }
-    // Tutorial is done after the first swap.
-    LaunchedEffect(c.swapsMade) { if (c.swapsMade > 0) progress.markTutorialSeen("swap") }
-
-    // Idle hint: on early levels, wiggle a good swap after 10 seconds without a move.
-    LaunchedEffect(c, c.lastAction, paused, intro) {
-        if (!level.hints || level.number > 3 || paused || intro != null) return@LaunchedEffect
-        delay(10_000)
-        if (!c.busy && c.status == GameStatus.PLAYING && c.tutorial == null) c.showHint()
-    }
-
-    // Save the result (coins are added only once, even after buying extra moves).
-    LaunchedEffect(c.status) {
-        when (c.status) {
-            GameStatus.WON -> { progress.levelWon(level.number, c.game.stars(), c.coins - c.coinsSaved, Levels.all.size); c.coinsSaved = c.coins }
-            GameStatus.LOST -> { progress.levelLost(level.number, c.coins - c.coinsSaved); c.coinsSaved = c.coins }
-            else -> {}
-        }
-    }
-
-    BackHandler { if (!c.busy) paused = !paused }
-
-    WoodBackground {
-        Row(Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            LeftPanel(c, progress, Modifier.width(170.dp).fillMaxHeight())
-            Spacer(Modifier.width(10.dp))
-            Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
-                BoardView(c, Modifier.fillMaxSize())
-                PopupView(c.popup, c.combo, Modifier.align(Alignment.TopCenter).padding(top = 4.dp))
-                if (c.tutorial != null) {
-                    ArcadeText(
-                        "Swap these two tiles to make a word!", 15.sp, Palette.gold,
-                        Modifier.align(Alignment.BottomCenter).background(Color(0xCC000000), RoundedCornerShape(10.dp)).padding(horizontal = 12.dp, vertical = 6.dp),
-                    )
+    LivingBackground(level.number) {
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val density = LocalDensity.current
+            with(density) { c.screenWidth = maxWidth.toPx(); c.screenHeight = maxHeight.toPx() }
+            val leftW = maxWidth * 0.23f
+            val rightW = maxWidth * 0.13f
+            val boardW = maxWidth - leftW - rightW - 40.dp
+            val boardH = maxHeight - 36.dp
+            val cell = min(boardW / level.cols, boardH / level.rows)
+            Row(
+                Modifier.fillMaxSize().offset { IntOffset(shake.value.roundToInt(), 0) }.padding(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                LeftPanel(c, Modifier.width(leftW).fillMaxHeight())
+                Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                    BoardView(c, cell)
                 }
+                RightPanel(c, Modifier.width(rightW).fillMaxHeight(), onPause = { paused = true }, onMore = { more = true })
             }
-            Spacer(Modifier.width(10.dp))
-            RightPanel(c, progress, level, Modifier.width(92.dp).fillMaxHeight(), onPause = { paused = true }, sounds = sounds)
+            ParticleLayer(c.particles)
+            Overlays(c)
+            c.tutorial?.let { TutorialBubble(it, onDismiss = { c.dismissTutorial() }) }
+            c.message?.let { MessageBar(it) }
+            if (c.slideAt != null) SlideArrows(c)
+            c.letterPick?.let { LetterPicker(it, onPick = { ch -> c.pickLetter(ch) }, onCancel = { c.cancelAim() }) }
+            c.buyAsk?.let { BuyDialog(it, progress, onBuy = { c.buy(it) }, onClose = { c.closeBuy() }) }
+            if (more) MoreBoosters(c, onClose = { more = false })
+            c.mysteryCards?.let { MysteryCards(it, sounds, onPicked = { b -> c.mysteryPicked(b) }, onDone = { c.mysteryDone() }) }
+            if (c.showWin) WinDialog(c, onNext = { onNext(level.number + 1) }, onMap = onMap)
+            if (c.showLose) LoseDialog(c, onRetry = { c.giveUp(); onRestart() }, onMap = { c.giveUp(); onMap() })
+            if (paused) PauseDialog(progress, onResume = { paused = false }, onRestart = onRestart, onMap = onMap)
+            intro?.let { card -> IntroCard(card, onGo = { intro = null; c.begin() }) }
         }
-
-        intro?.let { (title, text) ->
-            Dialog(title) {
-                ArcadeText(text, 16.sp, Palette.cream, Modifier.widthIn(max = 420.dp))
-                Spacer(Modifier.height(16.dp))
-                ArcadeButton("Let's go!") { progress.markTutorialSeen("intro_${level.number}"); intro = null; c.clearHint() }
-            }
-        }
-
-        if (paused) {
-            Dialog("Paused") {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ArcadeButton("Resume") { paused = false; c.clearHint() }
-                    ArcadeButton("Restart", color = Palette.goldDeep) { paused = false; onRestart() }
-                    ArcadeButton("Map", color = Palette.wood) { paused = false; onMap() }
-                }
-                Spacer(Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ArcadeButton(if (progress.sound) "Sound: on" else "Sound: off", color = Palette.wood, textSize = 16.sp) {
-                        progress.toggleSound(); sounds.enabled = progress.sound
-                    }
-                    ArcadeButton(if (progress.vibration) "Vibration: on" else "Vibration: off", color = Palette.wood, textSize = 16.sp) { progress.toggleVibration() }
-                }
-            }
-        }
-
-        if (c.status == GameStatus.WON) WinDialog(c, level, onMap, onNext)
-        if (c.status == GameStatus.LOST) LostDialog(c, level, progress, onMap, onRestart)
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+// ---------------------------------------------------------------- left panel
+
 @Composable
-private fun LeftPanel(c: GameController, progress: Progress, modifier: Modifier) {
-    Column(modifier.arcadePanel().padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        ArcadeText("LEVEL ${c.level.number}", 18.sp, Palette.gold)
-        Spacer(Modifier.height(6.dp))
-        ArcadeText(c.level.goal.title, 12.sp, Palette.cream, Modifier.fillMaxWidth())
-        ArcadeText(c.level.goal.progressText(c.found), 20.sp, Palette.green)
-        Spacer(Modifier.height(8.dp))
-        // Moves
-        val pulse = remember { Animatable(1f) }
-        LaunchedEffect(c.moves) { pulse.snapTo(1.2f); pulse.animateTo(1f, spring(dampingRatio = 0.35f)) }
-        val low = c.moves <= 3 && c.status == GameStatus.PLAYING
+private fun LeftPanel(c: GameController, modifier: Modifier) {
+    val level = c.level
+    val anim = rememberInfiniteTransition(label = "left")
+    val beat by anim.animateFloat(1f, 1.12f, infiniteRepeatable(tween(420), RepeatMode.Reverse), label = "beat")
+    Column(
+        modifier.arcadePanel().padding(horizontal = 8.dp, vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            ArcadeText("LEVEL ${level.number}", 15.sp, Palette.gold)
+            if (level.boss) Text(" 💀", fontSize = 13.sp)
+        }
+        // Goals.
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            for (o in level.targets) GoalRow(o, c)
+        }
+        // Moves.
+        val low = c.movesLeft <= 3
         Box(
             Modifier
-                .size(74.dp)
-                .scale(pulse.value)
-                .background(Brush.radialGradient(listOf(if (low) Palette.red else Palette.greenDeep, Palette.frame)), CircleShape)
+                .size(60.dp)
+                .onGloballyPositioned { c.movesAnchor = it.positionInRoot() + Offset(it.size.width / 2f, it.size.height / 2f) }
+                .scale(if (low) beat else 1f)
+                .background(Brush.radialGradient(listOf(if (low) Palette.red else Palette.greenDeep, Color(0xFF0B2A16))), CircleShape)
                 .border(3.dp, Palette.gold, CircleShape),
             contentAlignment = Alignment.Center,
-        ) { ArcadeText("${c.moves}", 32.sp) }
-        ArcadeText("MOVES", 12.sp, Palette.gold)
-        Spacer(Modifier.height(8.dp))
-        ArcadeText("Score ${c.score}", 14.sp)
-        ArcadeText("🪙 ${progress.coins + c.coins - c.coinsSaved}", 14.sp, Palette.gold)
-        Spacer(Modifier.height(6.dp))
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            c.found.takeLast(6).forEach { w ->
-                ArcadeText(
-                    w.word, 11.sp, Color.White,
-                    Modifier.background(Palette.greenDeep, RoundedCornerShape(8.dp)).padding(horizontal = 6.dp, vertical = 2.dp),
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                ArcadeText("${c.movesLeft}", 22.sp)
+                Text("MOVES", fontSize = 8.sp, color = Palette.cream, fontWeight = Heavy)
+            }
+            if (c.freeMoves > 0) Text("⏳", Modifier.align(Alignment.TopEnd).offset(6.dp, (-4).dp), fontSize = 14.sp)
+            if (c.doubleNext) Text("🌟", Modifier.align(Alignment.TopStart).offset((-6).dp, (-4).dp), fontSize = 14.sp)
+        }
+        PowerMeter(c.progress.meter)
+        // Coins.
+        val shownCoins by animateIntAsState(c.progress.coins, tween(600), label = "coins")
+        Row(
+            Modifier
+                .background(Color(0x66000000), RoundedCornerShape(10.dp))
+                .padding(horizontal = 8.dp, vertical = 2.dp)
+                .onGloballyPositioned { c.coinAnchor = it.positionInRoot() + Offset(20f, it.size.height / 2f) },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("🪙", fontSize = 14.sp)
+            ArcadeText(" $shownCoins", 14.sp, Palette.gold)
+        }
+        level.bonusWord?.let { w ->
+            val shown = if (c.bonusFound) "$w ✓" else w.mapIndexed { i, ch -> if (i == 0) ch else '_' }.joinToString(" ")
+            Text("Bonus: $shown", fontSize = 10.sp, color = if (c.bonusFound) Palette.green else Palette.cream, fontWeight = Heavy)
+        }
+    }
+}
+
+@Composable
+private fun GoalRow(o: Objective, c: GameController) {
+    val left = o.left(c.stats)
+    val done = left == 0
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(if (done) Color(0x5539E07A) else Color(0x44000000), RoundedCornerShape(8.dp))
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+            .onGloballyPositioned { if (o is Objective.Gold) c.goalAnchor = it.positionInRoot() + Offset(20f, it.size.height / 2f) },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (o is Objective.Letter) {
+            Tile3D(com.retroraja.wordnoid.core.Tile(0, o.letter), 20.dp)
+        } else Text(o.icon, fontSize = 15.sp)
+        Text(
+            o.label, Modifier.weight(1f).padding(start = 4.dp),
+            fontSize = 10.sp, color = Palette.cream, fontWeight = Heavy, maxLines = 2, lineHeight = 11.sp,
+        )
+        if (done) Text("✅", fontSize = 13.sp) else ArcadeText("$left", 15.sp, Palette.gold)
+    }
+}
+
+@Composable
+private fun PowerMeter(meter: Int) {
+    val anim = rememberInfiniteTransition(label = "meter")
+    val shine by anim.animateFloat(0.6f, 1f, infiniteRepeatable(tween(800), RepeatMode.Reverse), label = "shine")
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text("⚡ POWER", fontSize = 9.sp, color = Palette.gold, fontWeight = Heavy)
+        Row(
+            Modifier.background(Color(0x88000000), RoundedCornerShape(6.dp)).border(1.dp, Palette.goldDeep, RoundedCornerShape(6.dp)).padding(2.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            for (i in 0 until Game.METER_SIZE) {
+                val on = i < meter
+                Box(
+                    Modifier.size(width = 10.dp, height = 12.dp).background(
+                        if (on) Brush.verticalGradient(listOf(Palette.cyan.lighter(0.4f), Palette.cyan.copy(alpha = shine))) else Brush.verticalGradient(listOf(Color(0xFF2A2A2A), Color(0xFF1A1A1A))),
+                        RoundedCornerShape(3.dp),
+                    )
                 )
             }
         }
     }
 }
 
+// ---------------------------------------------------------------- right panel
+
+/** Up to 4 boosters on the panel: the ones this level teaches first, then the ones you own most of. */
+fun panelBoosters(c: GameController): List<Booster> {
+    val unlocked = Booster.unlockedAt(c.level.number)
+    val intro = c.level.introBoosters
+    val owned = unlocked.filter { it !in intro }.sortedByDescending { c.progress.count(it) * 10 + (if (c.progress.hasFreeUse(it)) 100 else 0) - it.price / 20 }
+    return (intro + owned).distinct().take(4)
+}
+
 @Composable
-private fun RightPanel(c: GameController, progress: Progress, level: Level, modifier: Modifier, onPause: () -> Unit, sounds: SoundFx) {
-    Column(modifier.arcadePanel().padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        RoundIcon("⏸", "Pause") { if (!c.busy) onPause() }
-        RoundIcon(if (progress.sound) "🔊" else "🔇", "Sound") { progress.toggleSound(); sounds.enabled = progress.sound }
-        val hintFree = level.number <= 2
-        RoundIcon("💡", if (hintFree) "Hint" else "Hint 20") {
-            if (c.busy || c.status != GameStatus.PLAYING) return@RoundIcon
-            if (hintFree || progress.spend(20)) {
-                if (!c.showHint()) c.showPopup("No easy word", "Try moving tiles to set one up", big = false)
-            } else c.showPopup("Not enough coins", "Make words to earn coins", big = false)
-        }
+private fun RightPanel(c: GameController, modifier: Modifier, onPause: () -> Unit, onMore: () -> Unit) {
+    Column(
+        modifier.arcadePanel().padding(4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceEvenly,
+    ) {
+        RoundButton("⏸", 34.dp, onClick = onPause)
+        for (b in panelBoosters(c)) BoosterButton(b, c)
+        if (Booster.unlockedAt(c.level.number).size > 4) RoundButton("⋯", 34.dp, label = "More", onClick = onMore)
     }
 }
 
 @Composable
-private fun RoundIcon(icon: String, label: String, onClick: () -> Unit) {
+fun RoundButton(text: String, size: androidx.compose.ui.unit.Dp, label: String? = null, onClick: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             Modifier
-                .size(48.dp)
-                .background(Brush.verticalGradient(listOf(Palette.woodLight, Palette.wood)), CircleShape)
+                .size(size)
+                .background(Brush.radialGradient(listOf(Palette.goldDeep, Color(0xFF6B3A08))), CircleShape)
                 .border(2.dp, Palette.gold, CircleShape)
-                .clickable(onClick = onClick),
+                .clickable(remember { MutableInteractionSource() }, null, onClick = onClick),
             contentAlignment = Alignment.Center,
-        ) { ArcadeText(icon, 20.sp) }
-        ArcadeText(label, 10.sp, Palette.cream)
+        ) { Text(text, fontSize = (size.value * 0.45f).sp, color = Color.White, fontWeight = Heavy) }
+        label?.let { Text(it, fontSize = 8.sp, color = Palette.cream, fontWeight = Heavy) }
     }
 }
 
 @Composable
-private fun PopupView(popup: Popup?, combo: Int, modifier: Modifier) {
-    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        AnimatedVisibility(visible = popup != null, enter = scaleIn(spring(dampingRatio = 0.45f)) + fadeIn(), exit = fadeOut()) {
-            val p = popup ?: return@AnimatedVisibility
-            Column(
-                Modifier.background(Color(0xB3000000), RoundedCornerShape(16.dp)).padding(horizontal = 18.dp, vertical = 6.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                ArcadeText(p.title, if (p.big) 38.sp else 24.sp, Palette.gold)
-                if (p.subtitle.isNotEmpty()) ArcadeText(p.subtitle, 15.sp, Palette.green)
-            }
+fun BoosterButton(b: Booster, c: GameController, size: androidx.compose.ui.unit.Dp = 50.dp, onUsed: () -> Unit = {}) {
+    val anim = rememberInfiniteTransition(label = "bb")
+    val pulse by anim.animateFloat(1f, 1.15f, infiniteRepeatable(tween(450), RepeatMode.Reverse), label = "p")
+    val spotlight = c.tutorial?.booster == b || c.nudge == b
+    val isArmed = c.armed == b
+    val count = c.progress.count(b)
+    val free = c.progress.hasFreeUse(b)
+    Box(contentAlignment = Alignment.Center) {
+        Box(
+            Modifier
+                .size(size)
+                .scale(if (spotlight || isArmed) pulse else 1f)
+                .graphicsLayer { translationY = if (isArmed) -8f else 0f }
+                .background(
+                    Brush.radialGradient(listOf(if (isArmed) Palette.green else Color(0xFF5B3BB5), if (isArmed) Palette.greenDeep else Color(0xFF241552))),
+                    CircleShape,
+                )
+                .border(if (spotlight) 4.dp else 2.dp, if (spotlight) Color.White else Palette.gold, CircleShape)
+                .clickable(remember { MutableInteractionSource() }, null) { c.boosterTapped(b); onUsed() },
+            contentAlignment = Alignment.Center,
+        ) { Text(b.emoji, fontSize = (size.value * 0.46f).sp) }
+        val badge = when {
+            free -> "FREE"
+            count > 0 -> "$count"
+            else -> "🪙${Rewards.price(b, c.progress.unlocked)}"
         }
-        if (combo >= 2) {
-            val s = remember { Animatable(0.5f) }
-            LaunchedEffect(combo) { s.snapTo(1.6f); s.animateTo(1f, spring(dampingRatio = 0.3f)) }
-            ArcadeText("COMBO x$combo!", 26.sp, Palette.green, Modifier.scale(s.value))
-        }
+        Text(
+            badge,
+            Modifier.align(Alignment.BottomEnd).offset(6.dp, 4.dp)
+                .background(if (free) Palette.green else if (count > 0) Palette.red else Color(0xFF333333), RoundedCornerShape(8.dp))
+                .padding(horizontal = 4.dp),
+            fontSize = 9.sp, color = Color.White, fontWeight = Heavy,
+        )
     }
 }
 
+// ---------------------------------------------------------------- intro card
+
+data class IntroInfo(val title: String, val emoji: String, val text: String)
+
+fun introFor(level: Level, progress: Progress): IntroInfo? {
+    val key = "intro_level_${level.number}"
+    if (progress.seen(key)) return null
+    progress.markSeen(key)
+    return when {
+        level.number == 1 -> IntroInfo("How to play", "🔤", "Swap two neighbouring tiles to spell a word. Words count in any direction: left, right, up or down. Only words made with the tile you moved count, so think before you swap!")
+        level.number == 2 -> IntroInfo("Boosters", "✨", "Boosters help when you're stuck. You'll learn a new one on many levels. Each word also fills your ⚡ Power Meter: fill it to win a free booster!")
+        level.number == 3 -> IntroInfo("Long words", "📏", "4-letter words give +1 move. 5+ letters give +2 moves and a firework! Plan bigger words to go further.")
+        level.number == 5 -> IntroInfo("Coins buy boosters", "🪙", "Every word earns coins. Tap a booster you don't have to buy it. Out of moves? Spend 150 coins to keep playing. Keep some coins saved!")
+        level.feature != null -> IntroInfo(level.feature!!.title, featureEmoji(level.feature!!), level.feature!!.text)
+        else -> null
+    }
+}
+
+fun featureEmoji(f: com.retroraja.wordnoid.core.Feature): String = when (f) {
+    com.retroraja.wordnoid.core.Feature.GOLD -> "🪙"
+    com.retroraja.wordnoid.core.Feature.CRATES -> "📦"
+    com.retroraja.wordnoid.core.Feature.LETTERS -> "🔠"
+    com.retroraja.wordnoid.core.Feature.BONUS_WORD -> "🎁"
+    com.retroraja.wordnoid.core.Feature.PRE_BOOSTERS -> "🚀"
+    com.retroraja.wordnoid.core.Feature.GIFTS -> "🎀"
+    com.retroraja.wordnoid.core.Feature.THEME -> "🐾"
+    com.retroraja.wordnoid.core.Feature.LONG -> "📏"
+    com.retroraja.wordnoid.core.Feature.DOUBLE_CRATES -> "🧰"
+    com.retroraja.wordnoid.core.Feature.ICE -> "🧊"
+    com.retroraja.wordnoid.core.Feature.SPELL -> "✍️"
+    com.retroraja.wordnoid.core.Feature.CHAINS -> "⛓️"
+    com.retroraja.wordnoid.core.Feature.BOSS -> "💀"
+}
+
 @Composable
-fun Dialog(title: String, content: @Composable () -> Unit) {
-    Box(
-        Modifier.fillMaxSize().background(Color(0x99000000)).clickable(enabled = true, onClick = {}),
-        contentAlignment = Alignment.Center,
-    ) {
+fun IntroCard(info: IntroInfo, onGo: () -> Unit) {
+    DimBox {
         Column(
-            Modifier.arcadePanel().padding(horizontal = 28.dp, vertical = 18.dp),
+            Modifier.width(420.dp).arcadePanel().padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            ArcadeText(title, 28.sp, Palette.gold)
-            Spacer(Modifier.height(10.dp))
-            content()
+            val pop = remember { Animatable(0.3f) }
+            LaunchedEffect(Unit) { pop.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.4f)) }
+            Text(info.emoji, fontSize = 44.sp, modifier = Modifier.scale(pop.value))
+            ArcadeText(info.title, 26.sp, Palette.gold)
+            Spacer(Modifier.height(8.dp))
+            Text(info.text, color = Palette.cream, fontSize = 15.sp, textAlign = TextAlign.Center, lineHeight = 20.sp)
+            Spacer(Modifier.height(14.dp))
+            ArcadeButton("Let's go!", onClick = onGo)
         }
     }
 }
 
+/** A dark see-through layer that blocks taps behind a dialog. */
 @Composable
-private fun WinDialog(c: GameController, level: Level, onMap: () -> Unit, onNext: (Int) -> Unit) {
-    val stars = c.game.stars()
-    val next = Levels.get(level.number + 1)
-    Dialog(if (next == null) "ALL LEVELS DONE!" else "LEVEL COMPLETE!") {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            for (i in 1..3) {
-                val s = remember { Animatable(0f) }
-                LaunchedEffect(Unit) { delay(250L * i); s.animateTo(1f, spring(dampingRatio = 0.4f)) }
-                ArcadeText(if (i <= stars) "★" else "☆", 46.sp, if (i <= stars) Palette.gold else Color(0x66FFFFFF), Modifier.scale(s.value))
-            }
-        }
-        ArcadeText("Score ${c.score}", 20.sp)
-        ArcadeText("+${c.coins} 🪙   ·   ${c.found.size} words   ·   best: ${c.found.maxByOrNull { it.length }?.word ?: "-"}", 15.sp, Palette.cream)
-        if (next == null) ArcadeText("More levels are coming soon!", 15.sp, Palette.green)
-        Spacer(Modifier.height(14.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            ArcadeButton("Map", color = Palette.wood) { onMap() }
-            if (next != null) ArcadeButton("Next ▶") { onNext(next.number) }
-        }
-    }
+fun DimBox(alpha: Float = 0.6f, content: @Composable () -> Unit) {
+    Box(
+        Modifier.fillMaxSize().background(Color.Black.copy(alpha = alpha)).clickable(remember { MutableInteractionSource() }, null) {},
+        contentAlignment = Alignment.Center,
+    ) { content() }
 }
 
 @Composable
-private fun LostDialog(c: GameController, level: Level, progress: Progress, onMap: () -> Unit, onRestart: () -> Unit) {
-    Dialog("OUT OF MOVES") {
-        ArcadeText(level.goal.remainingText(c.found), 20.sp, Palette.green, Modifier.widthIn(max = 420.dp))
-        ArcadeText("Don't give up, you were close!", 14.sp, Palette.cream)
-        Spacer(Modifier.height(14.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            val canBuy = progress.coins >= Progress.EXTRA_MOVES_PRICE
-            ArcadeButton("+${Progress.EXTRA_MOVES} moves (${Progress.EXTRA_MOVES_PRICE} 🪙)", color = Palette.goldDeep, enabled = canBuy) {
-                if (progress.spend(Progress.EXTRA_MOVES_PRICE)) c.buyMoves(Progress.EXTRA_MOVES)
-            }
-            ArcadeButton("Try again") { onRestart() }
-            ArcadeButton("Map", color = Palette.wood) { onMap() }
-        }
-        ArcadeText("You have ${progress.coins} 🪙", 13.sp, Palette.gold, Modifier.padding(top = 8.dp))
+fun MessageBar(text: String) {
+    Box(Modifier.fillMaxSize().padding(top = 10.dp), contentAlignment = Alignment.TopCenter) {
+        Text(
+            text,
+            Modifier.background(Color(0xDD1B0E05), RoundedCornerShape(14.dp)).border(2.dp, Palette.gold, RoundedCornerShape(14.dp)).padding(horizontal = 16.dp, vertical = 6.dp),
+            color = Palette.cream, fontSize = 15.sp, fontWeight = Heavy, style = TextStyle(shadow = OutlineShadow),
+        )
     }
 }

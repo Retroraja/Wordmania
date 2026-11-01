@@ -1,15 +1,16 @@
 # Word lists
 
-The game checks every word against `app/src/main/assets/words.txt`.
+The game accepts only **everyday words**, so players have to think to make words and random swaps rarely spell anything.
 
 | File | What it is | Size |
 |---|---|---|
-| `words.txt` | **Every word the game accepts.** About 283,000 words, 3 to 10 letters, with American, British, Canadian and Australian spellings (colour and color, realise and realize, lakh, arvo…). | ~2.4 MB |
-| `common_words.txt` | About 50,000 everyday words. Used for hints, the Lucky word and designing levels, so the game only *suggests* familiar words. It still *accepts* everything in `words.txt`. | ~420 KB |
+| `app/src/main/assets/play_words.txt` | **The words the game accepts.** About 33,000 everyday words: the most common 3 and 4 letter words, and common 5 to 10 letter words. American, British, Canadian and Australian spellings. | ~300 KB |
+| `tools/wordlist/all_words.txt` | Every English word (about 283,000). Reference only, not in the app. | ~2.4 MB |
+| `tools/wordlist/common_words.txt` | A wider common list (about 50,000). Reference only. | ~420 KB |
 
 ## How to change the words
 
-- **Block a word:** add it to `blocklist.txt` and run `tools/wordlist/build_wordlist.sh` from the repo root.
+- **Block a word from the game:** add it to `play_blocklist.txt` (or `blocklist.txt` to drop it everywhere) and run `tools/wordlist/build_wordlist.sh` from the repo root.
 - **Rebuild everything:** run the same script. It downloads the sources below and writes both files.
 
 Rules the script applies: lowercase letters a–z only (so names, abbreviations and words with apostrophes are left out), 3 to 10 letters, and no offensive words.

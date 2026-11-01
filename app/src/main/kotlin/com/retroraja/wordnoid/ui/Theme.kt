@@ -17,6 +17,16 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.drawscope.rotate
+import kotlin.math.cos
 import kotlin.math.sin
 
 object Palette {
@@ -32,6 +42,76 @@ object Palette {
     val cream = Color(0xFFFFF4DE)
     val panel = Color(0xCC2A160A)
     val red = Color(0xFFE5533D)
+    val sky = Color(0xFFFFB86B)
+    val pink = Color(0xFFFF6FA8)
+    val purple = Color(0xFF7B4DFF)
+    val cyan = Color(0xFF3FD8FF)
+    val ice = Color(0xFFBFEFFF)
+}
+
+/** Each chapter of 10 levels has its own warm colour. */
+fun chapterColors(level: Int): Pair<Color, Color> = when ((level - 1) / 10) {
+    0 -> Color(0xFFFF9A5A) to Color(0xFF8E3B1F)   // Workshop: sunset orange
+    1 -> Color(0xFF7FD3FF) to Color(0xFF2B4C9A)   // Library: sky blue
+    2 -> Color(0xFF9BF07A) to Color(0xFF1F6B3A)   // Garden: fresh green
+    3 -> Color(0xFF5FE0D0) to Color(0xFF1B5868)   // Harbour: sea teal
+    else -> Color(0xFFC59BFF) to Color(0xFF3A1F78) // Observatory: violet night
+}
+
+val CHAPTER_NAMES = listOf("Workshop", "Library", "Garden", "Harbour", "Observatory")
+
+/**
+ * A living background: a glowing sky of the chapter's colour, slowly turning sunbeams,
+ * floating sparkles, and a polished wooden table at the bottom.
+ */
+@Composable
+fun LivingBackground(level: Int, modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
+    val (top, bottom) = chapterColors(level)
+    val anim = rememberInfiniteTransition(label = "bg")
+    val turn by anim.animateFloat(0f, 360f, infiniteRepeatable(tween(60_000, easing = LinearEasing)), label = "turn")
+    val drift by anim.animateFloat(0f, 1f, infiniteRepeatable(tween(14_000, easing = LinearEasing)), label = "drift")
+    val glow by anim.animateFloat(0.55f, 1f, infiniteRepeatable(tween(3_000), RepeatMode.Reverse), label = "glow")
+    val motes = remember { List(26) { i -> Triple((i * 0.137f + 0.05f) % 1f, (i * 0.311f + 0.2f) % 1f, 2f + (i % 4) * 1.5f) } }
+    Box(modifier.fillMaxSize().background(Brush.verticalGradient(listOf(top, bottom)))) {
+        Canvas(Modifier.fillMaxSize()) {
+            val c = Offset(size.width * 0.5f, -size.height * 0.15f)
+            // Sunbeams.
+            rotate(turn, c) {
+                for (i in 0 until 12) {
+                    val a = Math.toRadians(i * 30.0)
+                    val a2 = Math.toRadians(i * 30.0 + 11)
+                    val r = size.width * 1.4f
+                    val path = Path().apply {
+                        moveTo(c.x, c.y)
+                        lineTo(c.x + (r * cos(a)).toFloat(), c.y + (r * sin(a)).toFloat())
+                        lineTo(c.x + (r * cos(a2)).toFloat(), c.y + (r * sin(a2)).toFloat())
+                        close()
+                    }
+                    drawPath(path, Color.White.copy(alpha = 0.07f * glow))
+                }
+            }
+            drawCircle(Brush.radialGradient(listOf(Color(0x66FFF6D8), Color.Transparent), center = c, radius = size.width * 0.6f), radius = size.width * 0.6f, center = c)
+            // Wooden table along the bottom third.
+            val tableTop = size.height * 0.72f
+            drawRect(Brush.verticalGradient(listOf(Palette.woodLight, Palette.woodDark), startY = tableTop, endY = size.height), Offset(0f, tableTop))
+            for (i in 0 until 7) {
+                val y0 = tableTop + (size.height - tableTop) * i / 7
+                val path = Path()
+                path.moveTo(0f, y0)
+                var x = 0f
+                while (x <= size.width) { path.lineTo(x, y0 + 4f * sin(x / 70f + i * 1.3f)); x += 14f }
+                drawPath(path, Palette.woodGrain, style = Stroke(width = 1.5f))
+            }
+            drawRect(Color(0x55000000), Offset(0f, tableTop), androidx.compose.ui.geometry.Size(size.width, 6f))
+            // Floating sparkles.
+            for ((x0, y0, r) in motes) {
+                val y = ((y0 - drift + 1f) % 1f) * size.height * 0.75f
+                val x = x0 * size.width + 14f * sin((drift * 6.28f) + x0 * 10f)
+                drawCircle(Color.White.copy(alpha = 0.25f + 0.25f * glow), r, Offset(x, y))
+            }
+        }
+        content()
+    }
 }
 
 val ArcadeFont = FontFamily.SansSerif

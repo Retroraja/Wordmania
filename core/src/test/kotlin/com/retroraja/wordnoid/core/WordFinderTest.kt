@@ -8,16 +8,30 @@ class WordFinderTest {
     private val dict = TestDict.dict
     private fun board(vararg rows: String) = Board.fromRows(rows.toList(), IdCounter())
 
-    @Test fun wordFilesAreSortedForFastSearch() {
+    @Test fun wordFileIsSortedAndEveryday() {
         val dir = java.io.File(System.getProperty("wordnoid.assets") ?: "app/src/main/assets")
-        for (name in listOf("words.txt", "common_words.txt")) {
-            val set = SortedWordSet(java.io.File(dir, name).readBytes())
-            assertTrue(set.isSorted(), "$name must be sorted A-Z (LC_ALL=C)")
-        }
-        val fast = Dictionary.fromSortedBytes(java.io.File(dir, "words.txt").readBytes(), java.io.File(dir, "common_words.txt").readBytes())
-        for (w in listOf("cat", "colour", "color", "zebra", "aardvark", "lakh")) assertTrue(fast.isWord(w), w)
-        for (w in listOf("xqz", "catt", "aaaa")) assertTrue(!fast.isWord(w), w)
-        assertTrue(fast.isCommon("cat"))
+        val bytes = java.io.File(dir, "play_words.txt").readBytes()
+        assertTrue(SortedWordSet(bytes).isSorted(), "play_words.txt must be sorted A-Z (LC_ALL=C)")
+        val fast = Dictionary.fromSortedBytes(bytes)
+        for (w in listOf("cat", "colour", "color", "zebra", "house", "rain")) assertTrue(fast.isWord(w), w)
+        // Odd words that made version 1 feel random are gone.
+        for (w in listOf("alw", "heo", "grs", "cer", "iff", "xqz", "catt")) assertTrue(!fast.isWord(w), w)
+    }
+
+    @Test fun onlyWordsThroughChangedTilesCount() {
+        val b = board("CATQQ", "QQQQQ", "DOGQQ")
+        assertEquals(listOf("CAT"), WordFinder.wordsThrough(b, listOf(Pos(0, 1)), dict).map { it.word })
+        assertTrue(WordFinder.wordsThrough(b, listOf(Pos(1, 4)), dict).isEmpty())
+    }
+
+    @Test fun jokerStandsForAnyLetter() {
+        val w = WordFinder.wordsThrough(board("C*TQ", "QQQQ", "QQQQ"), listOf(Pos(0, 1)), dict).single()
+        assertEquals(3, w.length)
+        assertTrue(w.word.startsWith("C") && w.word.endsWith("T"))
+    }
+
+    @Test fun cratesBreakWords() {
+        assertTrue(WordFinder.findAll(board("CA#T", "QQQQ", "QQQQ"), dict).isEmpty())
     }
 
     @Test fun findsLeftToRight() {
@@ -27,7 +41,6 @@ class WordFinderTest {
 
     @Test fun findsRightToLeft() {
         val found = WordFinder.findAll(board("XGODX", "QQQQQ", "QQQQQ"), dict)
-        // GOD and DOG are both words; the everyday one is shown.
         assertEquals(1, found.size)
         assertTrue(found[0].word == "DOG" || found[0].word == "GOD")
     }

@@ -7,7 +7,7 @@ import com.retroraja.wordnoid.core.Dictionary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** Loads the word lists from the app once and keeps them in memory. */
+/** Loads the everyday word list once and keeps it in memory. */
 object Words {
     @Volatile private var dict: Dictionary? = null
 
@@ -16,10 +16,8 @@ object Words {
         return withContext(Dispatchers.IO) {
             dict ?: run {
                 val start = SystemClock.elapsedRealtime()
-                val assets = context.applicationContext.assets
-                val words = assets.open("words.txt").use { it.readBytes() }
-                val common = assets.open("common_words.txt").use { it.readBytes() }
-                Dictionary.fromSortedBytes(words, common).also {
+                val bytes = context.applicationContext.assets.open("play_words.txt").use { it.readBytes() }
+                Dictionary.fromSortedBytes(bytes).also {
                     dict = it
                     Log.i("Wordnoid", "Loaded ${it.size} words in ${SystemClock.elapsedRealtime() - start} ms")
                 }

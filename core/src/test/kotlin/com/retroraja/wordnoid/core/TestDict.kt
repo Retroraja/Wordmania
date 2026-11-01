@@ -5,6 +5,6 @@ import java.io.File
 object TestDict {
     val dict: Dictionary by lazy {
         val dir = File(System.getProperty("wordnoid.assets") ?: "app/src/main/assets")
-        Dictionary.fromLines(File(dir, "words.txt").readLines().asSequence(), File(dir, "common_words.txt").readLines().asSequence())
+        Dictionary.fromLines(File(dir, "play_words.txt").readLines().asSequence())
     }
 }

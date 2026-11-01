@@ -2,9 +2,9 @@ package com.retroraja.wordnoid.core
 
 /** Drops tiles down into the gaps and fills the top with new letters. */
 object Refill {
-    private const val TRIES = 14
+    private const val TRIES = 10
 
-    fun collapse(board: Board, cleared: Set<Pos>, rng: Rng, ids: IdCounter, dict: Dictionary): Board {
+    fun collapse(board: Board, cleared: Set<Pos>, rng: Rng, ids: IdCounter, dict: Dictionary, giftRate: Double = 0.0): Board {
         val rows = board.rows
         val cols = board.cols
         val tiles = Array(rows) { arrayOfNulls<Tile>(cols) }
@@ -14,12 +14,15 @@ object Refill {
             survivors.forEachIndexed { i, t -> tiles[rows - 1 - i][c] = t.copy(dropFrom = 0) }
             newCount[c] = rows - survivors.size
         }
-        val letters = Array(rows) { r -> Array<Char?>(cols) { c -> tiles[r][c]?.letter } }
-        // Fill each column from the lowest gap upwards.
+        val letters = Array(rows) { r -> Array<Char?>(cols) { c -> tiles[r][c]?.let { if (it.isCrate) CRATE_CHAR else it.letter } } }
         for (c in 0 until cols) {
             for (r in newCount[c] - 1 downTo 0) {
-                val placed = letters.sumOf { row -> row.count { it != null } }
-                val vowels = letters.sumOf { row -> row.count { it != null && Letters.isVowel(it) } }
+                var placed = 0
+                var vowels = 0
+                for (row in letters) for (ch in row) if (ch != null && ch != CRATE_CHAR && ch != JOKER_CHAR) {
+                    placed++
+                    if (Letters.isVowel(ch)) vowels++
+                }
                 val needVowel = placed > 0 && vowels.toDouble() / (placed + 1) < Letters.MIN_VOWEL_SHARE
                 var chosen = Letters.pick(rng, vowelOnly = needVowel)
                 for (attempt in 0 until TRIES) {
@@ -29,7 +32,8 @@ object Refill {
                     if (!WordFinder.anyWordThrough(letters, Pos(r, c), dict)) break
                 }
                 letters[r][c] = chosen
-                tiles[r][c] = Tile(ids.next(), chosen, dropFrom = newCount[c])
+                val kind = if (giftRate > 0 && rng.nextDouble() < giftRate) TileKind.GIFT else TileKind.NORMAL
+                tiles[r][c] = Tile(ids.next(), chosen, dropFrom = newCount[c], kind = kind)
             }
         }
         return Board(cols, rows, (0 until rows).flatMap { r -> (0 until cols).map { c -> tiles[r][c]!! } })
