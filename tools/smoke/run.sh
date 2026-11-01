@@ -6,7 +6,7 @@ mkdir -p $OUT
 adb install -r Wordnoid.apk
 adb logcat -c
 adb shell am start -n com.retroraja.wordnoid/.MainActivity
-sleep 12
+sleep 25
 shot() { adb exec-out screencap -p > "$OUT/$1.png"; }
 tap_text() {
   adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
@@ -35,15 +35,15 @@ adb shell input swipe 1100 600 1100 700 150; sleep 4; shot 6-after-swap2
 adb shell input swipe 900 400 1000 400 150; sleep 4; shot 7-after-swap3
 adb shell input keyevent 4; sleep 2; shot 8-pause
 adb logcat -d > $OUT/logcat.txt
-grep -E "FATAL EXCEPTION|AndroidRuntime" -A 30 $OUT/logcat.txt > $OUT/crash.txt || true
+grep -E "FATAL EXCEPTION" -A 30 $OUT/logcat.txt > $OUT/crash.txt || true
 echo "crash lines: $(wc -l < $OUT/crash.txt)"
 echo "===== CRASH ====="
 cat $OUT/crash.txt | head -120
 echo "===== END CRASH ====="
+grep "Wordnoid" $OUT/logcat.txt | head -20
 # Small screenshots printed into the log (base64 JPEG), so they can be read without downloading artifacts.
 for f in $OUT/*.png; do
-  convert "$f" -resize 900x900 -quality 60 "${f%.png}.jpg" 2>/dev/null || continue
   echo "===== IMG $(basename "${f%.png}") ====="
-  base64 -w0 "${f%.png}.jpg"; echo
+  base64 -w0 "$f"; echo
   echo "===== END IMG ====="
 done

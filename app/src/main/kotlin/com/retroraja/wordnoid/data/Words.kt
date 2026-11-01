@@ -1,6 +1,8 @@
 package com.retroraja.wordnoid.data
 
 import android.content.Context
+import android.os.SystemClock
+import android.util.Log
 import com.retroraja.wordnoid.core.Dictionary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -13,10 +15,14 @@ object Words {
         dict?.let { return it }
         return withContext(Dispatchers.IO) {
             dict ?: run {
+                val start = SystemClock.elapsedRealtime()
                 val assets = context.applicationContext.assets
                 val words = assets.open("words.txt").bufferedReader().use { r -> r.readLines() }
                 val common = assets.open("common_words.txt").bufferedReader().use { r -> r.readLines() }
-                Dictionary.fromLines(words.asSequence(), common.asSequence()).also { dict = it }
+                Dictionary.fromLines(words.asSequence(), common.asSequence()).also {
+                    dict = it
+                    Log.i("Wordnoid", "Loaded ${it.size} words in ${SystemClock.elapsedRealtime() - start} ms")
+                }
             }
         }
     }
