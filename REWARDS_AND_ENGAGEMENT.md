@@ -1,4 +1,4 @@
-# Wordmania: Rewards and Engagement Plan
+# Wordnoid: Rewards and Engagement Plan
 
 *Version 0.1, 1 November 2026. Companion to [GAME_DESIGN.md](GAME_DESIGN.md).*
 

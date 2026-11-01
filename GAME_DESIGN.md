@@ -1,6 +1,6 @@
-# Wordmania: Game Design Document
+# Wordnoid: Game Design Document
 
-*Version 0.2, 1 November 2026. Written from Rajarajan's idea discussion, updated with the decisions made the same day.*
+*Version 0.3, 1 November 2026. Game name: **Wordnoid** (working repo name: Wordmania). Written from Rajarajan's idea discussion, updated with the decisions made the same day.*
 
 ## 1. One-line pitch
 
@@ -186,19 +186,27 @@ The aim is to keep players feeling rewarded so they don't get frustrated and uni
 
 ## 9. Look and feel
 
-- Clean, bright, friendly, with big, easy-to-read letters.
-- **Theme: Wooden board.** A warm wood background with the grid set into it like a board game, and green and gold for highlights and buttons. Calm and classic.
+- **Name: Wordnoid**, a made-up word: "Word" plus the classic arcade "-oid" ending. It's not used by any app we could find. Never mention other games' names in the store listing.
+- **Style: lively arcade on wood.** The board is still wood, but polished and glossy, like a wooden arcade cabinet. Bright colours, punchy effects and big feedback make clearing words feel exciting.
+- Wood frame and background, with **glowing gold and electric green** for highlights, buttons and the score. Combos and big words get a short neon glow.
+- Big, easy-to-read letters in a bold, rounded arcade-style font.
 - **Tiles are square** (only slightly softened corners), with a light 3D edge.
 - **Every letter has its own colour.** A is always the same colour, B is always another, and so on (26 bright colours with white letters). This helps players spot letters quickly. Special tiles (Golden, Gift, Clock, Joker) keep their own look on top.
-- Short animations: tiles slide on swap, found words glow then pop, new tiles bounce in from the top.
+- Punchy, fast animations:
+  - Swap: tiles snap past each other with a quick squash and stretch.
+  - Word found: the letters flash white one by one, then **burst into coloured particles** in the letters' own colours. The word itself zooms up big in the middle and stays for a few seconds.
+  - Big plays: a small screen shake for 5+ letter words and combos, and a **combo counter** ("COMBO x2!", "x3!") that grows each step.
+  - Score: points fly up from the word and the score counter rolls up like an arcade machine.
+  - Refill: new tiles drop fast and land with a bounce.
+  - Win: fireworks of letter tiles, then Word Rain.
 - Sound effects, made by code so there are no copyright issues:
-  - Swap: a soft wooden "tok".
+  - Swap: a crisp wooden "clack".
   - Word found: a chime that rises one note per letter, so longer words sound bigger.
   - Combo: a higher, sparkly chime. Coins: a small "clink". Reward: a happy "ding".
-  - Win: a short cheerful tune. Out of moves: a gentle "aww", never harsh.
-- Background music: a calm, light loop (free CC0 music), added after the first version.
+  - Win: a short, upbeat arcade-style jingle. Out of moves: a gentle "aww", never harsh.
+- Background music: an upbeat, light arcade loop that isn't too loud (free CC0 music), added after the first version.
 - Settings has separate on/off switches for sound, music and vibration.
-- App name **Wordmania**. The icon is a wooden letter tile showing "W".
+- The app icon is a glossy wooden letter tile showing "W", with a small burst behind it.
 - Mascot: not decided yet (maybe later).
 - Haptic tap on swap and on word clear.
 
@@ -230,7 +238,8 @@ No account or login needed.
 | Word directions | All four: left/right and up/down, both ways |
 | Swaps that make no word | Stay, and cost 1 move |
 | Unusual words | Accepted, and shown in big letters when cleared |
-| Theme | Wooden board, square tiles, one colour per letter |
+| Name | Wordnoid |
+| Theme | Lively arcade style on a polished wooden board, square tiles, one colour per letter |
 | Login | None for now (on-phone save + Google backup) |
 | Language | English only for now |
 | Ads | None in the first version. Later, optional rewarded ads only |
