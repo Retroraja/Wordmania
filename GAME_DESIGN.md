@@ -162,6 +162,7 @@ The aim is to keep players feeling rewarded so they don't get frustrated and uni
 ## 9. Look and feel
 
 - Clean, bright, friendly, with big, easy-to-read letters.
+- **Theme: Wooden board.** A warm wood background with the grid set into it like a board game, and green and gold for highlights and buttons. Calm and classic.
 - **Tiles are square** (only slightly softened corners), with a light 3D edge.
 - **Every letter has its own colour.** A is always the same colour, B is always another, and so on (26 bright colours with white letters). This helps players spot letters quickly. Special tiles (Golden, Gift, Clock, Joker) keep their own look on top.
 - Short animations: tiles slide on swap, found words glow then pop, new tiles bounce in from the top.
