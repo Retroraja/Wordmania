@@ -234,7 +234,12 @@ private fun PowerMeter(meter: Int) {
 fun panelBoosters(c: GameController): List<Booster> {
     val unlocked = Booster.unlockedAt(c.level.number)
     val intro = c.level.introBoosters
-    val owned = unlocked.filter { it !in intro }.sortedByDescending { c.progress.count(it) * 10 + (if (c.progress.hasFreeUse(it)) 100 else 0) - it.price / 20 }
+    // Hint, Hammer, Magic Swap and Joker are the everyday helpers, so they come first when you have them.
+    val favourite = listOf(Booster.HINT, Booster.HAMMER, Booster.MAGIC_SWAP, Booster.JOKER)
+    val owned = unlocked.filter { it !in intro }.sortedByDescending {
+        (if (c.progress.hasFreeUse(it)) 1000 else 0) + (if (c.progress.count(it) > 0) 100 else 0) +
+            (if (it in favourite) 50 - favourite.indexOf(it) else 0) - it.price / 20
+    }
     return (intro + owned).distinct().take(4)
 }
 
@@ -253,13 +258,12 @@ private fun RightPanel(c: GameController, modifier: Modifier, onPause: () -> Uni
 
 @Composable
 fun RoundButton(text: String, size: androidx.compose.ui.unit.Dp, label: String? = null, onClick: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(Modifier.clickable(remember { MutableInteractionSource() }, null, onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             Modifier
                 .size(size)
                 .background(Brush.radialGradient(listOf(Palette.goldDeep, Color(0xFF6B3A08))), CircleShape)
-                .border(2.dp, Palette.gold, CircleShape)
-                .clickable(remember { MutableInteractionSource() }, null, onClick = onClick),
+                .border(2.dp, Palette.gold, CircleShape),
             contentAlignment = Alignment.Center,
         ) { Text(text, fontSize = (size.value * 0.45f).sp, color = Color.White, fontWeight = Heavy) }
         label?.let { Text(it, fontSize = 8.sp, color = Palette.cream, fontWeight = Heavy) }

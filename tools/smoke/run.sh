@@ -42,14 +42,19 @@ tap_text "▶ PLAY"; sleep 4; shot intro
 tap_text "Let's go!"; sleep 5; shot board-tutorial
 texts
 W=$(adb shell wm size | grep -o '[0-9]*x[0-9]*' | tail -1); echo "size $W"
-# Swipes across the board area (centre of a landscape screen).
+# Level 1 tutorial: the glowing swap (A and G in row 3), then the Hammer and Hint lessons.
+adb shell input swipe 1630 640 1860 640 150; sleep 6; shot tutorial-word
+texts
+adb shell input swipe 1000 450 1150 450 150; sleep 2; shot blocked-swap
+adb shell input tap 2166 816; sleep 2; shot hammer-armed
+texts
+adb shell input tap 1170 640; sleep 0.5; shot hammer-mid; sleep 4; shot after-hammer
+texts
+adb shell input tap 2166 516; sleep 2; shot hint
 for s in "1000 450 1150 450" "1150 600 1150 750" "900 350 1050 350" "1300 450 1300 600" "800 600 950 600"; do
   adb shell input swipe $s 150; sleep 3
 done
 shot after-swaps
-texts
-tap_text "🔨"; sleep 1; adb shell input tap 1170 520; sleep 0.5; shot hammer-mid; sleep 3; shot after-hammer
-tap_text "💡"; sleep 1; shot hint
 
 # ---- Second run: a late level with everything unlocked.
 adb shell am force-stop $PKG
@@ -80,11 +85,10 @@ tap_text "+3 Moves"; sleep 1
 tap_text "▶ PLAY"; sleep 4; shot intro-50
 tap_text "Let's go!"; sleep 5; shot board-50
 texts
-tap_text "⋯"; sleep 2; shot more-boosters
-tap_text "🔍"; sleep 2; shot scanner
+adb shell input tap 2166 940; sleep 2; shot more-boosters
+tap_text "Close"; sleep 1
 for s in "1000 450 1150 450" "1150 600 1150 750" "900 350 1050 350"; do adb shell input swipe $s 150; sleep 3; done
 shot after-swaps-50
-tap_text "🔨"; sleep 1; adb shell input tap 1100 700; sleep 0.4; shot hammer-50; sleep 3
 adb shell input keyevent 4; sleep 3; shot back-to-map
 
 adb logcat -d > $OUT/logcat.txt

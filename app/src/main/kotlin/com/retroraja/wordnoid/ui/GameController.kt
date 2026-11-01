@@ -221,6 +221,17 @@ class GameController(
 
     private fun trySwap(a: Pos, b: Pos) {
         if (!game.canSwap(a, b)) { sounds.play("nope"); return }
+        // Guided steps can't be skipped: first do what the bubble asks.
+        val t = tutorial
+        if (t != null && !t.dismissible) {
+            val ok = t.swap != null && (setOf(a, b) == setOf(t.swap.first, t.swap.second))
+            if (!ok) {
+                sounds.play("nope")
+                message = if (t.swap != null) "Swap the two glowing tiles 👆" else "Tap the glowing ${t.booster?.emoji ?: "tile"} first 👆"
+                scope.launch { delay(1500); message = null }
+                return
+            }
+        }
         hint = null
         scan = emptySet()
         nudge = null
@@ -242,6 +253,7 @@ class GameController(
     private fun suggestBooster() {
         val options = listOf(Booster.HINT, Booster.SCANNER, Booster.SHUFFLE, Booster.HAMMER, Booster.JOKER)
             .filter { it.introLevel <= level.number && (progress.count(it) > 0 || progress.hasFreeUse(it)) }
+            .sortedBy { if (it in panelBoosters(this)) 0 else 1 }
         val pick = options.firstOrNull() ?: return
         nudge = pick
         message = "Stuck? Try ${pick.emoji} ${pick.title}!"

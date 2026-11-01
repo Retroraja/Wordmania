@@ -22447,7 +22447,6 @@ priced
 priceless
 prices
 pricing
-prick
 pricked
 pricking
 prickle
@@ -30452,7 +30451,6 @@ tiresome
 tiring
 tissue
 tissues
-tit
 titbit
 titbits
 titillate
