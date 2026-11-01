@@ -1,10 +1,10 @@
 # Wordmania: Game Design Document
 
-*Version 0.1, 1 November 2026. Written from Rajarajan's idea discussion.*
+*Version 0.2, 1 November 2026. Written from Rajarajan's idea discussion, updated with the decisions made the same day.*
 
 ## 1. One-line pitch
 
-A level-based word puzzle where the board is a full grid of letter tiles. You swap neighbouring tiles to spell words in a row or column, the word clears, new letters fall in, and you must hit the level goal before your moves run out.
+A level-based word puzzle where the board is a full grid of letter tiles. You swap neighbouring tiles to spell words across or down (in either direction), the word clears, new letters fall in, and you must hit the level goal before your moves run out.
 
 Think of a match-3 game like Gardenscapes or Candy Crush, but instead of matching three of a colour you spell a word.
 
@@ -12,37 +12,42 @@ Think of a match-3 game like Gardenscapes or Candy Crush, but instead of matchin
 
 | Item | Choice |
 |---|---|
-| Platform | Android phones (portrait) |
+| Platform | Android phones, **landscape** (held sideways, like Homescapes) |
 | Language / UI | Kotlin + Jetpack Compose |
 | Build | APK built for free by GitHub Actions |
 | Internet | Not needed. The game, levels and dictionary all work offline |
-| Language of words | English |
+| Language of words | English only for now |
+| Login | None in the first version. Progress is saved on the phone and restored by Android's built-in Google backup. Google sign-in through Firebase (free) can come later |
 
 ## 3. Core gameplay
 
 ### 3.1 The board
 
-- A square grid, like a small chess board. Early levels use 3x3 or 4x4. Later levels grow to 5x5, 6x6 and up.
+- A rectangular grid, wider than it is tall, to suit the landscape screen. Level 1 is 6 across by 4 down. Later levels grow to 7x5, 8x5 and up.
 - Every cell holds exactly one letter tile. There are no empty spaces.
+- Later levels can have shaped boards with blocked cells, like Homescapes.
 
 ### 3.2 A move
 
 - The player drags a tile one step up, down, left or right (or taps a tile and then a neighbour). The two tiles swap places.
-- Every swap costs **1 move**, whether or not it makes a word.
+- Every swap costs **1 move**, whether or not it makes a word, and **the tiles stay where they were moved**. They never slide back. This is deliberate: in a word game you often need 2 or 3 swaps to set up a word, and that planning is the heart of the game.
 - Diagonal swaps are not allowed.
 
 ### 3.3 Making a word
 
-After every swap, the game checks every row (read left to right) and every column (read top to bottom).
+After every swap, the game checks every row and every column **in all four directions**: left to right, right to left, top to bottom and bottom to top.
 
 - If a run of 3 or more neighbouring letters spells a valid word from the dictionary, that word is **found**.
 - The tiles of the word flash, then disappear.
+- **The word is shown in big letters for a few seconds** as it clears, so players always see what they made, including unusual words they may not know.
 - If more than one word is formed at once, all of them clear. Where two candidate words overlap in the same line, the longer one wins.
+- If the same letters spell a word in both directions (T-A-B is also BAT), it counts as **one** word.
 - A swap that makes no word does nothing except use up a move.
 
 ### 3.4 Refill (cascade)
 
 - When tiles disappear, the tiles above fall down to fill the gaps, and new letter tiles drop in from the top.
+- The new letters are picked so they don't form accidental words straight away.
 - If the falling tiles happen to spell another word on their own, it clears too. This is a **combo** (see rewards).
 
 ### 3.5 Winning and losing
@@ -62,6 +67,12 @@ After every swap, the game checks every row (read left to right) and every colum
 
 Level 1 uses the simplest goal: **find 2 words in 10 moves**.
 
+### 3.7 Out of moves
+
+- A friendly "Out of moves" screen shows how close the player was ("Just 1 word to go!").
+- **+3 moves for coins**, or **Try again** (always free, with no lives and no waiting).
+- After 3 losses on the same level, the next try starts with 3 bonus moves automatically.
+
 ## 4. Levels
 
 ### 4.1 Same for every player (hand-designed)
@@ -76,17 +87,27 @@ Each level stores:
 - the goal,
 - a fixed **seed** for the letters that drop in during refills, so the falling letters are also the same for everyone.
 
-Levels live in a simple data file inside the app (for example `levels.json`), so new levels can be added without changing game code.
+Levels are kept as simple level data in one place in the code, so new levels can be added without changing the game logic.
 
 ### 4.2 Difficulty curve (first draft)
 
-| Levels | Grid | Moves | Goal | New thing introduced |
+The first 5 levels (first playable version):
+
+| Level | Board (across x down) | Moves | Goal |
+|---|---|---|---|
+| 1 | 6x4 | 10 | Find 2 words |
+| 2 | 6x4 | 10 | Find 3 words |
+| 3 | 7x5 | 12 | Find 4 words |
+| 4 | 7x5 | 12 | Find 3 words, one with 4+ letters |
+| 5 | 8x5 | 15 | Find 5 words |
+
+Later levels (draft):
+
+| Levels | Board | Moves | Goal | New thing introduced |
 |---|---|---|---|---|
-| 1–3 | 3x3 / 4x4 | 10 | 2–3 three-letter words | Swapping and clearing |
-| 4–10 | 4x4 | 10–12 | 3–4 words | Refill and combos |
-| 11–20 | 5x5 | 12–15 | 4-letter word goals | +3 moves reward, Golden tile |
-| 21–30 | 5x5 | 15 | Specific words | Joker tile, Free swap |
-| 31+ | 6x6 | 15–20 | Mixed goals | Shuffle, Edge bonus |
+| 6–10 | 8x5 | 12–15 | 4–5 words | Combos, Golden tile |
+| 11–20 | 8x6 | 15 | Long-word goals | Joker tile, Free swap |
+| 21–30 | Shaped boards | 15–20 | Specific words, carpet goals | Shuffle, Bomb |
 
 ### 4.3 Level design rule
 
@@ -96,8 +117,9 @@ Every level must be tested to be winnable within its move limit. Early levels sh
 
 - The app ships with an **offline word list** (a plain text file inside the app).
 - Only words of 3 letters or more count.
-- The list is cleaned up: offensive words, obscure abbreviations and very rare words are removed, so players only see familiar words accepted.
-- Source: a free, public-domain English word list (for example ENABLE), filtered by us.
+- The list is **as complete as possible**: about 283,000 words with American, British, Canadian and Australian spellings, because what counts as a word differs between countries. Only offensive words are removed.
+- A second, smaller list of about 50,000 everyday words is used when the game *suggests* words (hints, Lucky word), so suggestions are always familiar.
+- Sources: SCOWL and ENABLE (free). See `tools/wordlist/README.md`.
 - Lookup is instant (the list is loaded into memory as a set when the game starts).
 
 ## 6. Rewards and power-ups
@@ -138,8 +160,9 @@ The aim is to keep players feeling rewarded so they don't get frustrated and uni
 ### 6.4 Anti-frustration helpers
 
 - **Vowel rescue:** if the board runs too low on vowels (A, E, I, O, U), the next refill always drops a vowel.
-- **Dead board check:** if no word can be made in any single swap, the board shuffles automatically for free.
-- **Last chance:** when moves hit 0, offer "+3 moves" by watching a short video ad (added in a later version, optional).
+- **Dead board check:** if no word can be made at all, the board shuffles automatically for free.
+- **Hints:** on early levels, after 10 seconds without a move, two tiles that would make a word gently wiggle.
+- **Last chance:** when moves hit 0, offer "+3 moves" for coins. If the game is published, an optional "watch a video for +3 moves" can be added. There will never be forced ads between levels.
 
 ## 7. Scoring and stars
 
@@ -151,13 +174,15 @@ The aim is to keep players feeling rewarded so they don't get frustrated and uni
 
 1. **Home**: Play button, level number, settings.
 2. **Level map**: a path of level circles showing stars earned. Locked levels are greyed out.
-3. **Game screen**:
-   - Top: moves left, goal progress (for example "Words 1/2"), score.
-   - Middle: the letter grid.
-   - Bottom: banked power-ups (Free swap, Shuffle).
+3. **Game screen** (landscape, like Homescapes):
+   - Left panel: goal progress (for example "Words 1/2"), moves left (big and clear), coins.
+   - Middle: the letter board on the wooden frame.
+   - Right panel: power-ups and boosters stacked in a column, plus the pause button.
+   - Found words and rewards pop up over the board ("CAT +3 coins", "+3 moves!").
 4. **Level complete**: stars, score, Next button.
 5. **Out of moves**: Retry button, Last chance offer (later).
 6. **Settings**: sound, music, vibration, reset progress.
+7. **Tutorials**: a pointing hand on Level 1 shows the first swap. **Every new element** (each booster, special tile or goal type) gets its own short tutorial the first time it appears.
 
 ## 9. Look and feel
 
@@ -166,7 +191,15 @@ The aim is to keep players feeling rewarded so they don't get frustrated and uni
 - **Tiles are square** (only slightly softened corners), with a light 3D edge.
 - **Every letter has its own colour.** A is always the same colour, B is always another, and so on (26 bright colours with white letters). This helps players spot letters quickly. Special tiles (Golden, Gift, Clock, Joker) keep their own look on top.
 - Short animations: tiles slide on swap, found words glow then pop, new tiles bounce in from the top.
-- Small sound effects for swap, clear, combo, win and lose.
+- Sound effects, made by code so there are no copyright issues:
+  - Swap: a soft wooden "tok".
+  - Word found: a chime that rises one note per letter, so longer words sound bigger.
+  - Combo: a higher, sparkly chime. Coins: a small "clink". Reward: a happy "ding".
+  - Win: a short cheerful tune. Out of moves: a gentle "aww", never harsh.
+- Background music: a calm, light loop (free CC0 music), added after the first version.
+- Settings has separate on/off switches for sound, music and vibration.
+- App name **Wordmania**. The icon is a wooden letter tile showing "W".
+- Mascot: not decided yet (maybe later).
 - Haptic tap on swap and on word clear.
 
 ## 10. Saved data (on the phone)
@@ -188,10 +221,22 @@ No account or login needed.
 | 4. Polish | Animations, sounds, stars, settings, app icon | Ready to share with friends |
 | 5. Release (optional) | More levels, ads for "Last chance", Play Store listing | Public release |
 
-## 12. Open questions
+## 12. Decisions made
 
-1. **Grid size for Level 1:** this document picks 4x4, because it gives more room to find words. 3x3 is the simpler alternative.
-2. **Do words count backwards?** This document says no: only left-to-right and top-to-bottom.
-3. **Should swaps that make no word be allowed?** This document says yes, they just cost a move (like the original idea). The alternative is to undo swaps that make no word, as many match-3 games do.
-4. **Joker letter choice:** should the game pick the letter automatically, or should the player choose it?
-5. **Ads:** include the "watch a video for +3 moves" offer in the first release, or later?
+| Question | Decision |
+|---|---|
+| Screen | Landscape, wide board |
+| Level 1 board | 6 across x 4 down |
+| Word directions | All four: left/right and up/down, both ways |
+| Swaps that make no word | Stay, and cost 1 move |
+| Unusual words | Accepted, and shown in big letters when cleared |
+| Theme | Wooden board, square tiles, one colour per letter |
+| Login | None for now (on-phone save + Google backup) |
+| Language | English only for now |
+| Ads | None in the first version. Later, optional rewarded ads only |
+| Tutorials | For Level 1 and for every new element |
+
+## 13. Open questions
+
+1. **Joker letter choice:** should the game pick the letter automatically, or should the player choose it?
+2. **Mascot:** have one or not, and what it looks like.
