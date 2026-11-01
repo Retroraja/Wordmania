@@ -1,0 +1,54 @@
+name: Build APK
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Test game rules and levels
+        run: ./gradlew :core:test --no-daemon
+
+      - name: Build APK
+        run: ./gradlew :app:assembleDebug --no-daemon
+
+      - name: Name the APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk Wordnoid.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Wordnoid-apk
+          path: Wordnoid.apk
+
+      # Publish a download page. main -> "latest", any other branch -> "preview" (test builds).
+      - name: Publish download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${GITHUB_REF_NAME}" = "main" ]; then
+            TAG=latest; TITLE="Wordnoid (latest)"; EXTRA=""
+          else
+            TAG=preview; TITLE="Wordnoid (test build)"; EXTRA="--prerelease"
+          fi
+          gh release delete "$TAG" --yes --cleanup-tag || true
+          gh release create "$TAG" Wordnoid.apk --target "$GITHUB_SHA" --title "$TITLE" $EXTRA \
+            --notes "Build ${GITHUB_RUN_NUMBER} from ${GITHUB_REF_NAME} (${GITHUB_SHA::7}). Download Wordnoid.apk below on your Android phone and open it to install."
