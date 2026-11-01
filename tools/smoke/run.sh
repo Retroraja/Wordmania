@@ -25,6 +25,8 @@ else:
 PY
 }
 shot 1-title
+adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1; adb pull /sdcard/ui.xml $OUT/ui0.xml >/dev/null 2>&1
+grep -o 'text="[^"]*"' $OUT/ui0.xml | head -30
 tap_text "PLAY"; sleep 4; shot 2-map
 tap_text "1"; sleep 4; shot 3-intro
 tap_text "Let's go!"; sleep 3; shot 4-board
@@ -44,6 +46,6 @@ grep "Wordnoid" $OUT/logcat.txt | head -20
 # Small screenshots printed into the log (base64 JPEG), so they can be read without downloading artifacts.
 for f in $OUT/*.png; do
   echo "===== IMG $(basename "${f%.png}") ====="
-  base64 -w0 "$f"; echo
+  base64 -w 3000 "$f"
   echo "===== END IMG ====="
 done
