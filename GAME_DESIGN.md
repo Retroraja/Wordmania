@@ -185,7 +185,7 @@ No account or login needed.
 
 ## 12. Open questions
 
-1. **Grid size for Level 1:** 3x3 or 4x4? (4x4 gives more room to find words; 3x3 is simpler.)
+1. **Grid size for Level 1:** this document picks 4x4, because it gives more room to find words. 3x3 is the simpler alternative.
 2. **Do words count backwards?** This document says no: only left-to-right and top-to-bottom.
 3. **Should swaps that make no word be allowed?** This document says yes, they just cost a move (like the original idea). The alternative is to undo swaps that make no word, as many match-3 games do.
 4. **Joker letter choice:** should the game pick the letter automatically, or should the player choose it?
