@@ -54,4 +54,11 @@ dependencies {
     implementation("androidx.compose.animation:animation")
     implementation("androidx.compose.material3:material3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    // Ads (test ids until the AdMob account exists) and the consent form.
+    implementation("com.google.android.gms:play-services-ads:23.6.0")
+    implementation("com.google.android.ump:user-messaging-platform:3.1.0")
+    // "Rate us" in-app review.
+    implementation("com.google.android.play:review-ktx:2.0.2")
+    // Friendly daily reminders.
+    implementation("androidx.work:work-runtime-ktx:2.10.0")
 }

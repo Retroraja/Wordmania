@@ -1,5 +1,11 @@
 package com.retroraja.wordnoid.ui
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -8,74 +14,94 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
-import androidx.compose.ui.graphics.drawscope.rotate
+import com.retroraja.wordnoid.R
 import kotlin.math.cos
 import kotlin.math.sin
 
 object Palette {
-    val woodDark = Color(0xFF4A2A14)
-    val wood = Color(0xFF7A4A24)
-    val woodLight = Color(0xFFA8703A)
-    val woodGrain = Color(0x33000000)
-    val frame = Color(0xFF3A1F0C)
     val gold = Color(0xFFFFC93C)
     val goldDeep = Color(0xFFE09A12)
     val green = Color(0xFF39E07A)
     val greenDeep = Color(0xFF1C9A4E)
-    val cream = Color(0xFFFFF4DE)
-    val panel = Color(0xCC2A160A)
+    val cream = Color(0xFFFFF8EC)
     val red = Color(0xFFE5533D)
-    val sky = Color(0xFFFFB86B)
     val pink = Color(0xFFFF6FA8)
     val purple = Color(0xFF7B4DFF)
     val cyan = Color(0xFF3FD8FF)
     val ice = Color(0xFFBFEFFF)
+    /** Royal blue: buttons, panels and the app icon. */
+    val royal = Color(0xFF2453D6)
+    val royalDeep = Color(0xFF14307F)
+    val tiko = Color(0xFF3FA9FF)
+    /** Grey-blue for "back" and "close" buttons. */
+    val slate = Color(0xFF5468A8)
 }
 
-/** Each chapter of 10 levels has its own warm colour. */
-fun chapterColors(level: Int): Pair<Color, Color> = when ((level - 1) / 10) {
-    0 -> Color(0xFFFF9A5A) to Color(0xFF8E3B1F)   // Workshop: sunset orange
-    1 -> Color(0xFF7FD3FF) to Color(0xFF2B4C9A)   // Library: sky blue
-    2 -> Color(0xFF9BF07A) to Color(0xFF1F6B3A)   // Garden: fresh green
-    3 -> Color(0xFF5FE0D0) to Color(0xFF1B5868)   // Harbour: sea teal
-    else -> Color(0xFFC59BFF) to Color(0xFF3A1F78) // Observatory: violet night
-}
+/** One of the 5 worlds (10 levels each). Bright cartoon colours, no wood anywhere. */
+data class World(
+    val index: Int,
+    val name: String,
+    val emoji: String,
+    val top: Color,
+    val bottom: Color,
+    val ground: Color,
+    val villain: String,
+    val villainEmoji: String,
+    val bossTitle: String,
+    val district: String,
+    val outfit: String,
+)
 
-val CHAPTER_NAMES = listOf("Workshop", "Library", "Garden", "Harbour", "Observatory")
+val WORLDS = listOf(
+    World(0, "Candy Land", "🍭", Color(0xFFFFB3D9), Color(0xFFB66BFF), Color(0xFFFF8CC6), "Professor Scramble", "🧙", "Sugar Rush Showdown", "Candy Street", "🍬"),
+    World(1, "Under the Sea", "🐠", Color(0xFF7FE3FF), Color(0xFF1D5FBF), Color(0xFFF2D68A), "Captain Inkbeard", "🐙", "Deep Sea Den", "Coral Harbour", "🤿"),
+    World(2, "Fruit Jungle", "🍍", Color(0xFFB8F27A), Color(0xFF1E8F5A), Color(0xFF7BC94A), "Bonkers the Baboon", "🐒", "Jungle Rumble", "Jungle Park", "🌴"),
+    World(3, "Cloud Kingdom", "☁️", Color(0xFFCDEBFF), Color(0xFF6F8CFF), Color(0xFFFFFFFF), "Grumble Cloud", "🌩️", "Thunder Tower", "Cloud Hill", "🪁"),
+    World(4, "Sunny Galaxy", "🪐", Color(0xFFE6C8FF), Color(0xFF6A4BD8), Color(0xFFB79BFF), "Word Eater", "👾", "The Final Page", "Star Square", "🚀"),
+)
+
+fun worldOf(level: Int): World = WORLDS[((level - 1) / 10).coerceIn(0, WORLDS.size - 1)]
+
+fun chapterColors(level: Int): Pair<Color, Color> = worldOf(level).let { it.top to it.bottom }
+
+val CHAPTER_NAMES = WORLDS.map { it.name }
+
+/** Lilita One: tiles, titles and big numbers. */
+val ArcadeFont = FontFamily(Font(R.font.lilita_one))
+/** Fredoka: all small and instruction text. */
+val BodyFont = FontFamily(Font(R.font.fredoka, FontWeight.Normal), Font(R.font.fredoka_semibold, FontWeight.SemiBold), Font(R.font.fredoka_semibold, FontWeight.Bold), Font(R.font.fredoka_semibold, FontWeight.Black))
+val Heavy = FontWeight.Bold
 
 /**
- * A living background: a glowing sky of the chapter's colour, slowly turning sunbeams,
- * floating sparkles, and a polished wooden table at the bottom.
+ * A living background in the world's colours: slowly turning sunbeams, floating sparkles,
+ * and a soft rolling ground with the world's decorations (candy, bubbles, leaves, clouds, stars).
  */
 @Composable
 fun LivingBackground(level: Int, modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
-    val (top, bottom) = chapterColors(level)
+    val world = worldOf(level)
     val anim = rememberInfiniteTransition(label = "bg")
     val turn by anim.animateFloat(0f, 360f, infiniteRepeatable(tween(60_000, easing = LinearEasing)), label = "turn")
     val drift by anim.animateFloat(0f, 1f, infiniteRepeatable(tween(14_000, easing = LinearEasing)), label = "drift")
     val glow by anim.animateFloat(0.55f, 1f, infiniteRepeatable(tween(3_000), RepeatMode.Reverse), label = "glow")
     val motes = remember { List(26) { i -> Triple((i * 0.137f + 0.05f) % 1f, (i * 0.311f + 0.2f) % 1f, 2f + (i % 4) * 1.5f) } }
-    Box(modifier.fillMaxSize().background(Brush.verticalGradient(listOf(top, bottom)))) {
+    Box(modifier.fillMaxSize().background(Brush.verticalGradient(listOf(world.top, world.bottom)))) {
         Canvas(Modifier.fillMaxSize()) {
             val c = Offset(size.width * 0.5f, -size.height * 0.15f)
-            // Sunbeams.
             rotate(turn, c) {
                 for (i in 0 until 12) {
                     val a = Math.toRadians(i * 30.0)
@@ -87,35 +113,67 @@ fun LivingBackground(level: Int, modifier: Modifier = Modifier, content: @Compos
                         lineTo(c.x + (r * cos(a2)).toFloat(), c.y + (r * sin(a2)).toFloat())
                         close()
                     }
-                    drawPath(path, Color.White.copy(alpha = 0.07f * glow))
+                    drawPath(path, Color.White.copy(alpha = 0.08f * glow))
                 }
             }
-            drawCircle(Brush.radialGradient(listOf(Color(0x66FFF6D8), Color.Transparent), center = c, radius = size.width * 0.6f), radius = size.width * 0.6f, center = c)
-            // Wooden table along the bottom third.
-            val tableTop = size.height * 0.72f
-            drawRect(Brush.verticalGradient(listOf(Palette.woodLight, Palette.woodDark), startY = tableTop, endY = size.height), Offset(0f, tableTop))
-            for (i in 0 until 7) {
-                val y0 = tableTop + (size.height - tableTop) * i / 7
-                val path = Path()
-                path.moveTo(0f, y0)
+            drawCircle(Brush.radialGradient(listOf(Color(0x66FFFFFF), Color.Transparent), center = c, radius = size.width * 0.6f), radius = size.width * 0.6f, center = c)
+            drawWorldDecor(world, drift)
+            // Rolling hills at the bottom.
+            val hill = Path().apply {
+                moveTo(0f, size.height)
                 var x = 0f
-                while (x <= size.width) { path.lineTo(x, y0 + 4f * sin(x / 70f + i * 1.3f)); x += 14f }
-                drawPath(path, Palette.woodGrain, style = Stroke(width = 1.5f))
+                lineTo(0f, size.height * 0.84f)
+                while (x <= size.width) { lineTo(x, size.height * 0.84f - 18f * sin(x / 160f) - 10f * sin(x / 57f)); x += 12f }
+                lineTo(size.width, size.height)
+                close()
             }
-            drawRect(Color(0x55000000), Offset(0f, tableTop), androidx.compose.ui.geometry.Size(size.width, 6f))
-            // Floating sparkles.
+            drawPath(hill, world.ground.copy(alpha = 0.75f))
             for ((x0, y0, r) in motes) {
-                val y = ((y0 - drift + 1f) % 1f) * size.height * 0.75f
+                val y = ((y0 - drift + 1f) % 1f) * size.height * 0.8f
                 val x = x0 * size.width + 14f * sin((drift * 6.28f) + x0 * 10f)
-                drawCircle(Color.White.copy(alpha = 0.25f + 0.25f * glow), r, Offset(x, y))
+                drawCircle(Color.White.copy(alpha = 0.25f + 0.3f * glow), r, Offset(x, y))
             }
         }
         content()
     }
 }
 
-val ArcadeFont = FontFamily.SansSerif
-val Heavy = FontWeight.Black
+/** Little moving decorations for each world, drawn in the background. */
+private fun DrawScope.drawWorldDecor(world: World, t: Float) {
+    val w = size.width
+    val h = size.height
+    when (world.index) {
+        0 -> for (i in 0 until 7) { // lollipops on the hills
+            val x = w * (0.06f + i * 0.15f)
+            val y = h * 0.78f
+            drawLine(Color.White, Offset(x, y), Offset(x, y - h * 0.1f), strokeWidth = 5f)
+            drawCircle(listOf(Color(0xFFFF5FA2), Color(0xFF6BD6FF), Color(0xFFFFD84A))[i % 3], h * 0.035f, Offset(x, y - h * 0.12f))
+            drawCircle(Color.White.copy(alpha = 0.5f), h * 0.015f, Offset(x - 4f, y - h * 0.13f))
+        }
+        1 -> for (i in 0 until 14) { // bubbles rising
+            val x = w * ((i * 0.071f + 0.03f) % 1f) + 10f * sin(t * 12f + i)
+            val y = h * (1f - ((t * (0.6f + (i % 3) * 0.2f) + i * 0.13f) % 1f))
+            drawCircle(Color.White.copy(alpha = 0.35f), 6f + (i % 4) * 4f, Offset(x, y), style = androidx.compose.ui.graphics.drawscope.Stroke(2f))
+        }
+        2 -> for (i in 0 until 8) { // big leaves at the top
+            val x = w * (i / 7f)
+            drawOval(Color(0xFF2FA35A).copy(alpha = 0.6f), Offset(x - 50f, -30f + 8f * sin(t * 6.28f + i)), Size(110f, 70f))
+        }
+        3 -> for (i in 0 until 5) { // drifting clouds
+            val x = ((t + i * 0.21f) % 1.2f) * w - w * 0.1f
+            val y = h * (0.12f + (i % 3) * 0.12f)
+            for (k in 0..2) drawCircle(Color.White.copy(alpha = 0.7f), 26f + k * 6f, Offset(x + k * 30f, y + (if (k == 1) -12f else 0f)))
+        }
+        else -> for (i in 0 until 20) { // twinkling stars and a ringed planet
+            val a = 0.3f + 0.7f * ((sin(t * 20f + i) + 1f) / 2f)
+            drawCircle(Color.White.copy(alpha = a), 2.5f, Offset(w * ((i * 0.173f) % 1f), h * ((i * 0.291f) % 0.6f)))
+            if (i == 0) {
+                drawCircle(Color(0xFFFFB86B), h * 0.07f, Offset(w * 0.86f, h * 0.2f))
+                drawOval(Color(0xFFFFE3A8), Offset(w * 0.86f - h * 0.12f, h * 0.2f - h * 0.02f), Size(h * 0.24f, h * 0.04f), style = androidx.compose.ui.graphics.drawscope.Stroke(4f))
+            }
+        }
+    }
+}
 
 /** One bright colour for each letter, A to Z. White letters read well on all of them. */
 val LetterColors: Map<Char, Color> = listOf(
@@ -130,36 +188,14 @@ fun letterColor(c: Char): Color = LetterColors[c.uppercaseChar()] ?: Color.Gray
 fun Color.darker(f: Float = 0.7f) = Color(red * f, green * f, blue * f, alpha)
 fun Color.lighter(f: Float = 0.3f) = Color(red + (1 - red) * f, green + (1 - green) * f, blue + (1 - blue) * f, alpha)
 
-/** Polished wood background with grain lines. */
-@Composable
-fun WoodBackground(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
-    Box(
-        modifier
-            .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(Palette.wood, Palette.woodDark)))
-    ) {
-        Canvas(Modifier.fillMaxSize()) {
-            val lines = 26
-            for (i in 0 until lines) {
-                val y0 = size.height * i / lines
-                val path = Path()
-                path.moveTo(0f, y0)
-                var x = 0f
-                while (x <= size.width) {
-                    val y = y0 + 6f * sin(x / 90f + i * 1.7f) + 3f * sin(x / 31f + i)
-                    path.lineTo(x, y)
-                    x += 12f
-                }
-                drawPath(path, Palette.woodGrain, style = Stroke(width = if (i % 3 == 0) 2.5f else 1.2f))
-            }
-            // Soft light from the top, like a polished cabinet.
-            drawRect(Brush.radialGradient(listOf(Color(0x33FFE9C0), Color.Transparent), center = Offset(size.width / 2, 0f), radius = size.width * 0.7f))
-        }
-        content()
-    }
-}
-
-/** A dark glossy panel with a gold rim, used for the side panels and dialogs. */
+/** A bright cartoon panel: royal blue glass with a gold rim. Used for the side panels and dialogs. */
 fun Modifier.arcadePanel(): Modifier = this
-    .background(Brush.verticalGradient(listOf(Color(0xE6331B0B), Color(0xE61E0F05))), RoundedCornerShape(16.dp))
-    .border(2.dp, Brush.verticalGradient(listOf(Palette.gold, Palette.goldDeep)), RoundedCornerShape(16.dp))
+    .background(Brush.verticalGradient(listOf(Color(0xEE3566E8), Color(0xEE1A3A9C))), RoundedCornerShape(18.dp))
+    .border(3.dp, Brush.verticalGradient(listOf(Palette.gold, Palette.goldDeep)), RoundedCornerShape(18.dp))
+
+/** A white rounded card for lighter content (goals, lists). */
+fun Modifier.softCard(alpha: Float = 0.22f): Modifier = this
+    .background(Color.White.copy(alpha = alpha), RoundedCornerShape(12.dp))
+
+@Suppress("unused")
+private fun DrawScope.roundBox(color: Color, at: Offset, s: Size, r: Float) = drawRoundRect(color, at, s, CornerRadius(r))

@@ -1,5 +1,10 @@
 package com.retroraja.wordnoid.ui
 
+import android.app.Activity
+import com.retroraja.wordnoid.ads.Ads
+import androidx.compose.foundation.layout.*
+import androidx.compose.runtime.*
+
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -65,7 +70,7 @@ fun Overlays(c: GameController) {
     c.banner?.let { b -> key(b.key) { WordBannerView(b) } }
     for (t in c.toasts) key(t.id) { ToastView(t) }
     c.fx?.let { f -> key(f.key) { BoosterFxView(f, c) } }
-    if (c.wordRain) MessageBar("☔ WORD RAIN! Leftover moves become coins!")
+    if (c.wordRain) MessageBar("☔ Leftover moves burst into coins!")
 }
 
 @Composable
@@ -91,7 +96,7 @@ private fun WordBannerView(b: WordBanner) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 ArcadeText(b.praise, 24.sp, Palette.gold)
                 if (b.newWord) Text(
-                    " NEW WORD +5", Modifier.padding(start = 6.dp).background(Palette.pink, RoundedCornerShape(8.dp)).padding(horizontal = 5.dp),
+                    " NEW WORD", Modifier.padding(start = 6.dp).background(Palette.pink, RoundedCornerShape(8.dp)).padding(horizontal = 5.dp),
                     color = Color.White, fontSize = 11.sp, fontWeight = Heavy,
                 )
             }
@@ -113,7 +118,7 @@ private fun ToastView(t: Toast) {
             .graphicsLayer { scaleX = 0.5f + 0.5f * pop; scaleY = 0.5f + 0.5f * pop; alpha = if (rise.value > 0.7f) (1f - rise.value) / 0.3f else 1f }
             .width(120.dp),
         textAlign = TextAlign.Center,
-        style = TextStyle(fontFamily = ArcadeFont, fontWeight = Heavy, fontSize = if (t.big) 20.sp else 15.sp, color = t.color, shadow = OutlineShadow),
+        style = TextStyle(fontFamily = ArcadeFont, fontWeight = androidx.compose.ui.text.font.FontWeight.Normal, fontSize = if (t.big) 20.sp else 15.sp, color = t.color, shadow = OutlineShadow),
     )
 }
 
@@ -240,7 +245,7 @@ fun TutorialBubble(t: Tutorial, onDismiss: () -> Unit) {
             Text(if (t.booster != null) "👉" else "💬", fontSize = 22.sp)
             Text(
                 t.text, Modifier.padding(start = 8.dp).width(420.dp),
-                color = Color(0xFF3A1F0C), fontSize = 15.sp, fontWeight = Heavy, lineHeight = 19.sp,
+                color = Color(0xFF1B2140), fontSize = 15.sp, fontWeight = Heavy, lineHeight = 19.sp,
             )
             if (t.dismissible) Text("  OK", color = Palette.greenDeep, fontSize = 15.sp, fontWeight = Heavy)
         }
@@ -248,23 +253,6 @@ fun TutorialBubble(t: Tutorial, onDismiss: () -> Unit) {
 }
 
 // ---------------------------------------------------------------- booster helpers
-
-@Composable
-fun SlideArrows(c: GameController) {
-    val row = c.armed == Booster.ROW_SLIDE
-    DimBox(0.25f) {
-        Column(Modifier.arcadePanel().padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            ArcadeText(if (row) "Slide the row" else "Slide the column", 18.sp, Palette.gold)
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                ArcadeButton(if (row) "◀" else "▲", textSize = 26.sp) { c.slide(-1) }
-                ArcadeButton(if (row) "▶" else "▼", textSize = 26.sp) { c.slide(1) }
-            }
-            Spacer(Modifier.height(6.dp))
-            Text("Cancel", Modifier.clickable { c.cancelAim() }, color = Palette.cream, fontSize = 14.sp)
-        }
-    }
-}
 
 @Composable
 fun LetterPicker(lp: LetterPick, onPick: (Char) -> Unit, onCancel: () -> Unit) {
@@ -294,7 +282,7 @@ fun BuyDialog(b: Booster, progress: Progress, onBuy: () -> Unit, onClose: () -> 
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 ArcadeButton("Buy 🪙$price", enabled = progress.coins >= price, onClick = onBuy)
-                ArcadeButton("Close", color = Color(0xFF6B3A08), onClick = onClose)
+                ArcadeButton("Close", color = Palette.slate, onClick = onClose)
             }
             Text("You have 🪙${progress.coins}", color = Palette.cream, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
         }
@@ -352,7 +340,7 @@ fun MysteryCards(cards: List<Booster>, sounds: SoundFx, onPicked: (Booster) -> U
                     ) {
                         if (faceUp) Column(Modifier.graphicsLayer { rotationY = 180f }, horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(b.emoji, fontSize = 40.sp)
-                            Text(b.title, color = Color(0xFF3A1F0C), fontSize = 12.sp, fontWeight = Heavy, textAlign = TextAlign.Center)
+                            Text(b.title, color = Color(0xFF1B2140), fontSize = 12.sp, fontWeight = Heavy, textAlign = TextAlign.Center)
                         } else ArcadeText("?", 48.sp, Color.White)
                     }
                 }
@@ -365,87 +353,125 @@ fun MysteryCards(cards: List<Booster>, sounds: SoundFx, onPicked: (Booster) -> U
 
 // ---------------------------------------------------------------- end of level
 
+/** A "Watch a video" button for one of the rewarded ad spots. Hidden when the spot is used up for today. */
 @Composable
-fun WinDialog(c: GameController, onNext: () -> Unit, onMap: () -> Unit) {
+fun WatchButton(text: String, spot: Ads.Spot, activity: Activity, onReward: () -> Unit) {
+    if (!Ads.spotAvailable(spot)) return
+    var note by remember { mutableStateOf<String?>(null) }
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        ArcadeButton("▶ $text", color = Color(0xFFE0457B), textSize = 15.sp) {
+            Ads.showRewarded(activity, spot, onReward = { note = null; onReward() }, onFail = { note = it })
+        }
+        note?.let { Text(it, color = Palette.cream, fontSize = 11.sp) }
+    }
+}
+
+@Composable
+fun WinDialog(c: GameController, activity: Activity, onNext: () -> Unit, onTown: () -> Unit) {
+    var doubled by remember { mutableStateOf(false) }
+    var extra by remember { mutableStateOf(false) }
     DimBox(0.45f) {
-        Column(Modifier.width(440.dp).arcadePanel().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            ArcadeText(if (c.level.boss) "BOSS DEFEATED!" else "LEVEL COMPLETE!", 26.sp, Palette.gold)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
-                for (i in 1..3) {
-                    val s = remember { Animatable(3f) }
-                    val on = i <= c.winStars
-                    LaunchedEffect(Unit) {
-                        delay(250L + i * 300L)
-                        if (on) { c.particles.sparkle(c.center(), Palette.gold, 12) }
-                        s.animateTo(1f, spring(dampingRatio = 0.4f, stiffness = 500f))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.width(460.dp).arcadePanel().padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                ArcadeText(if (c.level.boss) "BOSS DEFEATED!" else "LEVEL COMPLETE!", 26.sp, Palette.gold)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
+                    for (i in 1..3) {
+                        val s = remember { Animatable(3f) }
+                        val on = i <= c.winStars
+                        LaunchedEffect(on) {
+                            delay(250L + i * 300L)
+                            if (on) c.particles.sparkle(c.center(), Palette.gold, 12)
+                            s.animateTo(1f, spring(dampingRatio = 0.4f, stiffness = 500f))
+                        }
+                        Text("🧱", fontSize = if (i == 2) 46.sp else 36.sp, modifier = Modifier.scale(s.value).alpha(if (on) 1f else 0.2f))
                     }
-                    Text("⭐", fontSize = if (i == 2) 50.sp else 40.sp, modifier = Modifier.scale(s.value).alpha(if (on) 1f else 0.2f))
+                }
+                Text("${c.winStars} Letter Brick${if (c.winStars > 1) "s" else ""} for Tiko's Town!", color = Color.White, fontSize = 14.sp, fontWeight = Heavy)
+                Text("🪙 +${c.coinsThisLevel}   ·   Score ${c.score}", color = Palette.gold, fontSize = 16.sp, fontWeight = Heavy)
+                if (c.foundWords.isNotEmpty()) Text(
+                    "Your words: " + c.foundWords.joinToString(", "),
+                    color = Color.White, fontSize = 12.sp, textAlign = TextAlign.Center, maxLines = 3, lineHeight = 15.sp,
+                )
+                if (c.newWordsThisLevel > 0) Text("📖 ${c.newWordsThisLevel} new words in your Wordbook", color = Palette.cream, fontSize = 12.sp)
+                c.winBooster?.let { Text("🎁 Prize: ${it.emoji} ${it.title}!", color = Palette.green, fontSize = 15.sp, fontWeight = Heavy) }
+                if (c.level.bonusWord != null && !c.bonusFound) Text("The bonus word was ${c.level.bonusWord}", color = Palette.cream.copy(alpha = 0.8f), fontSize = 12.sp)
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (!doubled) WatchButton("x2 coins", Ads.Spot.DOUBLE_WIN_COINS, activity) { c.doubleWinCoins(); doubled = true }
+                    if (!extra && c.winStars < 3) WatchButton("+1 brick", Ads.Spot.EXTRA_BRICK, activity) { c.extraBrick(); extra = true }
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    ArcadeButton("🏠 Back to Town", color = Palette.slate, textSize = 17.sp, onClick = onTown)
+                    if (c.level.number < com.retroraja.wordnoid.core.Levels.all.size) ArcadeButton("Next ▶", onClick = onNext)
                 }
             }
-            Text("Score ${c.score}   ·   🪙 +${c.coinsThisLevel}", color = Palette.cream, fontSize = 16.sp, fontWeight = Heavy)
-            Text(
-                "Words ${c.stats.words.size}" + (if (c.longestWord.isNotEmpty()) "   ·   Longest ${c.longestWord}" else "") +
-                    (if (c.newWordsThisLevel > 0) "   ·   New ${c.newWordsThisLevel}" else ""),
-                color = Palette.cream, fontSize = 13.sp,
-            )
-            c.winBooster?.let { Text("🎁 Prize: ${it.emoji} ${it.title}!", color = Palette.green, fontSize = 15.sp, fontWeight = Heavy) }
-            if (c.milestoneGift) Text("🏆 Milestone gift: +100 🪙", color = Palette.gold, fontSize = 14.sp, fontWeight = Heavy)
-            if (c.level.bonusWord != null && !c.bonusFound) Text("The bonus word was ${c.level.bonusWord}", color = Palette.cream.copy(alpha = 0.7f), fontSize = 12.sp)
-            Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                ArcadeButton("Map", color = Color(0xFF6B3A08), onClick = onMap)
-                if (c.level.number < com.retroraja.wordnoid.core.Levels.all.size) ArcadeButton("Next ▶", onClick = onNext)
-            }
+            Box(Modifier.padding(start = 10.dp).width(250.dp)) { Ads.Banner(big = true) }
         }
     }
 }
 
 @Composable
-fun LoseDialog(c: GameController, onRetry: () -> Unit, onMap: () -> Unit) {
+fun LoseDialog(c: GameController, activity: Activity, onRetry: () -> Unit, onMap: () -> Unit) {
     val fails = c.progress.fails(c.level.number)
     val moves = Progress.continueMoves(fails)
     val anim = rememberInfiniteTransition(label = "deal")
     val glow by anim.animateFloat(0.9f, 1.08f, infiniteRepeatable(tween(500), RepeatMode.Reverse), label = "g")
     DimBox {
-        Column(Modifier.width(460.dp).arcadePanel().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            ArcadeText("Out of moves!", 26.sp, Palette.gold)
-            val left = c.level.targets.filter { it.left(c.stats) > 0 }.joinToString("  ·  ") { "${it.icon} ${it.left(c.stats)} ${it.label.lowercase()}" }
-            Text("So close! Still needed: $left", color = Palette.cream, fontSize = 14.sp, textAlign = TextAlign.Center)
-            Spacer(Modifier.height(8.dp))
+        Column(Modifier.width(480.dp).arcadePanel().padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Tiko(Modifier.size(54.dp))
+                ArcadeText(" Out of moves!", 26.sp, Palette.gold)
+            }
+            val left = c.level.targets.filter { it.left(c.stats) > 0 }.joinToString("\n") { "${it.icon} ${it.left(c.stats)} more: ${it.text}" }
+            Text("So close! Still needed:\n$left", color = Color.White, fontSize = 14.sp, textAlign = TextAlign.Center, lineHeight = 18.sp)
+            Spacer(Modifier.height(6.dp))
             if (moves > 5) Text(
                 "🔥 SPECIAL DEAL: +$moves MOVES! 🔥", Modifier.scale(glow).background(Palette.red, RoundedCornerShape(10.dp)).padding(horizontal = 10.dp, vertical = 2.dp),
                 color = Color.White, fontSize = 16.sp, fontWeight = Heavy,
             )
             Spacer(Modifier.height(6.dp))
-            ArcadeButton(
-                "Keep playing: +$moves moves for 🪙${Progress.CONTINUE_PRICE}",
-                enabled = c.progress.coins >= Progress.CONTINUE_PRICE, textSize = 16.sp,
-            ) { c.continueForCoins() }
-            if (c.progress.coins < Progress.CONTINUE_PRICE) Text("You have 🪙${c.progress.coins}. Save coins for next time!", color = Palette.cream, fontSize = 12.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                ArcadeButton(
+                    "+$moves moves 🪙${Progress.CONTINUE_PRICE}",
+                    enabled = c.progress.coins >= Progress.CONTINUE_PRICE, textSize = 16.sp,
+                ) { c.continueForCoins() }
+                WatchButton("+5 moves", Ads.Spot.CONTINUE, activity) { c.continueForAd() }
+            }
+            if (c.progress.coins < Progress.CONTINUE_PRICE) Text("You have 🪙${c.progress.coins}.", color = Palette.cream, fontSize = 12.sp)
             if (c.progress.count(Booster.PLUS_MOVES) > 0) {
                 Spacer(Modifier.height(6.dp))
                 ArcadeButton("Use ➕ +3 Moves (you have ${c.progress.count(Booster.PLUS_MOVES)})", color = Palette.purple, textSize = 15.sp) { c.continueWithBooster() }
             }
+            if (c.level.boss) WatchButton("Boss rematch: +5 moves", Ads.Spot.BOSS_REMATCH, activity) { c.continueForAd() }
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                ArcadeButton("Try again", color = Color(0xFF8E3B1F), textSize = 16.sp, onClick = onRetry)
-                ArcadeButton("Map", color = Color(0xFF6B3A08), textSize = 16.sp, onClick = onMap)
+                ArcadeButton("Try again", color = Color(0xFFE5533D), textSize = 16.sp, onClick = onRetry)
+                ArcadeButton("Level Map", color = Palette.slate, textSize = 16.sp, onClick = onMap)
             }
+            // A free Hammer after a fail, for a video.
+            var gotHammer by remember { mutableStateOf(false) }
+            if (!gotHammer) WatchButton("Free 🔨 Hammer for next try", Ads.Spot.FREE_HAMMER, activity) { c.progress.addBooster(Booster.HAMMER); gotHammer = true }
         }
     }
 }
 
 @Composable
-fun PauseDialog(progress: Progress, onResume: () -> Unit, onRestart: () -> Unit, onMap: () -> Unit) {
+fun PauseDialog(progress: Progress, c: GameController, activity: Activity, onResume: () -> Unit, onRestart: () -> Unit, onMap: () -> Unit) {
     DimBox {
-        Column(Modifier.width(320.dp).arcadePanel().padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            ArcadeText("Paused", 26.sp, Palette.gold)
-            SettingsToggles(progress)
-            ArcadeButton("Resume", onClick = onResume)
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ArcadeButton("Restart", color = Color(0xFF8E3B1F), textSize = 16.sp, onClick = onRestart)
-                ArcadeButton("Map", color = Color(0xFF6B3A08), textSize = 16.sp, onClick = onMap)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.width(340.dp).arcadePanel().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                ArcadeText("Paused", 26.sp, Palette.gold)
+                Text(c.level.targets.joinToString("\n") { "${it.icon} ${it.text}: ${minOf(it.count, it.progress(c.stats))}/${it.count}" }, color = Color.White, fontSize = 13.sp, textAlign = TextAlign.Center)
+                SettingsToggles(progress)
+                ArcadeButton("Resume", onClick = onResume)
+                WatchButton("Stuck? Show me words", Ads.Spot.STUCK_HINT, activity) { c.freeHint(); onResume() }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ArcadeButton("Restart", color = Color(0xFFE5533D), textSize = 16.sp, onClick = onRestart)
+                    ArcadeButton("Level Map", color = Palette.slate, textSize = 16.sp, onClick = onMap)
+                }
             }
+            Box(Modifier.padding(start = 10.dp).width(250.dp)) { Ads.Banner(big = true) }
         }
     }
 }
@@ -456,6 +482,7 @@ fun SettingsToggles(progress: Progress) {
         Toggle("🎵", "Music", progress.music) { progress.toggleMusic() }
         Toggle("🔊", "Sound", progress.sound) { progress.toggleSound() }
         Toggle("📳", "Vibrate", progress.vibration) { progress.toggleVibration() }
+        Toggle("🔔", "Reminders", progress.notifications) { progress.toggleNotifications() }
     }
 }
 

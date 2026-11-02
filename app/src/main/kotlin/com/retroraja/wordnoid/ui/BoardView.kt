@@ -69,7 +69,7 @@ fun BoardView(c: GameController, cell: Dp, modifier: Modifier = Modifier) {
     Box(
         modifier
             .graphicsLayer { rotationY = wobble.value; cameraDistance = 14f * density.density }
-            .background(Brush.verticalGradient(listOf(Color(0xFF3A1E0B), Color(0xFF241105))), RoundedCornerShape(18.dp))
+            .background(Brush.verticalGradient(listOf(Color(0xCC1A2E7A), Color(0xCC0F1C52))), RoundedCornerShape(18.dp))
             .border(4.dp, Brush.verticalGradient(listOf(Palette.gold, Palette.goldDeep, Palette.gold)), RoundedCornerShape(18.dp))
             .padding(pad)
             .size(cell * board.cols, cell * board.rows)
@@ -101,15 +101,27 @@ fun BoardView(c: GameController, cell: Dp, modifier: Modifier = Modifier) {
                 }
             },
     ) {
-        // Empty slots under the tiles.
+        // Empty slots under the tiles. Sand cells hide treasure; dug sand turns light, a found chest shows its gem.
+        val sand = c.level.chests.flatten().toSet()
+        val dug = c.game.dug
+        val found = c.game.chestsFound.flatMap { c.level.chests[it] }.toSet()
         for (p in board.positions()) {
+            val color = when {
+                p in found -> Color(0xFFFFE9A8)
+                p in dug -> Color(0xFFF7DFA0)
+                p in sand -> Color(0xFFE2B866)
+                else -> Color(0x33000000)
+            }
             Box(
                 Modifier
                     .offset { IntOffset((p.col * cellPx).roundToInt(), (p.row * cellPx).roundToInt()) }
                     .size(cell)
                     .padding(2.dp)
-                    .background(Color(0x33000000), RoundedCornerShape(10.dp))
-            )
+                    .background(color, RoundedCornerShape(10.dp)),
+                contentAlignment = androidx.compose.ui.Alignment.Center,
+            ) {
+                if (p in sand && p !in found) Text("·", color = Color(0xFF9A6B1E), fontSize = (cell.value * 0.3f).sp)
+            }
         }
         val tut = c.tutorial
         val handCells = tut?.swap?.toList() ?: emptyList()
@@ -144,7 +156,7 @@ fun BoardView(c: GameController, cell: Dp, modifier: Modifier = Modifier) {
                     inScan -> Palette.cyan.copy(alpha = 0.4f + 0.6f * pulse)
                     else -> null
                 }
-                val dim = armed != null && !aimable(armed.aim, tile) || (c.slideAt != null && c.slideAt != p)
+                val dim = armed != null && !aimable(armed.aim, tile)
                 Tile3D(
                     tile, cell,
                     Modifier
@@ -177,7 +189,7 @@ fun BoardView(c: GameController, cell: Dp, modifier: Modifier = Modifier) {
 
 fun aimable(aim: Aim, t: com.retroraja.wordnoid.core.Tile): Boolean = when (aim) {
     Aim.NONE -> true
-    Aim.TILE -> true
+    Aim.TILE -> !t.isGold && !t.isBuddy
     Aim.MOVABLE, Aim.TWO_TILES, Aim.SQUARE -> t.movable
     Aim.ROW, Aim.COLUMN -> true
     Aim.OBSTACLE -> t.isCrate || t.isIce || t.isChain

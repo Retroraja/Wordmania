@@ -29,7 +29,7 @@ val OutlineShadow = Shadow(color = Color(0xAA000000), offset = androidx.compose.
 
 @Composable
 fun ArcadeText(text: String, size: TextUnit, color: Color = Palette.cream, modifier: Modifier = Modifier) {
-    Text(text, modifier = modifier, style = TextStyle(fontFamily = ArcadeFont, fontWeight = Heavy, fontSize = size, color = color, shadow = OutlineShadow))
+    Text(text, modifier = modifier, style = TextStyle(fontFamily = ArcadeFont, fontWeight = androidx.compose.ui.text.font.FontWeight.Normal, fontSize = size, color = color, shadow = OutlineShadow))
 }
 
 /** A chunky glossy button. */
