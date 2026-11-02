@@ -4,6 +4,9 @@ enum class GameStatus { PLAYING, WON, LOST }
 
 data class CrateHit(val pos: Pos, val broken: Boolean, val prize: Prize?)
 
+/** What the boss did after a move: froze a tile (now ice) or dropped a crate. */
+data class BossAttack(val pos: Pos, val freeze: Boolean)
+
 /** Everything that happens when words burst (or a booster smashes something). */
 data class Effects(
     val words: List<FoundWord> = emptyList(),
@@ -12,6 +15,9 @@ data class Effects(
     val crateHits: List<CrateHit> = emptyList(),
     val chainsBroken: List<Pos> = emptyList(),
     val iceMelted: List<Pos> = emptyList(),
+    /** Ice hit once by the Hammer (cracked, not melted yet). */
+    val iceCracked: List<Pos> = emptyList(),
+    val balloons: List<Pos> = emptyList(),
     val gold: List<Pos> = emptyList(),
     val gifts: List<Pos> = emptyList(),
     val themeWords: List<String> = emptyList(),
@@ -24,7 +30,7 @@ data class Effects(
     val boosters: Int = 0,
     val doubled: Boolean = false,
 ) {
-    val isEmpty: Boolean get() = words.isEmpty() && cleared.isEmpty() && chainsBroken.isEmpty() && iceMelted.isEmpty()
+    val isEmpty: Boolean get() = words.isEmpty() && cleared.isEmpty() && chainsBroken.isEmpty() && iceMelted.isEmpty() && iceCracked.isEmpty() && balloons.isEmpty()
 }
 
 data class MoveResult(
@@ -39,10 +45,15 @@ data class MoveResult(
     /** Extra points for moves left over when the level is won. */
     val leftoverBonus: Int,
     val leftoverCoins: Int,
+    /** Tiko friends that reached the bottom and escaped in this move. */
+    val rescued: Int = 0,
+    /** Treasure chests dug out in this move (index into [Level.chests]). */
+    val chestsFound: List<Int> = emptyList(),
+    val bossAttack: BossAttack? = null,
 )
 
 /** The rules of one level being played. Has no screen code, so it can be tested and used by the level maker. */
-class Game private constructor(val level: Level, private val dict: Dictionary, private var s: State) {
+class Game private constructor(val level: Level, private val baseDict: Dictionary, private var s: State) {
 
     private data class State(
         val board: Board,
@@ -57,12 +68,18 @@ class Game private constructor(val level: Level, private val dict: Dictionary, p
         val freeMoves: Int,
         val doubleNext: Boolean,
         val bonusFound: Boolean,
+        val dug: Set<Pos> = emptySet(),
+        val chests: Set<Int> = emptySet(),
     ) {
         fun deep(): State = copy(rng = rng.copy(), ids = ids.copy())
     }
 
     private var undo: State? = null
-    private val theme: Set<String> = level.themeName()?.let { Themes.byName(it) }?.let { Themes.cleaned(it, dict) } ?: emptySet()
+    private val themeInfo: Themes.Theme? = level.themeName()?.let { Themes.byName(it) }
+    private val theme: Set<String> = themeInfo?.let { Themes.cleaned(it, baseDict) } ?: emptySet()
+    /** During a Names goal, names count as words too. */
+    private val dict: Dictionary = if (themeInfo?.isNames == true) baseDict.withExtra(theme.map { it.lowercase() }.toSet()) else baseDict
+    private val treasureCells: Set<Pos> = level.chests.flatten().toSet()
 
     val board: Board get() = s.board
     val movesLeft: Int get() = s.movesLeft
@@ -77,6 +94,9 @@ class Game private constructor(val level: Level, private val dict: Dictionary, p
     val bonusFound: Boolean get() = s.bonusFound
     val canUndo: Boolean get() = undo != null
     val themeWords: Set<String> get() = theme
+    /** Sand cells already dug (their tile was cleared at least once). */
+    val dug: Set<Pos> get() = s.dug
+    val chestsFound: Set<Int> get() = s.chests
 
     constructor(level: Level, dict: Dictionary, bonusMoves: Int = 0) : this(
         level, dict,
@@ -91,7 +111,7 @@ class Game private constructor(val level: Level, private val dict: Dictionary, p
         ),
     )
 
-    fun copy(): Game = Game(level, dict, s.deep()).also { it.undo = undo?.deep() }
+    fun copy(): Game = Game(level, baseDict, s.deep()).also { it.undo = undo?.deep() }
 
     val goalMet: Boolean get() = level.isMet(s.stats)
 
@@ -104,7 +124,26 @@ class Game private constructor(val level: Level, private val dict: Dictionary, p
         undo = s.deep()
         s = if (s.freeMoves > 0) s.copy(freeMoves = s.freeMoves - 1) else s.copy(movesLeft = s.movesLeft - 1)
         s = s.copy(movesUsed = s.movesUsed + 1, board = board.swap(a, b))
-        return act(listOf(a, b))
+        val r = act(listOf(a, b))
+        return if (level.boss && r.status == GameStatus.PLAYING && s.movesUsed % BOSS_EVERY == 0) bossAttack(r) else r
+    }
+
+    /** The boss fights back: freezes a tile, or drops a crate near the top. Never on the move that wins. */
+    private fun bossAttack(r: MoveResult): MoveResult {
+        val freeze = (s.movesUsed / BOSS_EVERY) % 2 == 1
+        val b = board
+        val spots = b.positions().filter { p ->
+            val t = b[p]
+            t.kind == TileKind.NORMAL && !t.locked && (freeze || p.row <= 2)
+        }
+        if (spots.isEmpty()) return r
+        val p = spots[s.rng.nextInt(spots.size)]
+        var nb = if (freeze) b.with(p, b[p].copy(kind = TileKind.ICE, hp = ICE_HP))
+        else b.with(p, b[p].copy(letter = CRATE_CHAR, kind = TileKind.CRATE, hp = 1, prize = Prize(PrizeKind.COINS, 5)))
+        s = s.copy(board = nb)
+        var shuffled: Board? = r.shuffled
+        if (!hasWordMove(nb)) { nb = shuffled(nb); s = s.copy(board = nb); shuffled = nb }
+        return r.copy(boardAfter = board, shuffled = shuffled, bossAttack = BossAttack(p, freeze))
     }
 
     /** "+N moves" from the out-of-moves screen. Keeps the board as it is. */
@@ -137,6 +176,7 @@ class Game private constructor(val level: Level, private val dict: Dictionary, p
         val ice = ArrayList<Pos>()
         val gold = ArrayList<Pos>()
         val gifts = ArrayList<Pos>()
+        val balloons = LinkedHashSet<Pos>()
         var boosters = 0
         var bonusMoves = 0
         var coins = 0
@@ -156,6 +196,7 @@ class Game private constructor(val level: Level, private val dict: Dictionary, p
             if (t.isGift) { gifts += p; boosters++ }
             if (t.isIce) ice += p
             if (t.isChain) chains += p
+            if (t.isBalloon) balloons += p
         }
         // Crates next to a word take one hit each. Smashed crates take one hit (or break fully with the Axe).
         val hitCrates = LinkedHashSet<Pos>()
@@ -164,7 +205,7 @@ class Game private constructor(val level: Level, private val dict: Dictionary, p
         for (p in hitCrates) {
             val t = b[p]
             val broken = crateFullBreak && p in smashed || t.hp <= 1
-            val prize = if (broken) (t.prize ?: Prize(PrizeKind.COINS, 10)) else null
+            val prize = if (broken) (t.prize ?: Prize(PrizeKind.COINS, 5)) else null
             crateHits += CrateHit(p, broken, prize)
             if (broken) {
                 cleared += p
@@ -175,28 +216,31 @@ class Game private constructor(val level: Level, private val dict: Dictionary, p
                 }
             }
         }
-        // Chains next to a word snap (the tile stays, now free to move).
-        for (p in wordCells) for (n in b.neighbours(p)) if (b[n].isChain && n !in chains) chains += n
+        // Chains next to a word snap (the tile stays, now free to move). Balloons next to a word pop.
+        for (p in wordCells) for (n in b.neighbours(p)) {
+            if (b[n].isChain && n !in chains) chains += n
+            if (b[n].isBalloon) balloons += n
+        }
 
+        // Words give no coins (coins come from wins, crates and gifts), only points, Power Meter and long-word moves.
         for (w in words) {
             val isTheme = w.word in theme
             if (isTheme) themeHits += w.word
-            var c = w.length
             var pts = w.length * 10 * maxOf(1, w.length - 2)
-            if (isTheme) { c *= 2; pts *= 2 }
-            if (doubled) { c *= 2; pts *= 2 }
-            coins += c
+            var m = when { w.length >= 5 -> 3; w.length == 4 -> 2; else -> 1 }
+            if (isTheme) pts *= 2
+            if (doubled) { pts *= 2; m *= 2 }
             points += pts
-            meter += when { w.length >= 5 -> 3; w.length == 4 -> 2; else -> 1 }
-            bonusMoves += when { w.length >= 5 -> 2; w.length == 4 -> 1; else -> 0 }
+            meter += m
+            bonusMoves += level.movesForWord(w.length)
         }
-        if (words.size >= 2) coins += 5
-        points += 20 * (crateHits.size + chains.size + ice.size + gold.size)
+        points += 20 * (crateHits.size + chains.size + ice.size + gold.size + balloons.size)
         val bonusWord = !s.bonusFound && level.bonusWord != null && words.any { it.word == level.bonusWord }
         if (bonusWord) boosters++
         return Effects(
-            words, cleared, crateHits, chains.distinct(), ice, gold, gifts, themeHits, bonusWord,
-            bonusMoves, coins, points, meter, boosters, doubled,
+            words = words, cleared = cleared, crateHits = crateHits, chainsBroken = chains.distinct(), iceMelted = ice,
+            balloons = balloons.toList(), gold = gold, gifts = gifts, themeWords = themeHits, bonusWord = bonusWord,
+            bonusMoves = bonusMoves, coins = coins, points = points, meter = meter, boosters = boosters, doubled = doubled,
         )
     }
 
@@ -211,6 +255,7 @@ class Game private constructor(val level: Level, private val dict: Dictionary, p
             chains = st.chains + fx.chainsBroken.size,
             letters = letters,
             themeWords = st.themeWords + fx.themeWords.size,
+            balloons = st.balloons + fx.balloons.size,
         )
     }
 
@@ -219,19 +264,35 @@ class Game private constructor(val level: Level, private val dict: Dictionary, p
         // Tiles that stay but change: hit crates, snapped chains, used locks.
         for (h in fx.crateHits) if (!h.broken) b = b.with(h.pos, b[h.pos].copy(hp = b[h.pos].hp - 1))
         for (p in fx.chainsBroken) if (p !in fx.cleared) b = b.with(p, b[p].copy(kind = TileKind.NORMAL))
-        for (p in fx.iceMelted) if (p !in fx.cleared) b = b.with(p, b[p].copy(kind = TileKind.NORMAL))
+        for (p in fx.iceMelted) if (p !in fx.cleared) b = b.with(p, b[p].copy(kind = TileKind.NORMAL, hp = 0))
+        for (p in fx.iceCracked) b = b.with(p, b[p].copy(hp = b[p].hp - 1))
+        for (p in fx.balloons) if (p !in fx.cleared) b = b.with(p, b[p].copy(kind = TileKind.NORMAL))
         for (w in fx.words) for (p in w.cells) if (b[p].locked) b = b.with(p, b[p].copy(locked = false))
-        val after = if (fx.cleared.isEmpty()) b else Refill.collapse(b, fx.cleared, s.rng, s.ids, dict, level.giftRate)
+        var after = if (fx.cleared.isEmpty()) b else Refill.collapse(b, fx.cleared, s.rng, s.ids, dict, level.giftRate)
+        // Tiko friends that reach the bottom row escape (and the tiles above drop again).
+        var rescued = 0
+        while (true) {
+            val out = (0 until after.cols).map { Pos(after.rows - 1, it) }.filter { after[it].isBuddy }.toSet()
+            if (out.isEmpty()) break
+            rescued += out.size
+            after = Refill.collapse(after, out, s.rng, s.ids, dict, level.giftRate)
+        }
+        // Digging: every cleared sand cell is dug. A chest is found when all of its cells are dug.
+        val dug = s.dug + fx.cleared.filter { it in treasureCells }
+        val newChests = level.chests.indices.filter { it !in s.chests && level.chests[it].all { c -> c in dug } }
+        val st = statsAfter(s.stats, fx)
         s = s.copy(
             board = after,
-            stats = statsAfter(s.stats, fx),
+            dug = dug,
+            chests = s.chests + newChests,
+            stats = st.copy(rescued = st.rescued + rescued, treasures = st.treasures + newChests.size),
             movesLeft = s.movesLeft + fx.bonusMoves,
             coins = s.coins + fx.coins,
             score = s.score + fx.points,
             doubleNext = s.doubleNext && !fx.doubled,
             bonusFound = s.bonusFound || fx.bonusWord,
         )
-        return finish(changedBoard, fx)
+        return finish(changedBoard, fx).copy(rescued = rescued, chestsFound = newChests)
     }
 
     private fun finish(changedBoard: Board, fx: Effects): MoveResult {
@@ -246,7 +307,7 @@ class Game private constructor(val level: Level, private val dict: Dictionary, p
         s = s.copy(status = status)
         if (status == GameStatus.WON) {
             leftover = s.movesLeft * LEFTOVER_MOVE_POINTS
-            leftoverCoins = s.movesLeft * LEFTOVER_MOVE_COINS
+            leftoverCoins = minOf(s.movesLeft * LEFTOVER_MOVE_COINS, LEFTOVER_COINS_MAX)
             s = s.copy(score = s.score + leftover, coins = s.coins + leftoverCoins)
             undo = null
         } else if (status == GameStatus.PLAYING && !hasWordMove(board)) {
@@ -270,13 +331,26 @@ class Game private constructor(val level: Level, private val dict: Dictionary, p
         val before = s.deep()
         val result: MoveResult? = when (booster) {
             Booster.HINT, Booster.SCANNER -> null
-            Booster.HAMMER -> if (!ok(a)) null else smash(setOf(a!!), fullBreak = false)
+            Booster.HAMMER -> when {
+                !ok(a) -> null
+                bd[a!!].isGold || bd[a].isBuddy -> null // gold is collected with words (or the Magnet), friends can't be smashed
+                bd[a].isIce && bd[a].hp >= 2 -> apply(bd, Effects(iceCracked = listOf(a)))
+                else -> smash(setOf(a), fullBreak = false)
+            }
+            Booster.TREASURE_FINDER -> {
+                val i = level.chests.indices.firstOrNull { it !in s.chests }
+                if (i == null) null else {
+                    val cells = level.chests[i]
+                    s = s.copy(dug = s.dug + cells, chests = s.chests + i, stats = s.stats.copy(treasures = s.stats.treasures + 1))
+                    finish(bd, Effects()).copy(chestsFound = listOf(i))
+                }
+            }
             Booster.AXE -> {
                 if (!ok(a)) null else {
                     val t = bd[a!!]
                     when {
                         t.isCrate -> smash(setOf(a), fullBreak = true)
-                        t.isIce || t.isChain -> apply(bd, Effects(iceMelted = if (t.isIce) listOf(a) else emptyList(), chainsBroken = if (t.isChain) listOf(a) else emptyList()))
+                        t.isIce || t.isChain -> apply(bd, Effects(iceMelted = if (t.isIce) listOf(a) else emptyList(), chainsBroken = if (t.isChain) listOf(a) else emptyList(), points = 20))
                         else -> null
                     }
                 }
@@ -302,28 +376,18 @@ class Game private constructor(val level: Level, private val dict: Dictionary, p
             }
             Booster.SPIN -> {
                 if (!ok(a)) null else {
-                    val tl = a!!; val tr = Pos(tl.row, tl.col + 1); val bl = Pos(tl.row + 1, tl.col); val br = Pos(tl.row + 1, tl.col + 1)
-                    val cells = listOf(tl, tr, br, bl)
+                    val tl = a!!; val cells = listOf(tl, Pos(tl.row, tl.col + 1), Pos(tl.row + 1, tl.col + 1), Pos(tl.row + 1, tl.col))
                     if (!cells.all { bd.contains(it) && bd[it].movable }) null else {
-                        var nb = bd
-                        // Clockwise: each tile moves to the next corner.
-                        for (i in cells.indices) nb = nb.with(cells[(i + 1) % 4], bd[cells[i]])
-                        s = s.copy(board = nb)
-                        act(cells)
+                        val nb = bestSpin(bd, cells)
+                        if (nb == null) null else { s = s.copy(board = nb); act(cells) }
                     }
                 }
             }
             Booster.ROW_SLIDE, Booster.COLUMN_SLIDE -> {
                 if (!ok(a)) null else {
                     val line = if (booster == Booster.ROW_SLIDE) WordFinder.rowLine(bd, a!!.row) else WordFinder.colLine(bd, a!!.col)
-                    val movable = line.filter { bd[it].movable }
-                    if (movable.size < 2) null else {
-                        var nb = bd
-                        val d = if (dir >= 0) 1 else -1
-                        for (i in movable.indices) nb = nb.with(movable[(i + d + movable.size) % movable.size], bd[movable[i]])
-                        s = s.copy(board = nb)
-                        act(movable)
-                    }
+                    val nb = arrangeLine(bd, line)
+                    if (nb == null) null else { s = s.copy(board = nb); act(line.filter { nb[it].movable }) }
                 }
             }
             Booster.UNDO -> {
@@ -371,6 +435,95 @@ class Game private constructor(val level: Level, private val dict: Dictionary, p
         return result
     }
 
+    /**
+     * Spin: tries every way to arrange the 4 tiles (turns first) and keeps the one that makes the longest words.
+     * Null if no arrangement makes a word (the booster is not used).
+     */
+    private fun bestSpin(bd: Board, cells: List<Pos>): Board? {
+        val tiles = cells.map { bd[it] }
+        val orders = ArrayList<List<Int>>()
+        for (k in 1..3) orders += (0..3).map { (it - k + 4) % 4 } // the 3 turns
+        fun perms(rest: List<Int>, acc: List<Int>) {
+            if (rest.isEmpty()) { if (acc !in orders && acc != listOf(0, 1, 2, 3)) orders += acc; return }
+            for (x in rest) perms(rest - x, acc + x)
+        }
+        perms(listOf(0, 1, 2, 3), emptyList())
+        var best: Board? = null
+        var bestLen = 0
+        for (o in orders) {
+            var nb = bd
+            cells.forEachIndexed { i, p -> nb = nb.with(p, tiles[o[i]]) }
+            val len = WordFinder.wordsThrough(nb, cells, dict).sumOf { it.length }
+            if (len > bestLen) { bestLen = len; best = nb }
+        }
+        return best
+    }
+
+    /**
+     * Row / Column Slide: rearranges the movable letters of [line] so that the longest possible word is spelled in order,
+     * moving as few letters as possible. Crates, ice and chains stay where they are. Null if no word can be made.
+     */
+    private fun arrangeLine(bd: Board, line: List<Pos>): Board? {
+        val movable = line.filter { bd[it].movable }
+        if (movable.size < 3) return null
+        val pool = movable.map { bd[it] }
+        // Runs of neighbouring movable cells: a word must fit inside one run.
+        val runs = ArrayList<List<Pos>>()
+        var cur = ArrayList<Pos>()
+        for (p in line) if (bd[p].movable) cur.add(p) else { if (cur.isNotEmpty()) runs += cur; cur = ArrayList() }
+        if (cur.isNotEmpty()) runs += cur
+        val maxRun = runs.maxOf { it.size }
+        for (k in minOf(maxRun, 8) downTo 3) {
+            val words = wordsFromPool(pool.map { it.letter }, k)
+            if (words.isEmpty()) continue
+            var best: Pair<List<Pos>, String>? = null
+            var bestCost = Int.MAX_VALUE
+            for (run in runs) for (start in 0..run.size - k) {
+                val window = run.subList(start, start + k)
+                for (w in words) {
+                    val cost = window.indices.count { bd[window[it]].letter != w[it] }
+                    if (cost < bestCost) { bestCost = cost; best = window to w }
+                }
+            }
+            val (window, w) = best ?: continue
+            if (bestCost == 0) continue // already spelled (it would have burst): look for another
+            val left = pool.toMutableList()
+            val place = HashMap<Pos, Tile>()
+            // Keep tiles that already sit on the right letter, then fill the rest of the window.
+            for (i in window.indices) { val t = bd[window[i]]; if (t.letter == w[i] && left.remove(t)) place[window[i]] = t }
+            for (i in window.indices) if (window[i] !in place) {
+                val t = left.first { it.letter == w[i] }
+                left.remove(t); place[window[i]] = t
+            }
+            for (p in movable) if (p !in place) { place[p] = left.removeAt(0) }
+            var nb = bd
+            for ((p, t) in place) nb = nb.with(p, t)
+            if (WordFinder.wordsThrough(nb, window, dict).isEmpty()) continue
+            return nb
+        }
+        return null
+    }
+
+    /** Words of length [k] that can be spelled with [letters] (a Joker '*' can be any letter). Uppercase, with '*' kept. */
+    private fun wordsFromPool(letters: List<Char>, k: Int): List<String> {
+        val out = LinkedHashSet<String>()
+        val used = BooleanArray(letters.size)
+        val sb = StringBuilder()
+        fun dfs() {
+            if (out.size > 200) return
+            if (sb.length == k) {
+                if (WordFinder.resolve(sb.toString().lowercase(), dict) != null) out += sb.toString()
+                return
+            }
+            val seen = HashSet<Char>()
+            for (i in letters.indices) if (!used[i] && seen.add(letters[i])) {
+                used[i] = true; sb.append(letters[i]); dfs(); sb.deleteCharAt(sb.length - 1); used[i] = false
+            }
+        }
+        dfs()
+        return out.toList()
+    }
+
     private fun smash(cells: Set<Pos>, fullBreak: Boolean): MoveResult {
         val fx = effectsOf(board, emptyList(), cells, crateFullBreak = fullBreak)
         return apply(board, fx)
@@ -385,6 +538,18 @@ class Game private constructor(val level: Level, private val dict: Dictionary, p
             if (g > bestScore) { bestScore = g; best = a to b }
         }
         return best
+    }
+
+    /** Up to [max] different words the player can make with one swap now, best first (for the Hint strip). */
+    fun hintWords(max: Int = 3): List<Pair<Pair<Pos, Pos>, String>> {
+        val out = ArrayList<Triple<Pair<Pos, Pos>, String, Double>>()
+        for ((a, b) in board.swappablePairs()) {
+            val words = wordsForSwap(a, b)
+            if (words.isEmpty()) continue
+            val g = previewGain(a, b)
+            for (w in words) if (out.none { it.second == w.word }) out += Triple(a to b, w.word, g + w.length)
+        }
+        return out.sortedByDescending { it.third }.take(max).map { it.first to it.second }
     }
 
     /** Every tile that is part of a word one swap away (Word Scanner). */
@@ -422,7 +587,7 @@ class Game private constructor(val level: Level, private val dict: Dictionary, p
     /** Best tile for a booster tutorial (where it helps most), or null for "any tile". */
     fun suggestTarget(booster: Booster): Pos? = when (booster) {
         Booster.HAMMER -> board.positions().filter { board[it].isCrate }.firstOrNull()
-            ?: board.positions().filter { board[it].hasLetter }.maxByOrNull { "JQXZVKWYFB".indexOf(board[it].letter).let { i -> if (i < 0) -1 else 10 - i } }
+            ?: board.positions().filter { board[it].hasLetter && !board[it].isGold }.maxByOrNull { "JQXZVKWYFB".indexOf(board[it].letter).let { i -> if (i < 0) -1 else 10 - i } }
         Booster.JOKER -> board.positions().filter { board[it].movable }.maxByOrNull { p ->
             WordFinder.wordsThrough(board.with(p, board[p].copy(letter = JOKER_CHAR, kind = TileKind.JOKER)), listOf(p), dict).sumOf { it.length }
         }
@@ -461,6 +626,11 @@ class Game private constructor(val level: Level, private val dict: Dictionary, p
         for (t in level.targets) gain += (minOf(t.count, t.progress(after)) - minOf(t.count, t.progress(s.stats))) * 10.0
         gain += fx.bonusMoves * 4.0
         gain += words.sumOf { it.length } * 0.5
+        // Goals that only count after the board settles: digging sand and bringing friends down.
+        if (level.targets.any { it is Objective.Treasure }) gain += fx.cleared.count { it in treasureCells && it !in s.dug } * 3.0
+        if (level.targets.any { it is Objective.Rescue }) {
+            for (p in fx.cleared) for (r in 0 until p.row) if (swapped[Pos(r, p.col)].isBuddy) gain += 3.0 + p.row
+        }
         return gain
     }
 
@@ -482,7 +652,10 @@ class Game private constructor(val level: Level, private val dict: Dictionary, p
 
     companion object {
         const val LEFTOVER_MOVE_POINTS = 50
-        const val LEFTOVER_MOVE_COINS = 3
+        const val LEFTOVER_MOVE_COINS = 1
+        const val LEFTOVER_COINS_MAX = 10
+        /** The boss attacks after every this many swaps. */
+        const val BOSS_EVERY = 4
         const val METER_SIZE = 8
 
         fun startBoard(level: Level): Board {
@@ -491,7 +664,7 @@ class Game private constructor(val level: Level, private val dict: Dictionary, p
             // Give each crate its prize.
             var i = 0
             for (p in b.positions()) if (b[p].isCrate) {
-                val prize = level.cratePrizes.getOrNull(i++) ?: Prize(PrizeKind.COINS, 10)
+                val prize = level.cratePrizes.getOrNull(i++) ?: Prize(PrizeKind.COINS, 5)
                 b = b.with(p, b[p].copy(prize = prize))
             }
             return b

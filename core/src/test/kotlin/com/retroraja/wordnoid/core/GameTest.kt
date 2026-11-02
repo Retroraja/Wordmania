@@ -77,8 +77,6 @@ class GameTest {
         assertEquals(moves + 3, g.movesLeft)
         val paint = g.useBooster(Booster.PAINT, Pos(3, 0), letter = 'A')
         assertNotNull(paint)
-        assertNotNull(g.useBooster(Booster.SPIN, Pos(1, 1)))
-        assertNotNull(g.useBooster(Booster.ROW_SLIDE, Pos(2, 0), dir = 1))
         assertNotNull(g.useBooster(Booster.SHUFFLE))
         assertNull(g.useBooster(Booster.VOWEL_FLIP, Pos(0, 0), letter = 'B'), "vowel flip needs a vowel")
     }
@@ -99,5 +97,77 @@ class GameTest {
             return g.board.toString()
         }
         assertEquals(run(), run())
+    }
+
+    @Test fun spinAndSlideOnlyWhenTheyMakeAWord() {
+        // Row 1 holds T, A, C in the wrong order: the slide spells CAT. Spin on Q/J tiles can't make a word.
+        val l = level.copy(start = listOf("QJZQJ", "TQACJ", "JZQJZ", "QJZQJ"), targets = listOf(Objective.Words(5)))
+        val g = Game(l, dict)
+        assertNull(g.useBooster(Booster.SPIN, Pos(2, 0)), "no word: booster refunded")
+        val r = g.useBooster(Booster.ROW_SLIDE, Pos(1, 0))
+        assertNotNull(r)
+        assertTrue(r.effects.words.isNotEmpty())
+        val g2 = Game(level.copy(start = listOf("QJZQJ", "AQTJZ", "CJQZQ", "QJZQJ"), targets = listOf(Objective.Words(5))), dict)
+        val r2 = g2.useBooster(Booster.SPIN, Pos(1, 0))
+        assertNotNull(r2)
+        assertTrue(r2.effects.words.isNotEmpty())
+    }
+
+    @Test fun hammerCracksIceAndSkipsGold() {
+        val l = level.copy(marks = listOf("g....", ".i...", ".....", "....."), targets = listOf(Objective.Words(5)))
+        val g = Game(l, dict)
+        assertNull(g.useBooster(Booster.HAMMER, Pos(0, 0)), "gold can't be smashed")
+        val r = g.useBooster(Booster.HAMMER, Pos(1, 1))!!
+        assertEquals(1, r.effects.iceCracked.size)
+        assertTrue(g.board[Pos(1, 1)].isIce)
+        g.useBooster(Booster.HAMMER, Pos(1, 1))
+        assertEquals(1, g.stats.ice)
+    }
+
+    @Test fun wordNextToBalloonPopsIt() {
+        val l = level.copy(marks = listOf(".....", ".b...", ".....", "....."), targets = listOf(Objective.Balloons(1)))
+        val g = Game(l, dict)
+        val r = g.swap(Pos(0, 1), Pos(0, 2))
+        assertEquals(1, r.effects.balloons.size)
+        assertEquals(GameStatus.WON, r.status)
+    }
+
+    @Test fun friendEscapesAtTheBottom() {
+        // The friend sits on C, A, T's row? No: it sits above a column that clears twice.
+        val l = level.copy(
+            rows = 2, start = listOf("Q@JZQ", "CTAQJ"), targets = listOf(Objective.Rescue(1)),
+        )
+        val g = Game(l, dict)
+        val r = g.swap(Pos(1, 1), Pos(1, 2))
+        assertEquals(1, r.rescued)
+        assertEquals(GameStatus.WON, r.status)
+    }
+
+    @Test fun treasureIsDugOut() {
+        val l = level.copy(treasure = listOf(".tt..", ".....", ".....", "....."), targets = listOf(Objective.Treasure(1)))
+        val g = Game(l, dict)
+        val r = g.swap(Pos(0, 1), Pos(0, 2))
+        assertEquals(listOf(0), r.chestsFound)
+        assertEquals(GameStatus.WON, r.status)
+        val g2 = Game(l, dict)
+        assertNotNull(g2.useBooster(Booster.TREASURE_FINDER))
+        assertEquals(GameStatus.WON, g2.status)
+    }
+
+    @Test fun bossAttacksEveryFourSwaps() {
+        val l = level.copy(boss = true, number = 10, targets = listOf(Objective.Words(9)), moves = 20)
+        val g = Game(l, dict)
+        var attack: BossAttack? = null
+        val pairs = listOf(Pos(3, 0) to Pos(3, 1), Pos(3, 0) to Pos(3, 1), Pos(3, 0) to Pos(3, 1), Pos(3, 0) to Pos(3, 1))
+        for ((a, b) in pairs) attack = g.swap(a, b).bossAttack ?: attack
+        assertNotNull(attack)
+    }
+
+    @Test fun wordsGiveNoCoinsButLongWordsGiveMoves() {
+        val g = Game(level.copy(targets = listOf(Objective.Words(5))), dict)
+        val r = g.swap(Pos(0, 1), Pos(0, 2))
+        assertEquals(0, r.effects.coins)
+        assertEquals(0, r.effects.bonusMoves)
+        assertEquals(1, level.movesForWord(5)); assertEquals(2, level.movesForWord(6)); assertEquals(0, level.movesForWord(4))
     }
 }

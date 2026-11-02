@@ -15,8 +15,10 @@ data class Pos(val row: Int, val col: Int) {
  * CHAIN: a chained letter. Can't be swapped until a word is made next to it (or with it).
  * JOKER: a star tile that stands for any letter.
  * GIFT: a letter tile with a ribbon. Gives a booster when used in a word.
+ * BALLOON: a letter tile with a balloon tied on. Pops (and becomes NORMAL) when a word is made next to it or with it.
+ * BUDDY: a little Tiko friend with no letter. Falls when tiles below it clear, and escapes at the bottom row.
  */
-enum class TileKind { NORMAL, GOLD, CRATE, ICE, CHAIN, JOKER, GIFT }
+enum class TileKind { NORMAL, GOLD, CRATE, ICE, CHAIN, JOKER, GIFT, BALLOON, BUDDY }
 
 enum class PrizeKind { COINS, MOVES, BOOSTER }
 
@@ -44,17 +46,23 @@ data class Tile(
     val isIce: Boolean get() = kind == TileKind.ICE
     val isChain: Boolean get() = kind == TileKind.CHAIN
     val isGift: Boolean get() = kind == TileKind.GIFT
+    val isBalloon: Boolean get() = kind == TileKind.BALLOON
+    val isBuddy: Boolean get() = kind == TileKind.BUDDY
 
     /** Can the player swap this tile? */
-    val movable: Boolean get() = kind != TileKind.CRATE && kind != TileKind.ICE && kind != TileKind.CHAIN
+    val movable: Boolean get() = kind != TileKind.CRATE && kind != TileKind.ICE && kind != TileKind.CHAIN && kind != TileKind.BUDDY
 
     /** Can this tile be part of a word? */
-    val hasLetter: Boolean get() = kind != TileKind.CRATE
+    val hasLetter: Boolean get() = kind != TileKind.CRATE && kind != TileKind.BUDDY
 }
 
 const val CRATE_CHAR = '#'
 const val CRATE2_CHAR = '%'
 const val JOKER_CHAR = '*'
+const val BUDDY_CHAR = '@'
+
+/** Ice needs two Hammer hits (the first cracks it). A word melts it at once. */
+const val ICE_HP = 2
 
 /** Hands out unique tile ids. */
 class IdCounter(private var next: Long = 1) {
@@ -115,7 +123,7 @@ class Board(val cols: Int, val rows: Int, private val cells: List<Tile>) {
     fun rowStrings(): List<String> =
         (0 until rows).map { r -> (0 until cols).map { c -> code(this[r, c]) }.joinToString("") }
 
-    /** Marks row by row: '.' plain, 'g' gold, 'i' ice, 'c' chain, 'p' gift. */
+    /** Marks row by row: '.' plain, 'g' gold, 'i' ice, 'c' chain, 'p' gift, 'b' balloon. */
     fun markStrings(): List<String> =
         (0 until rows).map { r -> (0 until cols).map { c -> mark(this[r, c]) }.joinToString("") }
 
@@ -136,6 +144,7 @@ class Board(val cols: Int, val rows: Int, private val cells: List<Tile>) {
             CRATE_CHAR -> Tile(ids.next(), CRATE_CHAR, kind = TileKind.CRATE, hp = 1)
             CRATE2_CHAR -> Tile(ids.next(), CRATE_CHAR, kind = TileKind.CRATE, hp = 2)
             JOKER_CHAR -> Tile(ids.next(), JOKER_CHAR, kind = TileKind.JOKER)
+            BUDDY_CHAR -> Tile(ids.next(), BUDDY_CHAR, kind = TileKind.BUDDY)
             else -> Tile(
                 ids.next(), ch.uppercaseChar(),
                 kind = when (mark) {
@@ -143,13 +152,16 @@ class Board(val cols: Int, val rows: Int, private val cells: List<Tile>) {
                     'i' -> TileKind.ICE
                     'c' -> TileKind.CHAIN
                     'p' -> TileKind.GIFT
+                    'b' -> TileKind.BALLOON
                     else -> TileKind.NORMAL
                 },
+                hp = if (mark == 'i') ICE_HP else 0,
             )
         }
 
         fun code(t: Tile): Char = when {
             t.isCrate -> if (t.hp >= 2) CRATE2_CHAR else CRATE_CHAR
+            t.isBuddy -> BUDDY_CHAR
             else -> t.letter
         }
 
@@ -158,6 +170,7 @@ class Board(val cols: Int, val rows: Int, private val cells: List<Tile>) {
             TileKind.ICE -> 'i'
             TileKind.CHAIN -> 'c'
             TileKind.GIFT -> 'p'
+            TileKind.BALLOON -> 'b'
             else -> '.'
         }
     }

@@ -94,6 +94,16 @@ class Dictionary(private val words: WordSet, private val common: WordSet) {
 
     val size: Int get() = words.size
 
+    /** The same dictionary plus [extra] words (lowercase), e.g. names during a Names goal. */
+    fun withExtra(extra: Set<String>): Dictionary {
+        if (extra.isEmpty()) return this
+        val plus = object : WordSet {
+            override fun contains(word: String) = word in extra || words.contains(word)
+            override val size get() = words.size + extra.size
+        }
+        return Dictionary(plus, plus)
+    }
+
     companion object {
         const val MIN_LENGTH = 3
 

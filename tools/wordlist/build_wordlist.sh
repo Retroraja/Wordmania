@@ -45,15 +45,13 @@ done | iconv -f latin1 -t utf-8 | keep \
   | comm -12 - "$WORK/enable_k.txt" | comm -23 - "$WORK/block.txt" > "$OUT/common_words.txt"
 
 # Play words: the game only accepts everyday words, so random swaps rarely make words.
-# SCOWL sizes 10 and 20 (very common), plus 5+ letter words from size 35.
+# 3-letter words: the hand-picked play_three.txt only. 4+ letters: SCOWL sizes 10 and 20 (very common).
+# Plus the theme words in play_extra.txt.
 for v in english american british canadian australian; do
   cat "$FINAL"/$v-words.{10,20} 2>/dev/null || true
-done | iconv -f latin1 -t utf-8 | keep > "$WORK/s1020.txt"
-for v in english american british canadian australian; do
-  cat "$FINAL"/$v-words.35 2>/dev/null || true
-done | iconv -f latin1 -t utf-8 | keep | grep -E '^.{5,}$' > "$WORK/s35long.txt"
+done | iconv -f latin1 -t utf-8 | keep | grep -E '^.{4,}$' > "$WORK/s1020.txt"
 grep -v '^#' "$HERE/play_blocklist.txt" | sort -u > "$WORK/playblock.txt"
-{ sort -u "$WORK/s1020.txt" "$WORK/s35long.txt" | comm -12 - "$OUT/all_words.txt"; grep -v '^#' "$HERE/play_extra.txt"; } | sort -u \
+{ comm -12 "$WORK/s1020.txt" "$OUT/all_words.txt"; grep -v '^#' "$HERE/play_three.txt"; grep -v '^#' "$HERE/play_extra.txt"; } | sort -u \
   | comm -23 - "$WORK/playblock.txt" > "$ASSETS/play_words.txt"
 
 wc -l "$OUT/all_words.txt" "$OUT/common_words.txt" "$ASSETS/play_words.txt"
