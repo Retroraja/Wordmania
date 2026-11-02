@@ -86,7 +86,7 @@ tap_text "Level Map"; sleep 3; shot level-map
 tap_text "Sunny Galaxy"; sleep 3; shot world-5
 tap_text "QUIZ"; sleep 3; shot quiz
 adb shell input keyevent 4; sleep 2
-tap_text "50"; sleep 3; shot start-50
+tap_text "BOSS"; sleep 3; shot start-50
 tap_text "▶ PLAY"; sleep 4; shot intro-50
 tap_text "Let's go!"; sleep 5; shot board-50
 texts

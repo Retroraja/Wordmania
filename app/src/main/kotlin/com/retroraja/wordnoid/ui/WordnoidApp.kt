@@ -53,7 +53,7 @@ fun WordnoidApp() {
     LaunchedEffect(progress.sound) { sounds.enabled = progress.sound }
     LaunchedEffect(progress.music) { music.enabled = progress.music }
     LaunchedEffect(progress.vibration) { haptics.enabled = progress.vibration }
-    LaunchedEffect(Unit) { Ads.start(activity, progress); Reminders.schedule(context) }
+    LaunchedEffect(Unit) { Reminders.schedule(context) }
 
     // Pause the music when the app goes to the background; App Open ad when coming back after a while.
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -84,6 +84,12 @@ fun WordnoidApp() {
                 else -> Music.Piece.MAP
             }
         )
+    }
+
+    // Ads start only after the intro and the birth-year question (child-safe settings), a moment after Town shows.
+    val inMenus = screen != Screen.Intro && screen != Screen.FirstTime
+    LaunchedEffect(inMenus) {
+        if (inMenus) { kotlinx.coroutines.delay(2500); try { Ads.start(activity, progress) } catch (_: Throwable) {} }
     }
 
     fun go(s: Screen) { back = screen; screen = s }
