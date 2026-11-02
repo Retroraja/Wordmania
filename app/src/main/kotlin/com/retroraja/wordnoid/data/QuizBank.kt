@@ -167,6 +167,10 @@ object QuizBank {
     }
 
     /** A believable fake: swap two letters or change a vowel, checked not to be a real word. */
+    /** Fake words must never spell something rude (kids play this game). */
+    private val RUDE = listOf("SEX", "SEXY", "ASS", "TIT", "FUK", "FUC", "CUM", "NUDE", "POO", "PEE", "DIK", "DIC", "COK", "PIS", "PORN", "BUT", "HEL", "DAM", "GOD", "KIL", "DIE", "GUN", "NAZ", "FAG", "GAY", "HOE", "SHT", "SHIT", "CRAP", "BOOB", "BUTT", "NIG")
+    private fun rude(f: String) = RUDE.any { f.contains(it) }
+
     private fun fake(w: String, r: Random, dict: Dictionary?): String {
         repeat(20) {
             val c = w.toCharArray()
@@ -177,7 +181,7 @@ object QuizBank {
                 if (vs.isNotEmpty()) { val i = vs.random(r); c[i] = "AEIOU".filter { it != c[i] }.random(r) }
             }
             val f = String(c)
-            if (f != w && (dict == null || !dict.isWord(f.lowercase()))) return f
+            if (f != w && !rude(f) && (dict == null || !dict.isWord(f.lowercase()))) return f
         }
         return w + "E"
     }

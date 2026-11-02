@@ -820,8 +820,6 @@ beds
 bee
 beef
 been
-beer
-beers
 before
 beforehand
 beg
@@ -873,7 +871,6 @@ berry
 beside
 besides
 best
-bet
 beta
 bets
 better
@@ -963,8 +960,6 @@ block
 blocked
 blocking
 blocks
-blood
-bloody
 blow
 blowing
 blown
@@ -991,10 +986,8 @@ boiling
 boils
 bold
 bolt
-bomb
 bombed
 bombing
-bombs
 bond
 bone
 bones
@@ -2213,7 +2206,6 @@ day
 daylight
 days
 daytime
-dead
 deadline
 deadly
 deaf
@@ -2224,7 +2216,6 @@ dealing
 deals
 dealt
 dear
-death
 deaths
 debatable
 debate
@@ -2512,7 +2503,6 @@ dictate
 dictator
 dictionary
 did
-died
 dies
 diesel
 diet
@@ -2804,11 +2794,8 @@ drown
 drowned
 drowning
 drowns
-drug
-drugs
 drum
 drums
-drunk
 drunken
 dry
 drying
@@ -4049,7 +4036,6 @@ guitar
 gulf
 gullible
 gum
-guns
 guts
 gutter
 guy
@@ -4177,7 +4163,6 @@ height
 heights
 held
 helicopter
-hell
 hello
 helmet
 help
@@ -4868,11 +4853,7 @@ kidnapping
 kidnaps
 kidney
 kids
-kill
-killed
-killer
 killing
-kills
 kind
 kindly
 kindness
@@ -4880,7 +4861,6 @@ kinds
 king
 kingdom
 kings
-kiss
 kit
 kitchen
 kits
@@ -5659,7 +5639,6 @@ mum
 mumble
 mummy
 mundane
-murder
 murdered
 murderer
 murdering
@@ -5693,7 +5672,6 @@ nailed
 nailing
 nails
 naive
-naked
 name
 named
 nameless
@@ -6616,7 +6594,6 @@ postponing
 posts
 postscript
 postulate
-pot
 potato
 potatoes
 potential
@@ -7964,7 +7941,6 @@ severe
 severely
 severity
 sexes
-sexist
 shade
 shades
 shadow
@@ -8023,7 +7999,6 @@ shoe
 shoes
 shone
 shook
-shoot
 shooting
 shoots
 shop
@@ -8227,12 +8202,10 @@ smiled
 smiles
 smiling
 smith
-smoke
 smoked
 smoker
 smokers
 smokes
-smoking
 smooth
 smoothly
 smug
@@ -9677,7 +9650,6 @@ want
 wanted
 wanting
 wants
-war
 ward
 warehouse
 warm
@@ -9695,7 +9667,6 @@ warping
 warps
 warrant
 warranty
-wars
 wartime
 wary
 was
@@ -9784,7 +9755,6 @@ while
 whilst
 whim
 whiskey
-whisky
 whistle
 whistles
 white
@@ -9822,8 +9792,6 @@ window
 windowing
 windows
 winds
-wine
-wines
 wing
 wings
 winner
