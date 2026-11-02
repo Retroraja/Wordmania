@@ -35,7 +35,7 @@ import com.retroraja.wordnoid.data.Progress
 import kotlinx.coroutines.delay
 import java.time.LocalDate
 
-const val PRIVACY_URL = "https://retroraja.github.io/Wordmania/privacy.html"
+const val PRIVACY_URL = "https://github.com/Retroraja/Wordmania/blob/claude/first-playable/docs/privacy.md"
 
 @Composable
 fun SettingsScreen(progress: Progress, sounds: SoundFx, onBack: () -> Unit, onHowToPlay: () -> Unit) {

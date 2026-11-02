@@ -31,32 +31,23 @@ PY
 }
 texts() { dump; grep -o 'text="[^"]*"' $OUT/ui.xml | head -40; }
 
-# ---- First run: home, daily gift, level 1 tutorial.
-shot home-daily
+# ---- First run: studio intro, birth year, Tiko's Town, level 1 tutorial.
+shot first-time
 texts
-tap_text "Open!"; sleep 2; shot daily-opened
-tap_text "Great!"; sleep 2
-tap_text "PLAY"; sleep 4; shot map
-tap_text "1"; sleep 3; shot level-start
+tap_text "OK"; sleep 2; shot welcome
+tap_text "Let's play!"; sleep 4; shot town
+texts
+tap_text "PLAY Level 1"; sleep 3; shot level-start
 tap_text "▶ PLAY"; sleep 4; shot intro
 tap_text "Let's go!"; sleep 5; shot board-tutorial
 texts
 W=$(adb shell wm size | grep -o '[0-9]*x[0-9]*' | tail -1); echo "size $W"
-# Level 1 tutorial: the glowing swap (A and G in row 3), then the Hammer and Hint lessons.
-adb shell input swipe 1630 640 1860 640 150; sleep 6; shot tutorial-word
-texts
-adb shell input swipe 1000 450 1150 450 150; sleep 2; shot blocked-swap
-adb shell input tap 2166 816; sleep 2; shot hammer-armed
-texts
-adb shell input tap 1170 640; sleep 0.5; shot hammer-mid; sleep 4; shot after-hammer
-texts
-adb shell input tap 2166 516; sleep 2; shot hint
 for s in "1000 450 1150 450" "1150 600 1150 750" "900 350 1050 350" "1300 450 1300 600" "800 600 950 600"; do
   adb shell input swipe $s 150; sleep 3
 done
 shot after-swaps
 
-# ---- Second run: a late level with everything unlocked.
+# ---- Second run: late progress with everything unlocked.
 adb shell am force-stop $PKG
 DAY=$(( $(date +%s) / 86400 ))
 cat > $OUT/prefs.xml <<EOF
@@ -65,9 +56,9 @@ cat > $OUT/prefs.xml <<EOF
     <int name="unlocked" value="50" />
     <int name="coins" value="2000" />
     <int name="meter" value="6" />
-    <long name="daily_last" value="$DAY" />
-    <int name="daily_count" value="1" />
-$(for b in HINT HAMMER MAGIC_SWAP JOKER UNDO SHUFFLE PAINT FREE_MOVE PLUS_MOVES SPIN ROW_SLIDE COLUMN_SLIDE VOWEL_FLIP DICE SCANNER AXE LOCK DOUBLE MAGNET LETTER_RAIN; do echo "    <int name=\"b_$b\" value=\"3\" />"; done)
+    <int name="birth_year" value="1990" />
+    <boolean name="seen_first_time" value="true" />
+$(for b in HINT HAMMER MAGIC_SWAP JOKER UNDO SHUFFLE PAINT FREE_MOVE PLUS_MOVES SPIN ROW_SLIDE COLUMN_SLIDE VOWEL_FLIP DICE SCANNER AXE LOCK DOUBLE MAGNET LETTER_RAIN TREASURE_FINDER; do echo "    <int name=\"b_$b\" value=\"3\" />"; done)
 $(for i in $(seq 1 49); do echo "    <int name=\"stars_$i\" value=\"$(( (i % 3) + 1 ))\" />"; done)
 </map>
 EOF
@@ -76,20 +67,35 @@ adb shell chmod 644 /data/local/tmp/wordnoid_v2.xml
 adb shell run-as $PKG mkdir -p shared_prefs
 adb shell run-as $PKG cp /data/local/tmp/wordnoid_v2.xml shared_prefs/wordnoid_v2.xml
 adb shell am start -n $PKG/.MainActivity
-sleep 20
-shot home-late
-tap_text "PLAY"; sleep 5; shot map-late
+sleep 12
+shot town-late
 texts
+tap_text "Tasks"; sleep 2; shot tasks
+tap_text "Build"; sleep 4; shot fixing
+tap_text "Yay!"; sleep 2
+tap_text "Close"; sleep 1
+tap_text "Daily Gifts"; sleep 2; shot daily-rewards
+tap_text "Open today's gift!"; sleep 2; shot daily-opened
+tap_text "🎡 Spin"; sleep 1; tap_text "Free spin!"; sleep 5; shot spin
+tap_text "⭐ Challenges"; sleep 1; shot challenges
+tap_text "Play quiz"; sleep 2; shot mini-quiz
+adb shell input keyevent 4; sleep 1; adb shell input keyevent 4; sleep 2
+tap_text "Shop"; sleep 2; shot shop
+adb shell input keyevent 4; sleep 2
+tap_text "Level Map"; sleep 3; shot level-map
+tap_text "Sunny Galaxy"; sleep 3; shot world-5
+tap_text "QUIZ"; sleep 3; shot quiz
+adb shell input keyevent 4; sleep 2
 tap_text "50"; sleep 3; shot start-50
-tap_text "+3 Moves"; sleep 1
 tap_text "▶ PLAY"; sleep 4; shot intro-50
 tap_text "Let's go!"; sleep 5; shot board-50
 texts
-adb shell input tap 2166 940; sleep 2; shot more-boosters
-tap_text "Close"; sleep 1
-for s in "1000 450 1150 450" "1150 600 1150 750" "900 350 1050 350"; do adb shell input swipe $s 150; sleep 3; done
+for s in "1000 450 1150 450" "1150 600 1150 750" "900 350 1050 350" "1000 300 1000 450"; do adb shell input swipe $s 150; sleep 4; done
 shot after-swaps-50
-adb shell input keyevent 4; sleep 3; shot back-to-map
+adb shell input keyevent 4; sleep 3; shot back-to-world
+tap_text "Level Map"; sleep 2
+tap_text "Under the Sea"; sleep 2
+tap_text "11"; sleep 2; tap_text "▶ PLAY"; sleep 4; tap_text "Let's go!"; sleep 4; shot board-11
 
 adb logcat -d > $OUT/logcat.txt
 grep -E "FATAL EXCEPTION" -A 30 $OUT/logcat.txt > $OUT/crash.txt || true
