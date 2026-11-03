@@ -60,6 +60,8 @@ class SoundFx(context: Context) {
             add("thunk", mix(boomShort(), woodKnock(0.5)))
             add("chop", concat(woodKnock(0.7), silence(0.02), noiseHit(0.12, 0.4, 0.7)))
             add("click", concat(bell(2637.0, 0.03, 0.35), silence(0.03), bell(1760.0, 0.05, 0.35)))
+            add("lock", concat(woodKnock(0.7), silence(0.02), bell(1318.5, 0.08, 0.4), bell(987.77, 0.2, 0.4)))
+            add("unlock", concat(bell(987.77, 0.06, 0.4), bell(1318.5, 0.06, 0.4), bell(1975.5, 0.25, 0.4)))
             add("hum", hum())
             add("rain", rain())
             add("fanfare", concat(bell(783.99, 0.1, 0.4), bell(987.77, 0.1, 0.4), bell(1174.66, 0.1, 0.4), mix(bell(1567.98, 0.7, 0.35), bell(1174.66, 0.7, 0.3), bell(987.77, 0.7, 0.25))))

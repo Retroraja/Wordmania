@@ -29,7 +29,7 @@ data class Prize(val kind: PrizeKind, val amount: Int)
  * One tile.
  * [id] stays the same while the tile moves around, so the screen can animate it.
  * [dropFrom] is how many rows above the board a brand-new tile falls from (0 for tiles already on the board).
- * [locked] tiles (Lock booster) stay on the board once when their word clears.
+ * [locked] tiles (Lock booster) can't be part of any word until the player unlocks them.
  */
 data class Tile(
     val id: Long,

@@ -87,6 +87,8 @@ class GameController(
     var bossHitKey by mutableIntStateOf(0); private set
     var bossAttackKey by mutableIntStateOf(0); private set
     var hint by mutableStateOf<Pair<Pos, Pos>?>(null); private set
+    /** A locked letter the player tapped: the "🔓 Unlock" bubble shows over it. */
+    var unlockAsk by mutableStateOf<Pos?>(null); private set
     var scan by mutableStateOf<Set<Pos>>(emptySet()); private set
     var armed by mutableStateOf<Booster?>(null); private set
     var aimFirst by mutableStateOf<Pos?>(null); private set
@@ -141,7 +143,17 @@ class GameController(
 
     /** The text in Tiko's strip right now. */
     val stripText: String
-        get() = tutorial?.text ?: message ?: (if (hintWords.isNotEmpty()) "💡 Try: " + hintWords.joinToString(", ") else tikoSay)
+        get() = tutorial?.text ?: message ?: (if (hintWords.isNotEmpty()) "💡 Try: " + hintWords.joinToString(", ") else lockText() ?: tikoSay)
+
+    /** Locked letters on the board right now. */
+    val lockedCells: List<Pos> get() = board.positions().filter { board[it].locked }
+
+    private fun lockText(): String? {
+        val locked = lockedCells
+        if (locked.isEmpty()) return null
+        val letters = locked.joinToString(" and ") { board[it].letter.toString() }
+        return if (locked.size == 1) "🔒 $letters is locked. Tap it to unlock." else "🔒 $letters are locked. Tap one to unlock."
+    }
 
     // ---------------------------------------------------------------- start
 
@@ -203,7 +215,16 @@ class GameController(
         armIdleHint()
         val b = armed
         if (b != null) { aim(b, p); return }
+        val ask = unlockAsk
+        unlockAsk = null
         val s = selected
+        // Tapping a locked letter (with nothing picked) opens the Unlock bubble. It is also picked, so it can still be swapped.
+        if (s == null && board[p].locked && ask != p) {
+            unlockAsk = p
+            selected = p
+            sounds.play("tick")
+            return
+        }
         when {
             s == null -> { if (board[p].movable) { selected = p; sounds.play("tick") } else notMovable(p) }
             s == p -> selected = null
@@ -216,9 +237,36 @@ class GameController(
         if (busy || status != GameStatus.PLAYING || armed != null) return
         if (!board.contains(to)) return
         selected = null
+        unlockAsk = null
         armIdleHint()
         trySwap(from, to)
     }
+
+    /** The "🔓 Unlock" bubble was tapped: free, and words through the letter are checked right away. */
+    fun unlockTapped() {
+        val p = unlockAsk ?: return
+        unlockAsk = null
+        selected = null
+        if (busy || status != GameStatus.PLAYING) return
+        if (tutorial?.booster == Booster.LOCK || tutorial?.cells == listOf(p)) tutorial = null
+        busy = true
+        scope.launch {
+            val id = board[p].id
+            sounds.play("unlock")
+            haptics.tap()
+            val r = game.unlock(p)
+            if (r == null) { busy = false; return@launch }
+            flipping.add(id)
+            particles.sparkle(cellCenter(p), Palette.gold, 14)
+            board = r.changedBoard
+            delay(250)
+            flipping.clear()
+            if (r.effects.words.isEmpty()) say("Unlocked! No word here yet.", 1600)
+            playResult(r, null)
+        }
+    }
+
+    fun closeUnlock() { unlockAsk = null }
 
     private fun say(text: String, ms: Long = 2400) {
         message = text
@@ -380,6 +428,7 @@ class GameController(
             }
             Aim.MOVABLE -> {
                 if (!t.movable) { sounds.play("nope"); say("Pick a tile that can move"); return }
+                if (b == Booster.LOCK && t.locked) { sounds.play("nope"); say("That letter is already locked. Pick another one."); return }
                 when (b) {
                     Booster.PAINT -> letterPick = LetterPick(b, p, ('A'..'Z').toList())
                     Booster.VOWEL_FLIP -> letterPick = LetterPick(b, p, listOf('A', 'E', 'I', 'O', 'U'))
@@ -474,6 +523,13 @@ class GameController(
                 Booster.TREASURE_FINDER -> for (i in r.chestsFound) treasureFound(i)
                 else -> {}
             }
+            if (b == Booster.LOCK && a != null) {
+                toast("🔒 Locked!", cellCenter(a), Palette.gold, big = true)
+                if (level.introBoosters.contains(Booster.LOCK) && !progress.seen("lock_tut")) {
+                    progress.markSeen("lock_tut")
+                    tutorial = Tutorial("Locked! It won't make words now. Move it anywhere, then tap it and tap 🔓 Unlock.", dismissible = true)
+                }
+            }
             if (b == Booster.PLUS_MOVES) toast("+3 moves", movesAnchor, Palette.green, big = true)
             if (b == Booster.FREE_MOVE) toast("Next swap is free!", movesAnchor, Palette.cyan, big = true)
             if (b == Booster.DOUBLE) toast("Next word x2!", center(), Palette.gold, big = true)
@@ -493,7 +549,7 @@ class GameController(
         Booster.UNDO -> "rewind"
         Booster.SHUFFLE, Booster.SPIN, Booster.ROW_SLIDE, Booster.COLUMN_SLIDE -> "whoosh"
         Booster.FREE_MOVE, Booster.PLUS_MOVES, Booster.DOUBLE -> "fanfare"
-        Booster.LOCK -> "click"
+        Booster.LOCK -> "lock"
         Booster.MAGNET -> "hum"
         Booster.LETTER_RAIN -> "rain"
         Booster.HINT -> "ding"
@@ -744,14 +800,6 @@ class GameController(
         winCoins *= 2
     }
 
-    /** Watched a video on the win screen: one more brick (when short of 3). */
-    fun extraBrick() {
-        if (winStars >= 3) return
-        winStars++
-        progress.levelWon(level.number, winStars)
-        sounds.play("sparkle")
-    }
-
     private suspend fun lose() {
         idleJob?.cancel()
         delay(500)
@@ -761,7 +809,7 @@ class GameController(
 
     /** Continue after running out of moves: 300 coins for more moves (more after many fails). */
     fun continueForCoins(): Boolean {
-        val moves = Progress.continueMoves(progress.fails(level.number))
+        val moves = if (level.boss) 5 else Progress.continueMoves(progress.fails(level.number))
         if (!progress.spend(Progress.CONTINUE_PRICE)) { sounds.play("nope"); return false }
         sounds.play("cash")
         addMoves(moves)

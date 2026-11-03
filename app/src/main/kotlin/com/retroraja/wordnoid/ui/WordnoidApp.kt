@@ -46,7 +46,7 @@ fun WordnoidApp() {
     val context = LocalContext.current
     val activity = context as Activity
     val progress = remember { Progress(context) }
-    val sounds = remember { SoundFx(context) }
+    val sounds = remember { SoundFx(context).also { Fx.sounds = it } }
     val music = remember { Music() }
     val haptics = remember { Haptics(context) }
     DisposableEffect(Unit) { onDispose { sounds.release(); music.release() } }

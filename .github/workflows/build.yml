@@ -39,8 +39,10 @@ jobs:
           name: Wordnoid-apk
           path: Wordnoid.apk
 
-      # Publish a download page. main -> "latest", any other branch -> "preview" (test builds).
+      # Publish a download page. main -> "latest", claude/first-playable -> "preview" (test builds).
+      # Work-in-progress branches only build, so the player's download link never gets a half-done build.
       - name: Publish download
+        if: github.ref_name == 'main' || github.ref_name == 'claude/first-playable'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

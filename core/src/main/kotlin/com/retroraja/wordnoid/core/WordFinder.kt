@@ -11,7 +11,7 @@ data class FoundWord(val word: String, val cells: List<Pos>, val common: Boolean
 /**
  * Finds words on the board.
  * Words are read in all four directions: left to right, right to left, top to bottom and bottom to top.
- * Crates break a line. A Joker (*) stands for any letter.
+ * Crates and locked letters break a line. A Joker (*) stands for any letter.
  * In each row or column the longest words win, and words in the same line never share a tile.
  */
 object WordFinder {
@@ -67,7 +67,7 @@ object WordFinder {
     fun findInLine(board: Board, line: List<Pos>, dict: Dictionary, must: Set<Pos>?): List<FoundWord> {
         val n = line.size
         if (n < Dictionary.MIN_LENGTH) return emptyList()
-        val letters = CharArray(n) { val t = board[line[it]]; if (t.hasLetter) t.letter.lowercaseChar() else '#' }
+        val letters = CharArray(n) { val t = board[line[it]]; if (t.hasLetter && !t.locked) t.letter.lowercaseChar() else '#' }
         val mustIdx = BooleanArray(n) { must == null || line[it] in must }
         val candidates = ArrayList<Candidate>()
         for (len in minOf(n, 10) downTo Dictionary.MIN_LENGTH) {

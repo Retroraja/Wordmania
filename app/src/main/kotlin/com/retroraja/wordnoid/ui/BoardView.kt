@@ -12,6 +12,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -174,6 +175,28 @@ fun BoardView(c: GameController, cell: Dp, modifier: Modifier = Modifier) {
                     glow = glow,
                     dim = dim,
                 )
+            }
+        }
+        // The "🔓 Unlock" bubble over a tapped locked letter. Tapping it unlocks; tapping anywhere else closes it.
+        c.unlockAsk?.let { p ->
+            if (board.contains(p) && board[p].locked) {
+                val bw = cellPx * 2.2f
+                val bh = cellPx * 0.8f
+                val bx = ((p.col + 0.5f) * cellPx - bw / 2).coerceIn(0f, board.cols * cellPx - bw)
+                val by = if (p.row == 0) (p.row + 1.05f) * cellPx else (p.row - 0.85f) * cellPx
+                val bob = 1f + 0.06f * pulse
+                Box(
+                    Modifier
+                        .offset { IntOffset(bx.roundToInt(), by.roundToInt()) }
+                        .size(with(density) { bw.toDp() }, with(density) { bh.toDp() })
+                        .graphicsLayer { scaleX = bob; scaleY = bob }
+                        .background(Brush.verticalGradient(listOf(Color(0xFFFFE27A), Palette.goldDeep)), RoundedCornerShape(50))
+                        .border(3.dp, Color.White, RoundedCornerShape(50))
+                        .clickable { c.unlockTapped() },
+                    contentAlignment = androidx.compose.ui.Alignment.Center,
+                ) {
+                    Text("🔓 Unlock", color = Color(0xFF5A3300), fontFamily = ArcadeFont, style = TextStyle(fontSize = (cell.value * 0.3f).sp))
+                }
             }
         }
         // Tutorial hand moving between the two tiles to swap.

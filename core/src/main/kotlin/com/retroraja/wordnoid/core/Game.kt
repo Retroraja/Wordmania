@@ -146,6 +146,17 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
         return r.copy(boardAfter = board, shuffled = shuffled, bossAttack = BossAttack(p, freeze))
     }
 
+    /** Locked letters on the board (Lock booster). */
+    val lockedCells: List<Pos> get() = board.positions().filter { board[it].locked }
+
+    /** Unlocks a locked letter (free, no move) and checks for words through it right away. */
+    fun unlock(p: Pos): MoveResult? {
+        if (s.status != GameStatus.PLAYING || !board.contains(p) || !board[p].locked) return null
+        undo = s.deep()
+        s = s.copy(board = board.with(p, board[p].copy(locked = false)))
+        return act(listOf(p))
+    }
+
     /** "+N moves" from the out-of-moves screen. Keeps the board as it is. */
     fun continueWith(moves: Int) {
         s = s.copy(movesLeft = s.movesLeft + moves, status = if (s.status == GameStatus.LOST) GameStatus.PLAYING else s.status)
@@ -189,7 +200,6 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
             val t = b[p]
             when {
                 t.isCrate -> {} // only smashed crates get here; handled below
-                t.locked && p in wordCells -> {}
                 else -> cleared += p
             }
             if (t.isGold) gold += p
@@ -261,13 +271,12 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
 
     private fun apply(changedBoard: Board, fx: Effects): MoveResult {
         var b = changedBoard
-        // Tiles that stay but change: hit crates, snapped chains, used locks.
+        // Tiles that stay but change: hit crates, snapped chains, melted ice.
         for (h in fx.crateHits) if (!h.broken) b = b.with(h.pos, b[h.pos].copy(hp = b[h.pos].hp - 1))
         for (p in fx.chainsBroken) if (p !in fx.cleared) b = b.with(p, b[p].copy(kind = TileKind.NORMAL))
         for (p in fx.iceMelted) if (p !in fx.cleared) b = b.with(p, b[p].copy(kind = TileKind.NORMAL, hp = 0))
         for (p in fx.iceCracked) b = b.with(p, b[p].copy(hp = b[p].hp - 1))
         for (p in fx.balloons) if (p !in fx.cleared) b = b.with(p, b[p].copy(kind = TileKind.NORMAL))
-        for (w in fx.words) for (p in w.cells) if (b[p].locked) b = b.with(p, b[p].copy(locked = false))
         var after = if (fx.cleared.isEmpty()) b else Refill.collapse(b, fx.cleared, s.rng, s.ids, dict, level.giftRate)
         // Tiko friends that reach the bottom row escape (and the tiles above drop again).
         var rescued = 0
@@ -638,7 +647,7 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
 
     /** Mixes the movable tiles until at least one swap makes a word. Crates, ice and chains stay put. */
     private fun shuffled(b: Board): Board {
-        val spots = b.positions().filter { b[it].movable }
+        val spots = b.positions().filter { b[it].movable && !b[it].locked }
         var best = b
         repeat(200) {
             val tiles = spots.map { b[it] }.shuffledWith(s.rng)

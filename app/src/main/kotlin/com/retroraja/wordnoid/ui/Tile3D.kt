@@ -1,5 +1,13 @@
 package com.retroraja.wordnoid.ui
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.graphics.drawscope.clipRect
+import kotlin.math.abs
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -42,8 +50,14 @@ fun tileColor(t: Tile): Color = when (t.kind) {
 @Composable
 fun Tile3D(tile: Tile, size: Dp, modifier: Modifier = Modifier, glow: Color? = null, dim: Boolean = false) {
     val sizePx = size.value
+    // Gold and ice have a moving shine and twinkles so they stand out from normal tiles.
+    val shine = if (tile.isGold || tile.isIce || tile.locked) {
+        val t = rememberInfiniteTransition(label = "shine")
+        val v by t.animateFloat(0f, 1f, infiniteRepeatable(tween(if (tile.isIce) 2600 else 1800, easing = LinearEasing)), label = "shineT")
+        v
+    } else -1f
     Box(modifier.size(size), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.fillMaxSize()) { drawTile(tile, glow, dim) }
+        Canvas(Modifier.fillMaxSize()) { drawTile(tile, glow, dim, shine) }
         if (tile.isBuddy) {
             Tiko(Modifier.fillMaxSize(0.92f), color = buddyColor(tile.id), letter = null, hat = false)
         } else if (tile.kind != TileKind.CRATE) {
@@ -65,13 +79,13 @@ fun Tile3D(tile: Tile, size: Dp, modifier: Modifier = Modifier, glow: Color? = n
             }
             Text(icon, modifier = Modifier.offset(y = -(size * 0.05f)), style = TextStyle(fontSize = (sizePx * 0.32f).sp, color = Color.White.copy(alpha = 0.55f)))
         }
-        if (tile.locked) Text("🔒", Modifier.align(Alignment.TopEnd), style = TextStyle(fontSize = (sizePx * 0.24f).sp))
+        if (tile.locked) Text("🔒", Modifier.align(Alignment.TopEnd).offset(x = size * 0.1f, y = -(size * 0.12f)), style = TextStyle(fontSize = (sizePx * 0.36f).sp))
         if (tile.isBalloon) Text("🎈", Modifier.align(Alignment.TopEnd).offset(x = size * 0.08f, y = -(size * 0.16f)), style = TextStyle(fontSize = (sizePx * 0.36f).sp))
         if (tile.isGift) Text("🎀", Modifier.align(Alignment.TopCenter).offset(y = -(size * 0.08f)), style = TextStyle(fontSize = (sizePx * 0.3f).sp))
     }
 }
 
-fun DrawScope.drawTile(t: Tile, glow: Color?, dim: Boolean) {
+fun DrawScope.drawTile(t: Tile, glow: Color?, dim: Boolean, shine: Float = -1f) {
     val w = size.width
     val h = size.height
     if (t.isBuddy) return
@@ -97,6 +111,14 @@ fun DrawScope.drawTile(t: Tile, glow: Color?, dim: Boolean) {
         Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.42f), Color.White.copy(alpha = 0.04f)), startY = inset, endY = inset + faceH * 0.5f),
         Offset(inset + w * 0.07f, inset + h * 0.04f), Size(w - inset * 2 - w * 0.14f, faceH * 0.42f), CornerRadius(w * 0.14f),
     )
+    if (t.locked) {
+        // A locked letter gets a thick gold frame and darker face, so it clearly can't make words.
+        drawRoundRect(Color.Black.copy(alpha = 0.25f), Offset(inset, inset), Size(w - inset * 2, faceH), r)
+        drawRoundRect(
+            Brush.linearGradient(listOf(Color(0xFFFFF1A6), Color(0xFFFFC93C), Color(0xFFB8860B), Color(0xFFFFE680)), Offset.Zero, Offset(w, h)),
+            Offset(inset, inset), Size(w - inset * 2, faceH), r, style = Stroke(width = w * 0.1f),
+        )
+    }
     when (t.kind) {
         TileKind.GOLD -> {
             drawRoundRect(
@@ -112,6 +134,16 @@ fun DrawScope.drawTile(t: Tile, glow: Color?, dim: Boolean) {
                 Offset(inset, inset), Size(w - inset * 2, faceH), r, style = Stroke(width = w * 0.09f),
             )
             drawCircle(Color.White.copy(alpha = 0.9f), w * 0.04f, Offset(w * 0.78f, h * 0.2f))
+            if (shine >= 0f) {
+                // A bright band sweeps across the metal, then a star twinkles.
+                val x = -w * 0.6f + shine * w * 2.2f
+                clipRect(inset, inset, w - inset, inset + faceH) {
+                    drawLine(Color.White.copy(alpha = 0.65f), Offset(x, inset + faceH), Offset(x + w * 0.45f, inset), strokeWidth = w * 0.16f)
+                    drawLine(Color.White.copy(alpha = 0.35f), Offset(x + w * 0.2f, inset + faceH), Offset(x + w * 0.65f, inset), strokeWidth = w * 0.06f)
+                }
+                val tw = (1f - abs(shine * 2f - 1f))
+                sparkle(Offset(w * 0.8f, h * 0.18f), w * 0.12f * tw, Color.White)
+            }
         }
         TileKind.CRATE -> {
             // A candy-striped gift box with a bow (no wood).
@@ -132,8 +164,25 @@ fun DrawScope.drawTile(t: Tile, glow: Color?, dim: Boolean) {
             }
         }
         TileKind.ICE -> {
-            drawRoundRect(Color(0x99CFF4FF), Offset(inset, inset), Size(w - inset * 2, faceH), r)
-            drawRoundRect(Color.White.copy(alpha = 0.85f), Offset(inset, inset), Size(w - inset * 2, faceH), r, style = Stroke(width = w * 0.05f))
+            // A frosty blue cover: pale ice gradient, frost on the edges, a thick white rim and twinkling sparkles.
+            drawRoundRect(
+                Brush.linearGradient(listOf(Color(0xCCE6FAFF), Color(0xB37FD6FF), Color(0xCC4FB4F0)), Offset(0f, 0f), Offset(w, h)),
+                Offset(inset, inset), Size(w - inset * 2, faceH), r,
+            )
+            drawRoundRect(
+                Brush.radialGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.55f)), Offset(w / 2, inset + faceH / 2), w * 0.62f),
+                Offset(inset, inset), Size(w - inset * 2, faceH), r,
+            )
+            drawRoundRect(Color.White, Offset(inset, inset), Size(w - inset * 2, faceH), r, style = Stroke(width = w * 0.07f))
+            drawRoundRect(Color(0xFF7FD6FF), Offset(inset + w * 0.05f, inset + w * 0.05f), Size(w - inset * 2 - w * 0.1f, faceH - w * 0.1f), CornerRadius(w * 0.12f), style = Stroke(width = w * 0.02f))
+            if (shine >= 0f) {
+                for (i in 0..2) {
+                    val ph = (shine + i / 3f) % 1f
+                    val a = 1f - abs(ph * 2f - 1f)
+                    val pts = listOf(Offset(w * 0.22f, h * 0.22f), Offset(w * 0.78f, h * 0.3f), Offset(w * 0.3f, h * 0.74f))
+                    sparkle(pts[i], w * 0.1f * a, Color.White)
+                }
+            }
             val c = Color.White.copy(alpha = 0.8f)
             drawLine(c, Offset(w * 0.2f, h * 0.25f), Offset(w * 0.42f, h * 0.45f), strokeWidth = 2f)
             drawLine(c, Offset(w * 0.42f, h * 0.45f), Offset(w * 0.35f, h * 0.7f), strokeWidth = 2f)
@@ -169,6 +218,14 @@ fun DrawScope.drawTile(t: Tile, glow: Color?, dim: Boolean) {
         }
         else -> {}
     }
+}
+
+/** A 4-point twinkle star. */
+private fun DrawScope.sparkle(c: Offset, r: Float, color: Color) {
+    if (r <= 0.5f) return
+    drawLine(color, Offset(c.x - r, c.y), Offset(c.x + r, c.y), strokeWidth = r * 0.28f)
+    drawLine(color, Offset(c.x, c.y - r), Offset(c.x, c.y + r), strokeWidth = r * 0.28f)
+    drawCircle(color, r * 0.22f, c)
 }
 
 private val BUDDY_COLORS = listOf(Color(0xFFFF7EB6), Color(0xFF7ED957), Color(0xFFFFB84D), Color(0xFFB98CFF))

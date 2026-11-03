@@ -45,7 +45,7 @@ enum class Booster(
     SHUFFLE("Shuffle", "🔀", 60, 16, Aim.NONE, false, "Mix up the board for free"),
     PLUS_MOVES("+3 Moves", "➕", 150, 19, Aim.NONE, true, "Three extra moves"),
     PAINT("Paintbrush", "🖌️", 180, 22, Aim.MOVABLE, false, "Change a tile to any letter", needsLetter = true),
-    FREE_MOVE("Free Move", "⏳", 120, 25, Aim.NONE, false, "Your next swap costs no move"),
+    FREE_MOVE("Free Move", "⏳", 120, 49, Aim.NONE, false, "Your next swap costs no move"),
     ROW_SLIDE("Row Slide", "↔️", 120, 28, Aim.ROW, false, "Rearranges a row's letters to spell a word"),
     COLUMN_SLIDE("Column Slide", "↕️", 120, 28, Aim.COLUMN, false, "Rearranges a column's letters to spell a word"),
     SPIN("Spin", "🌀", 100, 31, Aim.SQUARE, false, "Turns 4 tiles until they make a word"),
@@ -55,7 +55,7 @@ enum class Booster(
     SCANNER("Word Scanner", "🔍", 180, 41, Aim.NONE, true, "Lights up every tile that can make a word"),
     DICE("Dice", "🎲", 80, 43, Aim.MOVABLE, false, "Re-roll a tile and pick 1 of 3 new letters", needsLetter = true),
     MAGNET("Magnet", "🧲", 120, 46, Aim.GOLD, false, "Pulls one gold tile off the board for you"),
-    LOCK("Lock", "🔒", 60, 49, Aim.MOVABLE, false, "Keeps a tile on the board when its word bursts"),
+    LOCK("Lock", "🔒", 60, 25, Aim.MOVABLE, false, "Locks a letter so no word uses it. Move it anywhere, then tap it to unlock"),
     DOUBLE("Double Points", "🌟", 80, 52, Aim.NONE, false, "Your next word fills the Power Meter twice"),
     LETTER_RAIN("Letter Rain", "🌧️", 140, 55, Aim.NONE, false, "Rains 3 useful letters onto the board");
 

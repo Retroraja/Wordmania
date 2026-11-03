@@ -369,7 +369,6 @@ fun WatchButton(text: String, spot: Ads.Spot, activity: Activity, onReward: () -
 @Composable
 fun WinDialog(c: GameController, activity: Activity, onNext: () -> Unit, onTown: () -> Unit) {
     var doubled by remember { mutableStateOf(false) }
-    var extra by remember { mutableStateOf(false) }
     DimBox(0.45f) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.width(460.dp).arcadePanel().padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -398,7 +397,6 @@ fun WinDialog(c: GameController, activity: Activity, onNext: () -> Unit, onTown:
                 Spacer(Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (!doubled) WatchButton("x2 coins", Ads.Spot.DOUBLE_WIN_COINS, activity) { c.doubleWinCoins(); doubled = true }
-                    if (!extra && c.winStars < 3) WatchButton("+1 brick", Ads.Spot.EXTRA_BRICK, activity) { c.extraBrick(); extra = true }
                 }
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -426,32 +424,45 @@ fun LoseDialog(c: GameController, activity: Activity, onRetry: () -> Unit, onMap
             val left = c.level.targets.filter { it.left(c.stats) > 0 }.joinToString("\n") { "${it.icon} ${it.left(c.stats)} more: ${it.text}" }
             Text("So close! Still needed:\n$left", color = Color.White, fontSize = 14.sp, textAlign = TextAlign.Center, lineHeight = 18.sp)
             Spacer(Modifier.height(6.dp))
-            if (moves > 5) Text(
-                "🔥 SPECIAL DEAL: +$moves MOVES! 🔥", Modifier.scale(glow).background(Palette.red, RoundedCornerShape(10.dp)).padding(horizontal = 10.dp, vertical = 2.dp),
-                color = Color.White, fontSize = 16.sp, fontWeight = Heavy,
-            )
-            Spacer(Modifier.height(6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                ArcadeButton(
-                    "+$moves moves 🪙${Progress.CONTINUE_PRICE}",
-                    enabled = c.progress.coins >= Progress.CONTINUE_PRICE, textSize = 16.sp,
-                ) { c.continueForCoins() }
-                WatchButton("+5 moves", Ads.Spot.CONTINUE, activity) { c.continueForAd() }
-            }
-            if (c.progress.coins < Progress.CONTINUE_PRICE) Text("You have 🪙${c.progress.coins}.", color = Palette.cream, fontSize = 12.sp)
-            if (c.progress.count(Booster.PLUS_MOVES) > 0) {
-                Spacer(Modifier.height(6.dp))
-                ArcadeButton("Use ➕ +3 Moves (you have ${c.progress.count(Booster.PLUS_MOVES)})", color = Palette.purple, textSize = 15.sp) { c.continueWithBooster() }
-            }
-            if (c.level.boss) WatchButton("Boss rematch: +5 moves", Ads.Spot.BOSS_REMATCH, activity) { c.continueForAd() }
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (c.level.boss) {
+                // Boss levels: one simple choice, +5 moves (coins or a video) or try again.
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    ArcadeButton(
+                        "+5 moves 🪙${Progress.CONTINUE_PRICE}",
+                        enabled = c.progress.coins >= Progress.CONTINUE_PRICE, textSize = 16.sp,
+                    ) { c.continueForCoins() }
+                    WatchButton("+5 moves", Ads.Spot.BOSS_REMATCH, activity) { c.continueForAd() }
+                }
+                if (c.progress.coins < Progress.CONTINUE_PRICE) Text("You have 🪙${c.progress.coins}.", color = Palette.cream, fontSize = 12.sp)
+                Spacer(Modifier.height(8.dp))
                 ArcadeButton("Try again", color = Color(0xFFE5533D), textSize = 16.sp, onClick = onRetry)
-                ArcadeButton("Level Map", color = Palette.slate, textSize = 16.sp, onClick = onMap)
+            } else {
+                if (moves > 5) Text(
+                    "🔥 SPECIAL DEAL: +$moves MOVES! 🔥", Modifier.scale(glow).background(Palette.red, RoundedCornerShape(10.dp)).padding(horizontal = 10.dp, vertical = 2.dp),
+                    color = Color.White, fontSize = 16.sp, fontWeight = Heavy,
+                )
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    ArcadeButton(
+                        "+$moves moves 🪙${Progress.CONTINUE_PRICE}",
+                        enabled = c.progress.coins >= Progress.CONTINUE_PRICE, textSize = 16.sp,
+                    ) { c.continueForCoins() }
+                    WatchButton("+5 moves", Ads.Spot.CONTINUE, activity) { c.continueForAd() }
+                }
+                if (c.progress.coins < Progress.CONTINUE_PRICE) Text("You have 🪙${c.progress.coins}.", color = Palette.cream, fontSize = 12.sp)
+                if (c.progress.count(Booster.PLUS_MOVES) > 0) {
+                    Spacer(Modifier.height(6.dp))
+                    ArcadeButton("Use ➕ +3 Moves (you have ${c.progress.count(Booster.PLUS_MOVES)})", color = Palette.purple, textSize = 15.sp) { c.continueWithBooster() }
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    ArcadeButton("Try again", color = Color(0xFFE5533D), textSize = 16.sp, onClick = onRetry)
+                    ArcadeButton("Level Map", color = Palette.slate, textSize = 16.sp, onClick = onMap)
+                }
+                // A free Hammer after a fail, for a video.
+                var gotHammer by remember { mutableStateOf(false) }
+                if (!gotHammer) WatchButton("Free 🔨 Hammer for next try", Ads.Spot.FREE_HAMMER, activity) { c.progress.addBooster(Booster.HAMMER); gotHammer = true }
             }
-            // A free Hammer after a fail, for a video.
-            var gotHammer by remember { mutableStateOf(false) }
-            if (!gotHammer) WatchButton("Free 🔨 Hammer for next try", Ads.Spot.FREE_HAMMER, activity) { c.progress.addBooster(Booster.HAMMER); gotHammer = true }
         }
     }
 }

@@ -81,6 +81,32 @@ class GameTest {
         assertNull(g.useBooster(Booster.VOWEL_FLIP, Pos(0, 0), letter = 'B'), "vowel flip needs a vowel")
     }
 
+    @Test fun lockedLetterMakesNoWordUntilUnlocked() {
+        val g = Game(level.copy(targets = listOf(Objective.Words(2))), dict)
+        // Lock the A, move it next to C and T: no word while locked, the swap still costs a move.
+        assertNotNull(g.useBooster(Booster.LOCK, Pos(0, 2)))
+        val r = g.swap(Pos(0, 1), Pos(0, 2))
+        assertTrue(r.effects.words.isEmpty())
+        assertEquals(9, g.movesLeft)
+        assertEquals(listOf(Pos(0, 1)), g.lockedCells)
+        // Unlocking is free and checks words through the letter right away.
+        val u = g.unlock(Pos(0, 1))
+        assertNotNull(u)
+        assertEquals("CAT", u.effects.words.first().word)
+        assertEquals(9, g.movesLeft)
+        assertTrue(g.lockedCells.isEmpty())
+    }
+
+    @Test fun everyThemeWordIsInTheWordList() {
+        for (t in Themes.all) {
+            if (t.isNames) continue
+            for (w in t.words) assertTrue(dict.isWord(w.lowercase()), "${t.name}: $w is not in the word list")
+            for (w in t.examples) assertTrue(w in t.words, "${t.name}: example $w")
+        }
+        val body = Themes.byName("Body")!!.words
+        for (w in listOf("EAR", "EARS", "NOSE", "NOSES", "TEETH", "FEET")) assertTrue(w in body, w)
+    }
+
     @Test fun jokerMakesWord() {
         val l = level.copy(start = listOf("CQTQJ", "QJQZQ", "JZQJZ", "QJZQJ"))
         val g = Game(l, dict)
