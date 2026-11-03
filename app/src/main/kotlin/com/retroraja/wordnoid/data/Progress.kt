@@ -54,8 +54,8 @@ class Progress(context: Context) {
     fun worldBricks(world: Int): Int = (world * 10 + 1..world * 10 + 10).sumOf { bricks(it) }
 
     fun fails(level: Int): Int = prefs.getInt("fails_$level", 0)
-    fun seen(key: String): Boolean = prefs.getBoolean("seen_$key", false)
-    fun markSeen(key: String) = prefs.edit().putBoolean("seen_$key", true).apply()
+    fun seen(key: String): Boolean { @Suppress("UNUSED_VARIABLE") val v = version; return prefs.getBoolean("seen_$key", false) }
+    fun markSeen(key: String) { prefs.edit().putBoolean("seen_$key", true).apply(); bump() }
 
     fun levelWon(level: Int, bricks: Int) {
         val e = prefs.edit()
@@ -74,8 +74,8 @@ class Progress(context: Context) {
     // ---------------------------------------------------------------- boosters and coins
 
     /** Free first use of a booster during its tutorial. */
-    fun hasFreeUse(b: Booster): Boolean = prefs.getBoolean("free_${b.name}", false)
-    fun setFreeUse(b: Booster, on: Boolean) = prefs.edit().putBoolean("free_${b.name}", on).apply()
+    fun hasFreeUse(b: Booster): Boolean { @Suppress("UNUSED_VARIABLE") val v = version; return prefs.getBoolean("free_${b.name}", false) }
+    fun setFreeUse(b: Booster, on: Boolean) { prefs.edit().putBoolean("free_${b.name}", on).apply(); bump() }
 
     fun count(b: Booster): Int = boosters[b] ?: 0
 

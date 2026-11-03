@@ -105,6 +105,8 @@ class GameController(
     var showWin by mutableStateOf(false); private set
     /** Levels 1-3, first win: a big 3D "WORDNOID!" and straight to the town (no win window). */
     var bigWin by mutableStateOf(false); private set
+    var autoTown by mutableStateOf(false); private set
+    fun bigWinDone() { bigWin = false; showWin = true }
     /** A booster that just arrived from a mystery card glows on the panel for a moment. */
     var glowBooster by mutableStateOf<Booster?>(null); private set
     /** Where the booster panel is (mystery cards fly there). */
@@ -786,7 +788,6 @@ class GameController(
         hintWords = emptyList()
         delay(400)
         sounds.play("win")
-        if (!auto) sounds.play("wordnoid")
         message = if (level.boss) "You beat ${worldOf(level.number).villain}!" else "LEVEL COMPLETE!"
         if (fx3) Fx.call("confetti", Fx.obj("x" to Fx.dp(screenWidth / 2), "y" to Fx.dp(screenHeight * 0.3f), "n" to 120, "spread" to 6)) else particles.confettiRain(screenWidth)
         // Leftover moves: tiles burst into coins (1 coin each, up to 10).
@@ -813,7 +814,7 @@ class GameController(
             wordRain = false
             if (r.leftoverCoins > 0) { progress.addCoins(r.leftoverCoins); coinsThisLevel += r.leftoverCoins }
         }
-        if (auto) {} else if (fx3) { Fx.call("fireworks", Fx.obj("n" to 5)); delay(1300) } else repeat(5) {
+        if (fx3) {} else repeat(5) {
             particles.firework(Offset(screenWidth * (0.2f + random.nextFloat() * 0.6f), screenHeight * (0.15f + random.nextFloat() * 0.35f)))
             sounds.play(if (it % 2 == 0) "bang" else "crackle")
             delay(260)
@@ -828,7 +829,9 @@ class GameController(
         if (winStars == 3) Daily.report(progress, Daily.Kind.THREE_BRICKS)
         if (winStars == 3 && random.nextDouble() < 0.25) winBooster = Rewards.randomBooster(level.number, random).also { progress.addBooster(it) }
         delay(300)
-        if (auto) bigWin = true else showWin = true
+        // Every win: the big 3D "WORDNOID!" first. Levels 1-3 then go to town; later levels show the win screen.
+        autoTown = auto
+        bigWin = true
     }
 
     /** Watched a video on the win screen: double the win coins. */

@@ -54,6 +54,8 @@ fun DailyGiftsScreen(progress: Progress, sounds: SoundFx, startTab: Int = 0, onT
             ScreenTop("🎁 Daily Gifts", progress, onBack)
             Row(Modifier.padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("📅 Rewards", "🎡 Spin", "⭐ Challenges").forEachIndexed { i, t ->
+                    // Spin opens after Level 4, Challenges after Level 6.
+                    if (i == 1 && progress.unlocked < 5 || i == 2 && progress.unlocked < 7) return@forEachIndexed
                     ArcadeButton(t, color = if (tab == i) Palette.royal else Palette.slate, textSize = 15.sp) { tab = i }
                 }
             }

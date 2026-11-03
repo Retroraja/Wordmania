@@ -16,6 +16,8 @@ import kotlinx.coroutines.launch
  * hold them back ([coinHold], [brickHold]) and count up as the 3D coins land.
  */
 object CoinFly {
+    /** Its own scope, so a flight always finishes and the counter never stays held back after leaving a screen. */
+    private val main = kotlinx.coroutines.MainScope()
     /** Where the coin and brick counters are on screen right now (px). Set by CoinBadge/BrickBadge. */
     var coinAt by mutableStateOf(Offset.Zero)
     var brickAt by mutableStateOf(Offset.Zero)
@@ -41,12 +43,12 @@ object CoinFly {
     /** Flies coins that were already added and held back. */
     fun release(scope: CoroutineScope, sounds: SoundFx, n: Int, from: Offset? = null) {
         if (n <= 0) return
-        scope.launch { fly(sounds, n, false, from) }
+        main.launch { fly(sounds, n, false, from) }
     }
 
     fun releaseBricks(scope: CoroutineScope, sounds: SoundFx, n: Int, from: Offset? = null) {
         if (n <= 0) return
-        scope.launch { fly(sounds, n, true, from) }
+        main.launch { fly(sounds, n, true, from) }
     }
 
     private suspend fun fly(sounds: SoundFx, n: Int, brick: Boolean, from: Offset?) {

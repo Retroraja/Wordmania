@@ -72,6 +72,7 @@ fun GameScreen(
     val activity = LocalContext.current as Activity
     val bonus = if (progress.fails(level.number) >= 3) 3 else 0
     val c = remember { GameController(level, dict, progress, sounds, haptics, scope, bonus, startBoosters) }
+    remember(level.number) { Look.forLevel(level.number); 0 }
     // Cards before the level starts: the intro(s), then the new booster's help card.
     val intros = remember { mutableStateListOf<IntroInfo>().apply { addAll(introsFor(level, progress)) } }
     val intro = intros.firstOrNull()
@@ -127,7 +128,7 @@ fun GameScreen(
                 }
                 // Level 1 has no boosters yet: no panel.
                 if (panelBoosters(c).isEmpty()) Spacer(Modifier.width(rightW))
-                else RightPanel(c, Modifier.width(rightW).fillMaxHeight().onGloballyPositioned { c.panelAnchor = it.positionInRoot() + Offset(it.size.width / 2f, it.size.height / 2f) }, onMore = { more = true })
+                else RightPanel(c, covered = covered || c.showWin || c.bigWin || c.showLose, modifier = Modifier.width(rightW).fillMaxHeight().onGloballyPositioned { c.panelAnchor = it.positionInRoot() + Offset(it.size.width / 2f, it.size.height / 2f) }, onMore = { more = true })
             }
             ParticleLayer(c.particles)
             Overlays(c)
@@ -142,7 +143,7 @@ fun GameScreen(
             )
             if (c.showLose) LoseDialog(c, activity, onRetry = { c.giveUp(); onRestart() }, onMap = { c.giveUp(); onMap() })
             if (paused) PauseDialog(progress, c, activity, onResume = { paused = false }, onRestart = onRestart, onMap = onMap, onHome = onTown)
-            if (c.bigWin) BigWin(c, sounds, onDone = { onAutoTown(c.coinsThisLevel, c.winStars) })
+            if (c.bigWin) BigWin(c, sounds, onDone = { if (c.autoTown) onAutoTown(c.coinsThisLevel, c.winStars) else c.bigWinDone() })
             if (intro != null) IntroCard(intro, onGo = { intros.removeAt(0); if (intros.isEmpty() && help == null) c.begin() })
             else help?.let { b -> BoosterHelpCard(b, onTry = { help = null; c.begin() }) }
         }
@@ -191,14 +192,14 @@ private fun LeftPanel(c: GameController, modifier: Modifier, onPause: () -> Unit
     val anim = rememberInfiniteTransition(label = "left")
     val beat by anim.animateFloat(1f, 1.12f, infiniteRepeatable(tween(420), RepeatMode.Reverse), label = "beat")
     Column(
-        modifier.arcadePanel().padding(horizontal = 8.dp, vertical = 6.dp),
+        modifier.skinPanel().padding(horizontal = 10.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(5.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             RoundButton("⏸", 30.dp, onClick = onPause)
             Column(Modifier.padding(start = 6.dp).weight(1f)) {
-                ArcadeText("LEVEL ${level.number}", 17.sp, Palette.gold)
-                Text("${world.emoji} ${world.name}", fontSize = 10.sp, color = Palette.cream, maxLines = 1)
+                Text("LEVEL ${level.number}", fontFamily = ArcadeFont, fontSize = 19.sp, color = Look.skin.ink)
+                Text("${world.emoji} ${world.name}", fontSize = 10.sp, color = Look.skin.ink.copy(alpha = 0.75f), maxLines = 1, fontWeight = Heavy)
             }
             // Moves.
             val low = c.movesLeft <= 3
@@ -223,10 +224,10 @@ private fun LeftPanel(c: GameController, modifier: Modifier, onPause: () -> Unit
         for (o in level.targets) GoalRow(o, c)
         // Words found so far.
         Column(Modifier.weight(1f).fillMaxWidth().softCard(0.15f).padding(5.dp)) {
-            Text("Words found: ${c.foundWords.size}", fontSize = 11.sp, color = Palette.gold, fontWeight = Heavy)
+            Text("Words found: ${c.foundWords.size}", fontSize = 11.sp, color = Look.skin.accent, fontWeight = Heavy)
             Text(
                 c.foundWords.reversed().take(12).joinToString("  "),
-                fontSize = 11.sp, color = Color.White, lineHeight = 13.sp,
+                fontSize = 11.sp, color = Look.skin.ink, fontWeight = Heavy, lineHeight = 13.sp,
                 modifier = Modifier.verticalScroll(rememberScrollState()),
             )
         }
@@ -235,7 +236,7 @@ private fun LeftPanel(c: GameController, modifier: Modifier, onPause: () -> Unit
             val shown = if (c.bonusFound) "$w ✓" else w.mapIndexed { i, ch -> if (i < 2) ch else '_' }.joinToString(" ")
             Text(
                 "🎁 Bonus word: $shown\nSpell it for a mystery card!",
-                fontSize = 10.sp, lineHeight = 12.sp, color = if (c.bonusFound) Palette.green else Palette.cream, fontWeight = Heavy,
+                fontSize = 10.sp, lineHeight = 12.sp, color = if (c.bonusFound) Palette.greenDeep else Look.skin.ink, fontWeight = Heavy,
             )
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -245,13 +246,13 @@ private fun LeftPanel(c: GameController, modifier: Modifier, onPause: () -> Unit
             val shownCoins by animateIntAsState(c.progress.coins, tween(600), label = "coins")
             Row(
                 Modifier
-                    .background(Color(0x44000000), RoundedCornerShape(10.dp))
+                    .background(Color.White.copy(alpha = if (Look.skin.light) 0.8f else 0.15f), RoundedCornerShape(10.dp))
                     .padding(horizontal = 6.dp, vertical = 2.dp)
                     .onGloballyPositioned { c.coinAnchor = it.positionInRoot() + Offset(20f, it.size.height / 2f) },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text("🪙", fontSize = 12.sp)
-                ArcadeText(" $shownCoins", 13.sp, Palette.gold)
+                Text(" $shownCoins", fontFamily = ArcadeFont, fontSize = 14.sp, color = Look.skin.ink)
             }
         }
     }
@@ -270,7 +271,7 @@ private fun GoalRow(o: Objective, c: GameController) {
     Column(
         Modifier
             .fillMaxWidth()
-            .background(if (done) Color(0x6639E07A) else Color(0x33FFFFFF), RoundedCornerShape(10.dp))
+            .background(if (done) Color(0x6639E07A) else Color.White.copy(alpha = if (Look.skin.light) 0.85f else 0.15f), RoundedCornerShape(12.dp))
             .then(if (theme != null) Modifier.clickable { themeOpen = !themeOpen } else Modifier)
             .padding(horizontal = 6.dp, vertical = 3.dp)
             .onGloballyPositioned { if (o is Objective.Gold) c.goalAnchor = it.positionInRoot() + Offset(20f, it.size.height / 2f) },
@@ -280,14 +281,14 @@ private fun GoalRow(o: Objective, c: GameController) {
             else if (o is Objective.Rescue) Tiko(Modifier.size(20.dp), color = PINK_TIKO, hat = false, letter = null)
             else if (o is Objective.Gold) Tile3D(com.retroraja.wordnoid.core.Tile(0, 'G', kind = com.retroraja.wordnoid.core.TileKind.GOLD), 20.dp)
             else Text(o.icon, fontSize = 15.sp)
-            Text(o.text + if (theme != null) " ⓘ" else "", Modifier.weight(1f).padding(start = 5.dp), fontSize = 11.sp, color = Color.White, fontWeight = Heavy, lineHeight = 12.sp, maxLines = 3)
+            Text(o.text + if (theme != null) " ⓘ" else "", Modifier.weight(1f).padding(start = 5.dp), fontSize = 11.sp, color = Look.skin.ink, fontWeight = Heavy, lineHeight = 12.sp, maxLines = 3)
             if (done) Text("✅", fontSize = 13.sp)
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.weight(1f).height(7.dp).background(Color(0x55000000), RoundedCornerShape(4.dp))) {
-                Box(Modifier.fillMaxWidth(frac.coerceIn(0f, 1f)).fillMaxHeight().background(if (done) Palette.green else Palette.gold, RoundedCornerShape(4.dp)))
+            Box(Modifier.weight(1f).height(7.dp).background(Look.skin.ink.copy(alpha = 0.18f), RoundedCornerShape(4.dp))) {
+                Box(Modifier.fillMaxWidth(frac.coerceIn(0f, 1f)).fillMaxHeight().background(if (done) Palette.green else Look.skin.accent, RoundedCornerShape(4.dp)))
             }
-            Text(" $have/${o.count}", fontSize = 11.sp, color = Palette.gold, fontWeight = Heavy)
+            Text(" $have/${o.count}", fontSize = 11.sp, color = Look.skin.ink, fontWeight = Heavy)
         }
     }
 }
@@ -297,9 +298,9 @@ private fun PowerMeter(meter: Int) {
     val anim = rememberInfiniteTransition(label = "meter")
     val shine by anim.animateFloat(0.6f, 1f, infiniteRepeatable(tween(800), RepeatMode.Reverse), label = "shine")
     Column {
-        Text("⚡ Power", fontSize = 9.sp, color = Palette.gold, fontWeight = Heavy)
+        Text("⚡ Power", fontSize = 9.sp, color = Look.skin.ink, fontWeight = Heavy)
         Row(
-            Modifier.background(Color(0x66000000), RoundedCornerShape(6.dp)).padding(2.dp),
+            Modifier.background(Look.skin.ink.copy(alpha = 0.55f), RoundedCornerShape(6.dp)).padding(2.dp),
             horizontalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             for (i in 0 until Game.METER_SIZE) {
@@ -330,16 +331,32 @@ fun panelBoosters(c: GameController): List<Booster> {
 }
 
 @Composable
-private fun RightPanel(c: GameController, modifier: Modifier, onMore: () -> Unit) {
+private fun RightPanel(c: GameController, modifier: Modifier, covered: Boolean, onMore: () -> Unit) {
+    val list = panelBoosters(c)
+    // The tools are drawn live in 3D over the buttons: they turn and bob, jump and spin on a tap.
+    val spots = remember { mutableStateMapOf<Booster, Pair<Offset, Float>>() }
+    val live = Fx.ok
+    val keys = list.joinToString { it.name }
+    LaunchedEffect(live, keys, spots.toMap(), covered) {
+        if (!live) return@LaunchedEffect
+        if (covered) { Fx.call("panelHold", Fx.obj("on" to true)); return@LaunchedEffect }
+        kotlinx.coroutines.delay(120)
+        val slots = org.json.JSONArray()
+        for (b in list) spots[b]?.let { (at, size) ->
+            slots.put(Fx.obj("k" to b.name, "x" to Fx.dp(at.x), "y" to Fx.dp(at.y), "s" to Fx.dp(size)))
+        }
+        if (slots.length() == list.size) { Fx.call("panelShow", Fx.obj("slots" to slots)); Fx.call("panelHold", Fx.obj("on" to false)) }
+    }
+    LaunchedEffect(c.armed) { if (live) Fx.call("panelArm", Fx.obj("k" to (c.armed?.name ?: ""))) }
+    DisposableEffect(Unit) { onDispose { Fx.call("panelHide") } }
     Column(
-        modifier.arcadePanel().padding(4.dp),
+        modifier.skinPanel().padding(6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceEvenly,
     ) {
-        Text("Boosters", fontSize = 11.sp, color = Palette.gold, fontWeight = Heavy)
-        val list = panelBoosters(c)
-        for (row in list.chunked(2)) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            for (b in row) BoosterButton(b, c, 54.dp, showName = true)
+        Text("Boosters", fontSize = 12.sp, color = Look.skin.ink, fontWeight = Heavy)
+        for (row in list.chunked(2)) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (b in row) BoosterButton(b, c, 56.dp, showName = true, live = live, onPlaced = { at, size -> spots[b] = at to size })
         }
         if (Booster.unlockedAt(c.level.number).size > 6) RoundButton("⋯", 32.dp, label = "More", onClick = onMore)
     }
@@ -361,9 +378,16 @@ fun RoundButton(text: String, size: Dp, label: String? = null, onClick: () -> Un
 
 @Composable
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
-fun BoosterButton(b: Booster, c: GameController, size: Dp = 50.dp, showName: Boolean = false, onUsed: () -> Unit = {}) {
+fun BoosterButton(
+    b: Booster, c: GameController, size: Dp = 50.dp, showName: Boolean = false,
+    /** True when the 3D layer draws the tool live over this button (the right panel). */
+    live: Boolean = false,
+    onPlaced: ((Offset, Float) -> Unit)? = null,
+    onUsed: () -> Unit = {},
+) {
     val anim = rememberInfiniteTransition(label = "bb")
-    val pulse by anim.animateFloat(1f, 1.15f, infiniteRepeatable(tween(450), RepeatMode.Reverse), label = "p")
+    val pulse by anim.animateFloat(1f, 1.12f, infiniteRepeatable(tween(450), RepeatMode.Reverse), label = "p")
+    val glow by anim.animateFloat(0.35f, 1f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "g")
     val spotlight = c.tutorial?.booster == b || c.nudge == b || c.glowBooster == b
     // The booster tutorial: a hand taps this button.
     val handHere = c.tutorial?.booster == b && c.armed == null && c.tutorial?.dismissible == false
@@ -372,28 +396,44 @@ fun BoosterButton(b: Booster, c: GameController, size: Dp = 50.dp, showName: Boo
     val free = c.progress.hasFreeUse(b)
     val owned = free || count > 0
     val icon = Fx.icons[b.name]
+    val k = Look.skin
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
     Box(contentAlignment = Alignment.Center) {
+        // Ready glow: a soft ring behind the button when you own it.
+        if (owned) Box(Modifier.size(size + 10.dp).alpha(glow * (if (spotlight || isArmed) 1f else 0.55f))
+            .background(Brush.radialGradient(listOf((if (isArmed) Palette.green else Palette.gold).copy(alpha = 0.85f), Color.Transparent)), CircleShape))
+        // A chunky 3D button: a darker lip underneath, a glossy dome on top.
+        Box(Modifier.size(size).offset(y = 4.dp).background(if (isArmed) Palette.greenDeep.darker(0.7f) else k.strongDeep.darker(0.75f), CircleShape))
         Box(
             Modifier
                 .size(size)
                 .scale(if (spotlight || isArmed) pulse else 1f)
-                .graphicsLayer { translationY = if (isArmed) -8f else 0f }
-                .alpha(if (owned) 1f else 0.75f)
+                .graphicsLayer { translationY = if (isArmed) -6f * density else 0f }
+                .onGloballyPositioned { co -> onPlaced?.invoke(co.positionInRoot() + Offset(co.size.width / 2f, co.size.height / 2f), co.size.width.toFloat()) }
+                .alpha(if (owned) 1f else 0.8f)
                 .background(
-                    Brush.radialGradient(listOf(if (isArmed) Palette.green else Color(0xFF8C6BFF), if (isArmed) Palette.greenDeep else Color(0xFF3B1F9E))),
+                    Brush.radialGradient(
+                        listOf(if (isArmed) Palette.green.lighter(0.3f) else k.strong.lighter(0.45f), if (isArmed) Palette.greenDeep else k.strongDeep)
+                    ),
                     CircleShape,
                 )
-                .border(if (spotlight) 4.dp else 2.dp, if (spotlight) Color.White else Palette.gold, CircleShape)
+                .border(if (spotlight) 4.dp else 3.dp, if (spotlight) Palette.gold else Color.White, CircleShape)
                 .combinedClickable(
                     interactionSource = remember { MutableInteractionSource() }, indication = null,
                     onLongClick = { c.boosterInfo(b) },
-                ) { c.boosterTapped(b); onUsed() },
+                ) {
+                    if (live) Fx.call("panelTap", Fx.obj("k" to b.name))
+                    c.boosterTapped(b); onUsed()
+                },
             contentAlignment = Alignment.Center,
         ) {
-            // The 3D picture of the tool when the phone can draw it, else the emoji.
-            if (icon != null) androidx.compose.foundation.Image(icon, b.title, Modifier.fillMaxSize(0.92f))
-            else Text(b.emoji, fontSize = (size.value * 0.5f).sp)
+            // A glossy highlight on the dome.
+            Box(Modifier.align(Alignment.TopCenter).padding(top = size * 0.08f).size(size * 0.55f, size * 0.22f).background(Color.White.copy(alpha = 0.35f), RoundedCornerShape(50)))
+            // Live 3D tool on top (drawn by the 3D layer); otherwise its 3D picture, else the emoji.
+            if (!live) {
+                if (icon != null) androidx.compose.foundation.Image(icon, b.title, Modifier.fillMaxSize(0.95f))
+                else Text(b.emoji, fontSize = (size.value * 0.5f).sp)
+            }
         }
         val badge = when {
             free -> "FREE"
@@ -401,18 +441,19 @@ fun BoosterButton(b: Booster, c: GameController, size: Dp = 50.dp, showName: Boo
             else -> "🪙${Rewards.price(b, c.progress.unlocked)}"
         }
         if (handHere) {
-            val tap by anim.animateFloat(0f, 1f, infiniteRepeatable(tween(550), RepeatMode.Reverse), label = "hand")
-            Text("👆", Modifier.align(Alignment.BottomCenter).offset(y = (22 + 8 * tap).dp), fontSize = 30.sp)
+            val t by anim.animateFloat(0f, 1f, infiniteRepeatable(tween(550), RepeatMode.Reverse), label = "hand")
+            Text("👆", Modifier.align(Alignment.BottomCenter).offset(y = (22 + 8 * t).dp), fontSize = 30.sp)
         }
-        Text(
-            badge,
-            Modifier.align(Alignment.BottomEnd).offset(6.dp, 4.dp)
-                .background(if (free) Palette.green else if (count > 0) Palette.red else Color(0xFF2B2F4A), RoundedCornerShape(8.dp))
-                .padding(horizontal = 4.dp),
-            fontSize = 11.sp, color = Color.White, fontWeight = Heavy,
-        )
+        // A 3D gold count badge (green when free, dark when you'd buy it).
+        val (b1, b2) = when { free -> Palette.green to Palette.greenDeep; count > 0 -> Palette.gold to Palette.goldDeep; else -> Color(0xFF4A4F72) to Color(0xFF23263F) }
+        Box(
+            Modifier.align(Alignment.BottomEnd).offset(8.dp, 6.dp)
+                .background(Brush.verticalGradient(listOf(b1.lighter(0.35f), b1, b2)), RoundedCornerShape(10.dp))
+                .border(2.dp, Color.White, RoundedCornerShape(10.dp))
+                .padding(horizontal = 6.dp, vertical = 1.dp),
+        ) { Text(badge, fontFamily = ArcadeFont, fontSize = 13.sp, color = if (count > 0 && !free) Color(0xFF5A2E00) else Color.White) }
     }
-    if (showName) Text(b.title, fontSize = 10.sp, color = Palette.cream, fontWeight = Heavy, maxLines = 1, lineHeight = 11.sp)
+    if (showName) Text(b.title, fontSize = 10.sp, color = if (live) Look.skin.ink else Palette.cream, fontWeight = Heavy, maxLines = 1, lineHeight = 11.sp, modifier = Modifier.padding(top = 4.dp))
     }
 }
 
@@ -562,7 +603,7 @@ fun BoosterHelpCard(b: Booster, onTry: () -> Unit) {
     }
 }
 
-/** Levels 1-3: no win window. A big 3D "WORDNOID!" with Tiko's voice, then off to the town. */
+/** Every win: a big 3D "WORDNOID!" with Tiko's voice. Levels 1-3 then go to town, later levels show the win screen. */
 @Composable
 private fun BigWin(c: GameController, sounds: SoundFx, onDone: () -> Unit) {
     LaunchedEffect(Unit) {

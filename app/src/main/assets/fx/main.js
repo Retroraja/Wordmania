@@ -40,7 +40,7 @@ window.addEventListener('resize',resize);
 /* ---------- main loop (stops when nothing is showing) ---------- */
 let running=false,last=0;
 function kick(){if(!running&&renderer){running=true;last=performance.now();requestAnimationFrame(loop)}}
-function ovBusy(){return ov.tweens.length||ov.parts.length||ov.scene.children.length>OV_KEEP||boss||loseTiko}
+function ovBusy(){return ov.tweens.length||ov.parts.length||ov.scene.children.length>OV_KEEP||boss||loseTiko||panel}
 function loop(now){const dt=Math.min(.05,Math.max(0,(now-last)/1000));last=now;T+=dt;
   try{
     renderer.clear();
@@ -178,14 +178,34 @@ const ICON_POSE={HAMMER:{rz:-.6,s:.62,y:-.45},AXE:{rz:-.5,s:.75},MAGNET:{s:.95},
   SCANNER:{s:.95},LOCK:{s:1.3},DOUBLE:{s:1.0},LETTER_RAIN:{s:.9},TIKO:{s:.6,y:-.55,ry:-.3},FRIEND:{s:.6,y:-.55,ry:-.3},CHEST:{s:1.1,rx:.3,ry:-.4},COIN:{s:1.4,rx:.2,ry:-.4},BRICK:{s:.8,rx:.3,ry:-.4}};
 function toolMesh(k){const f=TOOLS[k]||mkHammer;return f()}
 
+
+/** A tool in its icon pose, centred and scaled so its bigger side is [size] units (all tools look the same size). */
+function fitTool(k,size){const m=toolMesh(k);const p=ICON_POSE[k]||{};m.rotation.set(p.rx||0,p.ry||0,p.rz||0);m.updateMatrixWorld(true);
+  const box=new THREE.Box3().setFromObject(m);const sz=box.getSize(v3());const cen=box.getCenter(v3());m.position.sub(cen);
+  const g=new THREE.Group();g.add(m);g.scale.setScalar(size/Math.max(sz.x,sz.y,.001));return g}
+
+/* ---------- live 3D booster buttons on the right panel ---------- */
+let panel=null;
+function panelShow(o){const old=panel&&panel.items||[];panel={items:[],hold:panel?panel.hold:false,armed:panel?panel.armed:''};
+  for(const s of (o.slots||[])){const prev=old.find(q=>q.k===s.k);let g;if(prev){g=prev.g;old.splice(old.indexOf(prev),1)}else{g=fitTool(s.k,1);add(g)}
+    const base=P(s.x,s.y);const sc=(s.s/U)*.7;g.scale.setScalar(sc);g.position.copy(base);
+    panel.items.push({k:s.k,g,base,ph:prev?prev.ph:Math.random()*6,jump:prev?prev.jump:-9,sc,u:s.s/U})}
+  old.forEach(q=>rm(q.g))}
+function panelHide(){if(panel)panel.items.forEach(q=>rm(q.g));panel=null}
+function panelUpdate(dt,t){if(!panel)return;for(const q of panel.items){const g=q.g;g.visible=!panel.hold;if(!g.parent)add(g);
+    const armed=panel.armed===q.k;const j=t-q.jump;let y=Math.sin(t*2.2+q.ph)*.05*q.u,ry=Math.sin(t*1.1+q.ph)*.55,s=q.sc;
+    if(armed){y+=.12*q.u;ry=t*2.5;s*=1.12}
+    if(j>=0&&j<.75){const e=j/.75;y+=Math.sin(e*Math.PI)*.75*q.u;ry+=E.outCubic(e)*Math.PI*2;s*=1+.25*Math.sin(e*Math.PI)}
+    g.position.set(q.base.x,q.base.y+y,q.base.z+.3);g.rotation.y=ry;g.rotation.z=Math.sin(t*1.7+q.ph)*.08;g.scale.setScalar(s)}}
+function panelTap(o){if(!panel)return;const q=panel.items.find(q=>q.k===o.k);if(q){q.jump=T;const p=q.g.position.clone();starsAt&&starsAt(p,5)}}
+
 /** Renders every tool to a small picture and sends it to Kotlin (the booster buttons use them). */
 function icons(o){if(!renderer)return;const keys=(o&&o.keys)||Object.keys(TOOLS);const size=(o&&o.size)||128;
   const rt=new THREE.WebGLRenderTarget(size,size,{format:THREE.RGBAFormat});const sc=new THREE.Scene();addLights(sc,{hemi:1,sun:.9,pos:[3,5,8]});
   const cam=new THREE.PerspectiveCamera(30,1,.1,50);cam.position.set(0,0,4.6);cam.lookAt(0,0,0);const buf=new Uint8Array(size*size*4);
   const c2=document.createElement('canvas');c2.width=size;c2.height=size;const x2=c2.getContext('2d');const img=x2.createImageData(size,size);
-  for(const k of keys){const m=toolMesh(k);const p=ICON_POSE[k]||{};m.scale.multiplyScalar(p.s||1);m.rotation.set(p.rx||0,p.ry||0,p.rz||0);m.position.y=p.y||0;
-    const box=new THREE.Box3().setFromObject(m);const cen=box.getCenter(v3());m.position.sub(v3(cen.x,cen.y-(p.y||0)*0,0)).add(v3(0,0,0));
-    const piv=new THREE.Group();piv.add(m);sc.add(piv);
+  for(const k of keys){const m=fitTool(k,1.9);
+    const piv=m;sc.add(piv);
     renderer.setRenderTarget(rt);renderer.setClearColor(0x000000,0);renderer.clear();renderer.render(sc,cam);renderer.readRenderTargetPixels(rt,0,0,size,size,buf);renderer.setRenderTarget(null);
     for(let y=0;y<size;y++){const src=(size-1-y)*size*4;img.data.set(buf.subarray(src,src+size*4),y*size*4)}
     x2.putImageData(img,0,0);sc.remove(piv);try{WN.icon(k,c2.toDataURL('image/png'))}catch(e){}}
@@ -410,7 +430,7 @@ function shopBuy(o){const from=anchor('coins',2),to=P(o.x,o.y,1);for(let i=0;i<1
       starsAt(bp,8);popupTo('+1 '+(o.name||'').toUpperCase(),bp.clone().add(v3(-.5,1,.5)),null,null,{...GREEN_TXT,h:.6})}})})}
 
 /* ---------- overlay per-frame ---------- */
-function ovUpdate(dt,t){bossUpdate(dt,t);loseUpdate(dt,t);if(cardSet&&!cardSet.picked)cardSet.list.forEach((c,i)=>{c.position.y=c.userData.home.y+Math.sin(t*2+i)*.06});if(cardSet&&cardSet.rays)cardSet.rays.rotation.z=t*.8;
+function ovUpdate(dt,t){panelUpdate(dt,t);bossUpdate(dt,t);loseUpdate(dt,t);if(cardSet&&!cardSet.picked)cardSet.list.forEach((c,i)=>{c.position.y=c.userData.home.y+Math.sin(t*2+i)*.06});if(cardSet&&cardSet.rays)cardSet.rays.rotation.z=t*.8;
   winObjs.forEach(g=>{g.rotation.y=Math.sin(t*.6)*.08})}
 
 /* ====================================================================== backdrops (full-screen scenes) */
@@ -694,7 +714,7 @@ window.FX={
   anchors:wrap(o=>{Object.assign(A,o)}),
   backdrop:wrap(o=>setBackdrop(o.name,o.data)),
   act:wrap(o=>act(o.name,o.data)),
-  clear:wrap(()=>{loseTiko=null;demoTok++;demoObjs=[];bigObjs=[];ov.tweens.length=0;ov.parts.forEach(p=>rm(p.obj));ov.parts.length=0;bossHide();cardsClear();winClear();shopHide();ov.scene.children.slice(OV_KEEP).forEach(rm)}),
+  clear:wrap(()=>{panelHide();loseTiko=null;demoTok++;demoObjs=[];bigObjs=[];ov.tweens.length=0;ov.parts.forEach(p=>rm(p.obj));ov.parts.length=0;bossHide();cardsClear();winClear();shopHide();ov.scene.children.slice(OV_KEEP).forEach(rm)}),
   word:wrap(word),popup:wrap(popup),coins:wrap(coinsFx),burst:wrap(burst),goalBlast:wrap(goalBlast),
   crate:wrap(crateBreak),iceCrack:wrap(iceCrack),ice:wrap(iceBreak),chain:wrap(chainBreak),gold:wrap(goldBurst),balloon:wrap(balloonPop),chest:wrap(chestOpen),friend:wrap(friendHop),
   booster:wrap(booster),win:wrap(win),winClear:wrap(winClear),lose:wrap(lose),loseHide:wrap(loseHide),confetti:wrap(confetti),fireworks:wrap(fireworks),
@@ -702,6 +722,7 @@ window.FX={
   bossShow:wrap(bossShow),bossHold:wrap(o=>{bossHeld=!!o.on}),bossHit:wrap(bossHit),bossAttack:wrap(bossAttack),bossDefeat:wrap(bossDefeat),bossHide:wrap(bossHide),
   shopShow:wrap(shopShow),shopHide:wrap(shopHide),shopBuy:wrap(shopBuy),
   icons:wrap(icons),
+  panelShow:wrap(panelShow),panelHide:wrap(panelHide),panelHold:wrap(o=>{if(panel)panel.hold=!!o.on}),panelTap:wrap(panelTap),panelArm:wrap(o=>{if(panel)panel.armed=o.k||''}),
   bigWin:wrap(bigWin),bigClear:wrap(bigClear),fly:wrap(flyTo2),demo:wrap(demo),demoClear:wrap(demoClear),
 };
 resize();

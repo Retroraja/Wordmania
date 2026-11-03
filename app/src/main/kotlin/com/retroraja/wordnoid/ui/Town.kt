@@ -159,6 +159,12 @@ fun TownScreen(
 ) {
     var tasksOpen by remember { mutableStateOf(false) }
     val townScope = rememberCoroutineScope()
+    val dailyIntro = when {
+        progress.unlocked >= 7 && !progress.seen("intro_challenges") -> DailyIntro("intro_challenges", 2, "New! Daily Challenges: 3 small jobs a day for coins. Tap here!")
+        progress.unlocked >= 5 && !progress.seen("intro_spin") -> DailyIntro("intro_spin", 1, "New! Spin the prize wheel. Your first spin is ready now. Tap here!")
+        progress.unlocked >= 3 && !progress.seen("intro_gift") -> DailyIntro("intro_gift", 0, "New! Daily Gifts: a free present every day. Open your first one now!")
+        else -> null
+    }
     var fixing by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var buildingGift by remember { mutableStateOf<Int?>(null) }
     // Levels 1-3 arrival: counters hold back what's still flying in; then a guided build; then a big Next level button.
@@ -252,8 +258,18 @@ fun TownScreen(
             }
         }
         Column(Modifier.align(Alignment.CenterStart).padding(start = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            val dailyReady = progress.dailyGiftDay() > 0 || progress.freeSpinReady
-            SideButton("🎁", "Daily Gifts", badge = if (dailyReady) "!" else null, onClick = { onDaily(0) })
+            val dailyReady = progress.dailyGiftDay() > 0 || (progress.unlocked >= 5 && progress.freeSpinReady)
+            // Daily features open one by one; Tiko shows each the first time (Gift after L2, Spin after L4, Challenges after L6).
+            if (progress.unlocked >= 3) Box {
+                SideButton("🎁", "Daily Gifts", badge = if (dailyReady) "!" else null, onClick = {
+                    val tab = dailyIntro?.tab ?: 0
+                    dailyIntro?.let { progress.markSeen(it.key) }
+                    onDaily(tab)
+                })
+                if (dailyIntro != null && arrival == null && fixing == null && !tasksOpen) Text(
+                    "👈", fontSize = 34.sp, modifier = Modifier.align(Alignment.CenterEnd).offset(x = (44 + 8 * bounce).dp),
+                )
+            }
             SideButton("🛒", "Shop", onClick = onShop)
             SideButton("🎒", "Boosters", onClick = onBoosters)
         }
@@ -281,6 +297,16 @@ fun TownScreen(
         ) {
             Tiko(Modifier.size(48.dp))
             Text("You won Letter Bricks 🧱! Tap Tasks, then Build to fix my town!", color = Color.White, fontSize = 14.sp, fontWeight = Heavy, modifier = Modifier.padding(start = 8.dp))
+        }
+        dailyIntro?.let { di ->
+            if (arrival == null && fixing == null && !tasksOpen) Row(
+                Modifier.align(Alignment.CenterStart).padding(start = 140.dp).width(320.dp).arcadePanel().padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Tiko(Modifier.size(48.dp))
+                Text(di.tip, color = Color.White, fontSize = 15.sp, fontWeight = Heavy, modifier = Modifier.padding(start = 8.dp))
+            }
+            LaunchedEffect(di.key) { kotlinx.coroutines.delay(600); sounds.play("say:${di.tip}") }
         }
         // Players coming from an older build: what's new (their levels, coins and town are kept).
         var welcomeBack by remember { mutableStateOf(progress.unlocked > 1 && !progress.seen("welcome_build3")) }
@@ -636,3 +662,6 @@ fun LeaveDialog(onYes: () -> Unit, onNo: () -> Unit) {
         }
     }
 }
+
+/** Tiko shows a daily feature the first time it opens. */
+private data class DailyIntro(val key: String, val tab: Int, val tip: String)

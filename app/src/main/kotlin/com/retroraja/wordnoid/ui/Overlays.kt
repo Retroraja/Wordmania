@@ -428,55 +428,80 @@ fun WatchButton(text: String, spot: Ads.Spot, activity: Activity, onReward: () -
 @Composable
 fun WinDialog(c: GameController, activity: Activity, onNext: () -> Unit, onTown: () -> Unit) {
     var doubled by remember { mutableStateOf(false) }
-    DimBox(0.45f) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.width(460.dp).arcadePanel().padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                ArcadeText(if (c.level.boss) "BOSS DEFEATED!" else "LEVEL COMPLETE!", 26.sp, Palette.gold)
-                if (Fx.ok) {
-                    // Big 3D W-I-N bricks drop into a box here (earned ones in colour).
-                    var sent by remember { mutableStateOf(false) }
-                    DisposableEffect(Unit) { onDispose { Fx.call("winClear") } }
-                    Box(Modifier.size(300.dp, 104.dp).onGloballyPositioned { co ->
-                        if (!sent) {
-                            sent = true
-                            val p = co.positionInRoot()
-                            Fx.call("win", Fx.obj("x" to Fx.dp(p.x), "y" to Fx.dp(p.y), "w" to Fx.dp(co.size.width.toFloat()), "h" to Fx.dp(co.size.height.toFloat()), "n" to c.winStars))
+    val sounds = c.sounds
+    val pop = remember { Animatable(0.7f) }
+    LaunchedEffect(Unit) { pop.animateTo(1f, spring(dampingRatio = 0.55f, stiffness = 320f)) }
+    val anim = rememberInfiniteTransition(label = "win")
+    val glow by anim.animateFloat(1f, 1.06f, infiniteRepeatable(tween(600), RepeatMode.Reverse), label = "g")
+    val last = c.level.number >= com.retroraja.wordnoid.core.Levels.all.size
+    // Full screen, like the level start card: big title, big 3D W-I-N bricks, big stat boxes, big buttons.
+    // The ad is a slim banner strip at the very bottom.
+    Box(Modifier.fillMaxSize().background(Color(0xFF0B1440).copy(alpha = 0.55f)).clickable(remember { MutableInteractionSource() }, null) {}) {
+        Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                Modifier.weight(1f).fillMaxWidth().graphicsLayer { scaleX = pop.value; scaleY = pop.value }.arcadePanel().padding(horizontal = 18.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceEvenly,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    ArcadeText(if (c.level.boss) "BOSS DEFEATED!" else "LEVEL ${c.level.number} COMPLETE!", 40.sp, Palette.gold)
+                }
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    // Big 3D W-I-N bricks drop in here (earned ones in colour).
+                    Box(Modifier.weight(1.1f).height(120.dp), contentAlignment = Alignment.Center) {
+                        if (Fx.ok) {
+                            var sent by remember { mutableStateOf(false) }
+                            DisposableEffect(Unit) { onDispose { Fx.call("winClear") } }
+                            Box(Modifier.fillMaxSize().onGloballyPositioned { co ->
+                                if (!sent) {
+                                    sent = true
+                                    val p = co.positionInRoot()
+                                    Fx.call("win", Fx.obj("x" to Fx.dp(p.x), "y" to Fx.dp(p.y), "w" to Fx.dp(co.size.width.toFloat()), "h" to Fx.dp(co.size.height.toFloat()), "n" to c.winStars))
+                                }
+                            })
+                        } else Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Bottom) {
+                            for (i in 1..3) {
+                                val s = remember { Animatable(3f) }
+                                val on = i <= c.winStars
+                                LaunchedEffect(on) { delay(250L + i * 300L); s.animateTo(1f, spring(dampingRatio = 0.4f, stiffness = 500f)) }
+                                Text("🧱", fontSize = if (i == 2) 64.sp else 50.sp, modifier = Modifier.scale(s.value).alpha(if (on) 1f else 0.2f))
+                            }
                         }
-                    })
-                } else Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
-                    for (i in 1..3) {
-                        val s = remember { Animatable(3f) }
-                        val on = i <= c.winStars
-                        LaunchedEffect(on) {
-                            delay(250L + i * 300L)
-                            if (on) c.particles.sparkle(c.center(), Palette.gold, 12)
-                            s.animateTo(1f, spring(dampingRatio = 0.4f, stiffness = 500f))
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            StatBox("🪙", "+${c.coinsThisLevel}", "coins", Modifier.weight(1f))
+                            StatBox("🧱", "+${c.winStars}", "bricks", Modifier.weight(1f))
+                            StatBox("⭐", "${c.score}", "score", Modifier.weight(1f))
                         }
-                        Text("🧱", fontSize = if (i == 2) 46.sp else 36.sp, modifier = Modifier.scale(s.value).alpha(if (on) 1f else 0.2f))
+                        c.winBooster?.let { Text("🎁 Prize: ${it.emoji} ${it.title}!", color = Palette.green, fontSize = 17.sp, fontWeight = Heavy) }
+                        if (c.newWordsThisLevel > 0) Text("📖 ${c.newWordsThisLevel} new words in your Wordbook", color = Color.White, fontSize = 14.sp, fontWeight = Heavy)
+                        if (c.progress.meter > 0) Text("⚡ Power saved for the next level", color = Palette.cyan, fontSize = 13.sp, fontWeight = Heavy)
                     }
                 }
-                Text("${c.winStars} Letter Brick${if (c.winStars > 1) "s" else ""} for Tiko's Town!", color = Color.White, fontSize = 14.sp, fontWeight = Heavy)
-                Text("🪙 +${c.coinsThisLevel}   ·   Score ${c.score}", color = Palette.gold, fontSize = 16.sp, fontWeight = Heavy)
                 if (c.foundWords.isNotEmpty()) Text(
-                    "Your words: " + c.foundWords.joinToString(", "),
-                    color = Color.White, fontSize = 12.sp, textAlign = TextAlign.Center, maxLines = 3, lineHeight = 15.sp,
+                    c.foundWords.joinToString("  ·  "),
+                    color = Color.White, fontSize = 15.sp, fontWeight = Heavy, textAlign = TextAlign.Center, maxLines = 2, lineHeight = 18.sp,
                 )
-                if (c.progress.meter > 0) Text("⚡ Power saved for the next level!", color = Palette.cyan, fontSize = 13.sp, fontWeight = Heavy)
-                if (c.newWordsThisLevel > 0) Text("📖 ${c.newWordsThisLevel} new words in your Wordbook", color = Palette.cream, fontSize = 12.sp)
-                c.winBooster?.let { Text("🎁 Prize: ${it.emoji} ${it.title}!", color = Palette.green, fontSize = 15.sp, fontWeight = Heavy) }
-                if (c.level.bonusWord != null && !c.bonusFound) Text("The bonus word was ${c.level.bonusWord}", color = Palette.cream.copy(alpha = 0.8f), fontSize = 12.sp)
-                Spacer(Modifier.height(6.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    ArcadeButton("🏠 Town", color = Palette.slate, textSize = 22.sp, onClick = { sounds.play("pop"); onTown() })
                     if (!doubled) WatchButton("x2 coins", Ads.Spot.DOUBLE_WIN_COINS, activity) { c.doubleWinCoins(); doubled = true }
-                }
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ArcadeButton("🏠 Back to Town", color = Palette.slate, textSize = 17.sp, onClick = onTown)
-                    if (c.level.number < com.retroraja.wordnoid.core.Levels.all.size) ArcadeButton("Next ▶", onClick = onNext)
+                    if (!last) ArcadeButton("Next ▶", textSize = 30.sp, modifier = Modifier.scale(glow), onClick = { sounds.play("pop"); onNext() })
                 }
             }
-            Box(Modifier.padding(start = 10.dp).width(250.dp)) { Ads.Banner(big = true) }
+            Box(Modifier.fillMaxWidth().padding(top = 6.dp), contentAlignment = Alignment.Center) { Ads.Banner(Modifier.width(320.dp)) }
         }
+    }
+}
+
+@Composable
+private fun StatBox(icon: String, value: String, label: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier.background(Color(0x33FFFFFF), RoundedCornerShape(16.dp)).border(2.dp, Color(0x66FFFFFF), RoundedCornerShape(16.dp)).padding(vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(icon, fontSize = 24.sp)
+        ArcadeText(value, 24.sp, Color.White)
+        Text(label, color = Color.White.copy(alpha = 0.85f), fontSize = 11.sp, fontWeight = Heavy)
     }
 }
 

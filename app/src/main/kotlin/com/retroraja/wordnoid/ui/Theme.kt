@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -188,10 +189,46 @@ fun letterColor(c: Char): Color = LetterColors[c.uppercaseChar()] ?: Color.Gray
 fun Color.darker(f: Float = 0.7f) = Color(red * f, green * f, blue * f, alpha)
 fun Color.lighter(f: Float = 0.3f) = Color(red + (1 - red) * f, green + (1 - green) * f, blue + (1 - blue) * f, alpha)
 
-/** A bright cartoon panel: royal blue glass with a gold rim. Used for the side panels and dialogs. */
-fun Modifier.arcadePanel(): Modifier = this
-    .background(Brush.verticalGradient(listOf(Color(0xEE3566E8), Color(0xEE1A3A9C))), RoundedCornerShape(18.dp))
-    .border(3.dp, Brush.verticalGradient(listOf(Palette.gold, Palette.goldDeep)), RoundedCornerShape(18.dp))
+/**
+ * Each world has its own look (matches the Candy Land mockup): light candy panels with a coloured rim
+ * and dark ink text in Candy, Sea, Jungle and Cloud; a dark starry panel in the Galaxy.
+ */
+data class Skin(
+    val panelTop: Color, val panelBottom: Color, val rim: Color, val ink: Color, val accent: Color,
+    /** Strong colour for dialogs and buttons (white text reads on it). */
+    val strong: Color, val strongDeep: Color, val light: Boolean,
+)
+
+val SKINS = listOf(
+    Skin(Color(0xFFFFF7FB), Color(0xFFFFE0EF), Color(0xFFFF6FAE), Color(0xFF9C1559), Color(0xFFE23A86), Color(0xFFFF6FB0), Color(0xFFC73582), true),
+    Skin(Color(0xFFF2FBFF), Color(0xFFD3F0FF), Color(0xFF2FA8E8), Color(0xFF0D4E86), Color(0xFF1C7FD0), Color(0xFF39A8F0), Color(0xFF1863B8), true),
+    Skin(Color(0xFFF5FFEC), Color(0xFFD9F5C4), Color(0xFF3DB65A), Color(0xFF1D5E2C), Color(0xFF2E9A48), Color(0xFF4CC26A), Color(0xFF1F8A45), true),
+    Skin(Color(0xFFF8FAFF), Color(0xFFDFE7FF), Color(0xFF7C8CFF), Color(0xFF2B3A8F), Color(0xFF5566E0), Color(0xFF7C8CFF), Color(0xFF4252C8), true),
+    Skin(Color(0xFF3F2E86), Color(0xFF231758), Color(0xFFB79BFF), Color(0xFFFFFFFF), Color(0xFFFFC93C), Color(0xFF8B6BFF), Color(0xFF4A2EA8), false),
+)
+
+/** Which world's look is showing now. Set by the game, town and map screens. */
+object Look {
+    var world by androidx.compose.runtime.mutableIntStateOf(0)
+    val skin: Skin get() = SKINS[world.coerceIn(0, SKINS.size - 1)]
+    fun forLevel(level: Int) { world = worldOf(level).index }
+}
+
+/** A bright cartoon panel in the world's strong colour with a light rim. Used for dialogs (white text). */
+fun Modifier.arcadePanel(): Modifier {
+    val k = Look.skin
+    return this
+        .background(Brush.verticalGradient(listOf(k.strong.copy(alpha = 0.96f), k.strongDeep.copy(alpha = 0.96f))), RoundedCornerShape(20.dp))
+        .border(4.dp, Brush.verticalGradient(listOf(Color.White, k.panelBottom)), RoundedCornerShape(20.dp))
+}
+
+/** The light candy panel of the mockup (game side panels). Text on it uses [Skin.ink]. */
+fun Modifier.skinPanel(): Modifier {
+    val k = Look.skin
+    return this
+        .background(Brush.verticalGradient(listOf(k.panelTop, k.panelBottom)), RoundedCornerShape(24.dp))
+        .border(6.dp, Brush.verticalGradient(listOf(k.rim.lighter(0.15f), k.rim)), RoundedCornerShape(24.dp))
+}
 
 /** A white rounded card for lighter content (goals, lists). */
 fun Modifier.softCard(alpha: Float = 0.22f): Modifier = this
