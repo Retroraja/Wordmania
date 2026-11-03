@@ -70,8 +70,9 @@ fun BoardView(c: GameController, cell: Dp, modifier: Modifier = Modifier) {
     Box(
         modifier
             .graphicsLayer { rotationY = wobble.value; cameraDistance = 14f * density.density }
-            .background(Brush.verticalGradient(listOf(Color(0xCC1A2E7A), Color(0xCC0F1C52))), RoundedCornerShape(18.dp))
-            .border(4.dp, Brush.verticalGradient(listOf(Palette.gold, Palette.goldDeep, Palette.gold)), RoundedCornerShape(18.dp))
+            // The world's look: a light candy frame (Candy pink, Sea blue, Jungle green...), dark in the Galaxy.
+            .background(Brush.verticalGradient(if (Look.skin.light) listOf(Color(0xF2FFFFFF), Look.skin.panelBottom.copy(alpha = 0.95f)) else listOf(Color(0xCC2A1D66), Color(0xCC170F45))), RoundedCornerShape(22.dp))
+            .border(6.dp, Brush.verticalGradient(listOf(Look.skin.rim.lighter(0.2f), Look.skin.rim)), RoundedCornerShape(22.dp))
             .padding(pad)
             .size(cell * board.cols, cell * board.rows)
             .onGloballyPositioned { coords ->

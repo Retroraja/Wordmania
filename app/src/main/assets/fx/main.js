@@ -698,7 +698,7 @@ SCENES.map=function(w,o){const scene=w.scene,cam=w.cam;document.body.style.backg
     if(i===3){for(const[x,z]of[[-1,-.8],[1.1,-.5]]){const c=new THREE.Group();for(let k=0;k<4;k++){const m=new THREE.Mesh(new THREE.SphereGeometry(.45,12,10),std('#ffffff',.9));m.position.set(k*.45-.7,.6+Math.random()*.2,0);c.add(m)}c.position.set(x,0,z);g.add(c)}}
     if(i===4){const pl=new THREE.Mesh(new THREE.SphereGeometry(.6,24,18),std('#ffb020',.4));pl.position.set(-.8,2,-.8);g.add(pl);const rg=new THREE.Mesh(new THREE.TorusGeometry(.95,.06,8,40),std('#ff6fa8',.4));rg.position.copy(pl.position);rg.rotation.x=1.2;g.add(rg)}}
   for(let i=0;i<5;i++){const g=new THREE.Group();g.position.set(i*7.5,i%2?.6:0,0);const lockd=i>=open;const t=new THREE.Mesh(new THREE.CylinderGeometry(2.8,2.6,.5,40),std(lockd?'#b8bcc8':tops[i],.7));t.receiveShadow=true;t.castShadow=true;g.add(t);
-    const rk=new THREE.Mesh(new THREE.ConeGeometry(2.6,2.8,40),std('#8a6a4a',.9));rk.rotation.x=Math.PI;rk.position.y=-1.65;g.add(rk);deco(i,g);const nm=textMesh((lockd?'🔒 ':'')+names[i],{h:.6});nm.position.set(0,3.2,0);g.add(nm);scene.add(rich(g));g.userData.ph=i;isl.push(g)}
+    const rk=new THREE.Mesh(new THREE.ConeGeometry(2.6,2.8,40),std('#8a6a4a',.9));rk.rotation.x=Math.PI;rk.position.y=-1.65;g.add(rk);const n0=g.children.length;deco(i,g);const dec=g.children.slice(n0);const nm=textMesh((lockd?'🔒 ':'')+names[i],{h:.6});nm.position.set(0,3.2,0);g.add(nm);g.userData.hide=dec.concat([nm]);scene.add(rich(g));g.userData.ph=i;isl.push(g)}
   /* Each island's levels: 10 stepping stones on a winding path, 2 quiz chests, the boss castle; Tiko on the next level. */
   const PATH=[[-2.1,1.3],[-1.35,1.65],[-.55,1.55],[.15,1.15],[.95,1.05],[1.75,.85],[1.85,.05],[1.1,-.25],[.3,-.35],[-.75,-.6]];
   const QPOS=[[.45,1.75],[1.25,-.75]];
@@ -724,7 +724,7 @@ SCENES.map=function(w,o){const scene=w.scene,cam=w.cam;document.body.style.backg
   return{act(name,d){if(name==='hop')hop=T;if(name==='world')cw=clamp(d.w|0,0,4);
       if(name==='zoom'){zoom=clamp(d.w|0,0,4);cw=zoom;buildLevels(zoom,d);sentAt=T+1.3;sfx.whoosh()}
       if(name==='unzoom'){zoom=-1;sentAt=-1;sfx.whoosh()}},
-    update(dt,t){isl.forEach((g,i)=>{g.position.y=(g.userData.ph%2?.6:0)+(i===zoom?0:Math.sin(t*.8+g.userData.ph)*.12)});
+    update(dt,t){isl.forEach((g,i)=>{g.position.y=(g.userData.ph%2?.6:0)+(i===zoom?0:Math.sin(t*.8+g.userData.ph)*.12);(g.userData.hide||[]).forEach(o=>o.visible=!(i===zoom&&zk>.3))});
       const sp=tikoSpot();if(sp){tiko.visible=true;const p=wpos(sp);tiko.position.copy(p).add(v3(0,(sp.isMesh?.09:1.2)+Math.abs(Math.sin(t*2.4))*.12,0))}else tiko.visible=false;
       zk+=((zoom>=0?1:0)-zk)*Math.min(1,dt*2.2);camX+=(cw*7.5-camX)*Math.min(1,dt*2.2);
       const far=clamp(fitDist(cam,13,7,W,H*.8),9,20),near=clamp(fitDist(cam,7.4,6,W,H*.8),5,13);const iy=zoom>=0?isl[zoom].position.y:0;

@@ -38,6 +38,7 @@ tap_text "I'm 13 or older"; sleep 4; shot intro
 tap_text "Let's go!"; sleep 9; shot story-land1-intro
 sleep 6; shot story-land1-scrambled
 tap_text "Skip ⏭"; sleep 5; shot board-tutorial
+tap_text "Let's go!"; sleep 4; shot board-clean
 texts
 W=$(adb shell wm size | grep -o '[0-9]*x[0-9]*' | tail -1); echo "size $W"
 for s in "1000 450 1150 450" "1150 600 1150 750" "900 350 1050 350" "1300 450 1300 600" "800 600 950 600"; do
@@ -122,6 +123,7 @@ sleep 22
 tap_text "▶ PLAY Level 2"; sleep 3; shot start-2
 tap_text "▶ PLAY"; sleep 4; shot intro-2
 tap_text "Let's go!"; sleep 3; shot help-hammer
+tap_text "Let's go!"; sleep 4; shot help-hammer-2
 tap_text "Try it! 👆"; sleep 2; shot hand-on-button
 tap_text "Hammer"; sleep 2; shot hand-on-tile
 texts

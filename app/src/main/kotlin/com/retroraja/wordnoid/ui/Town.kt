@@ -294,7 +294,7 @@ fun TownScreen(
                 modifier = Modifier.scale(1f + 0.04f * bounce),
             ) { sounds.play("pop"); onPlay() }
         }
-        if (canBuildNow(progress, current) && arrival == null && !progress.seen("town_build_tut") && !tasksOpen && fixing == null) Row(
+        if (dailyIntro == null && canBuildNow(progress, current) && arrival == null && !progress.seen("town_build_tut") && !tasksOpen && fixing == null) Row(
             Modifier.align(Alignment.BottomStart).padding(start = 10.dp, bottom = 96.dp).width(330.dp).arcadePanel().padding(10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
