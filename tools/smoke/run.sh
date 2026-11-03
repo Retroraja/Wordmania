@@ -20,7 +20,9 @@ tap_text() {
 import re,sys,subprocess
 t=sys.argv[1]
 x=open('smoke-out/ui.xml',encoding='utf-8').read()
-for m in re.finditer(r'text="([^"]*)"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"',x):
+ms=list(re.finditer(r'text="([^"]*)"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"',x))
+ms=[m for m in ms if m.group(1)==t]+[m for m in ms if m.group(1)!=t]
+for m in ms:
     if m.group(1)==t or (len(t)>3 and t in m.group(1)):
         a,b,c,d=map(int,m.groups()[1:])
         subprocess.run(['adb','shell','input','tap',str((a+c)//2),str((b+d)//2)])
@@ -155,7 +157,7 @@ adb shell run-as $PKG cp /data/local/tmp/wordnoid_v2.xml shared_prefs/wordnoid_v
 adb shell am start -n $PKG/.MainActivity
 sleep 22
 shot town-last-task
-tap_text "Tasks"; sleep 2; shot tasks-last
+tap_text "Tasks"; sleep 2; adb shell input swipe 1170 800 1170 300 400; sleep 2; shot tasks-last
 tap_text "Build"; sleep 5; tap_text "Yay!"; sleep 6; shot story-complete-a
 sleep 6; shot story-complete-card
 sleep 10; shot story-bridge
