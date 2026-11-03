@@ -48,13 +48,22 @@ PY
 }
 shot town
 tap_text "PLAY Level 3"; sleep 4; shot start
-tap_text "▶ PLAY"; sleep 6; shot board
+for k in 1 2 3 4 5 6; do
+  tap_text "▶ PLAY"; sleep 6
+  dump; grep -q "Words found" $OUT/ui.xml && break
+done
+shot board
 tap_text "Let's go!"; sleep 3
 adb shell input tap 1072 388; sleep 1; adb shell input tap 1072 544
-for i in 1 2 3 4 5 6 7 8; do sleep 1.5; shot "word-$i"; done
+for i in 1 2 3 4 5 6 7 8; do sleep 1.5; shot "word-$i"; adb shell pidof $PKG || echo "DEAD at $i"; done
 sleep 10; shot later
 adb shell pidof $PKG; echo "pid above (empty = dead)"
 adb logcat -d > $OUT/logcat.txt
+echo "===== APP LOG ====="
+PID=$(grep -o "Start proc [0-9]*:com.retroraja.wordnoid" $OUT/logcat.txt | tail -1)
+echo "$PID"
+grep -E "wordnoid|chromium|cr_|WebView|Console|FX|ActivityManager|libc|DEBUG  |am_|Choreographer" $OUT/logcat.txt | grep -v "Davey" | tail -150
+echo "===== END APP LOG ====="
 echo "===== CRASH ====="
 grep -E "FATAL EXCEPTION|ANR in|AndroidRuntime|chromium.*(Fatal|crash)|Render process|libc.*Fatal" -A 40 $OUT/logcat.txt | head -200
 echo "===== END CRASH ====="
