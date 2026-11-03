@@ -1,6 +1,6 @@
 # Wordnoid privacy policy
 
-Last updated: 2 November 2026
+Last updated: 3 November 2026
 
 Wordnoid is a word puzzle game by RetroRaja Games. This page explains what the game collects and why.
 
@@ -23,7 +23,7 @@ The game can send friendly reminders (for example, "Your free spin is ready"). T
 Purchases are handled by Google Play. We never see your payment details.
 
 ## Children
-Wordnoid is made for everyone, including children. We do not knowingly collect personal information from children.
+Wordnoid is made for players aged 13 and over. If a younger player uses the game, it shows only child-safe, non-personalised ads, and we do not knowingly collect personal information from children.
 
 ## Contact
 Questions? Contact RetroRaja Games through the Google Play store listing.
