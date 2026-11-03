@@ -30,6 +30,15 @@ else:
     print('not found',repr(t))
 PY
 }
+tap_above() { dump; python3 - "$1" <<'PY'
+import re,sys,subprocess
+x=open('smoke-out/ui.xml',encoding='utf-8').read()
+m=re.search(r'text="'+re.escape(sys.argv[1])+r'"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"',x)
+if m:
+    a,b,c,d=map(int,m.groups()); subprocess.run(['adb','shell','input','tap',str((a+c)//2),str(b-90)]); print('tapped above',sys.argv[1])
+else: print('not found',sys.argv[1])
+PY
+}
 has_text() { dump; grep -q "text=\"[^\"]*$1" $OUT/ui.xml; }
 # Find a swap that makes a real word through a moved tile, and swipe it. Prints the word.
 solve() {
@@ -40,7 +49,8 @@ x=open('smoke-out/ui.xml',encoding='utf-8').read()
 W=set(w.strip().upper() for w in open('smoke-out/words.txt',encoding='utf-8',errors='ignore') if 3<=len(w.strip())<=8)
 ts=[(m.group(1),*map(int,m.groups()[1:])) for m in re.finditer(r'text="([A-Z])"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"',x)]
 # Board tiles are the big single letters (skip small text such as the meter letters).
-ts=[t for t in ts if (t[3]-t[1])>60]
+print('letters',len(ts),[(t[0],t[3]-t[1],t[4]-t[2]) for t in ts[:6]])
+ts=[t for t in ts if (t[4]-t[2])>30 and 500<(t[1]+t[3])//2<1850]
 if len(ts)<8: print('no board'); raise SystemExit
 def cl(v):
     v=sorted(set(v)); out=[]
@@ -132,8 +142,8 @@ for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
   if has_text "COMPLETE"; then sleep 2; shot win; break; fi
   if has_text "Out of moves\|OUT OF MOVES"; then shot lose; break; fi
   for t in "Let's go!" "Got it" "Pick"; do has_text "$t" && { tap_text "$t"; sleep 2; }; done
-  [ $i = 2 ] && { tap_text "Hammer"; sleep 1.5; shot hammer-armed; tap_text "Hammer"; sleep 1; }
-  [ $i = 4 ] && { tap_text "Hint"; sleep 2.5; shot hint; }
+  [ $i = 2 ] && { tap_above "Hammer"; sleep 1.5; shot hammer-armed; adb shell input tap 1385 620; sleep 0.5; shot hammer-hit; sleep 3; }
+  [ $i = 4 ] && { tap_above "Joker"; sleep 1.5; shot joker-armed; tap_above "Joker"; sleep 1; }
 done
 sleep 4; shot end
 
