@@ -438,7 +438,7 @@ fun featureEmoji(f: Feature): String = when (f) {
     Feature.SPELL -> "✍️"
     Feature.CHAINS -> "⛓️"
     Feature.BOSS -> "💥"
-    Feature.RESCUE -> "🧸"
+    Feature.RESCUE -> "💖"
     Feature.BALLOONS -> "🎈"
     Feature.TREASURE -> "💎"
 }

@@ -186,7 +186,7 @@ fun HowToPlayScreen(progress: Progress, onBack: () -> Unit) {
         "🎯" to "Each level has goals (shown on the left with a progress bar). Finish them before the moves run out.",
         "🎁" to "Make a word right next to a box to break it. Boxes hide prizes.",
         "🧊" to "Ice tiles melt when used in a word. The Hammer needs two hits.",
-        "🧸" to "Tiko friends drop when the tiles under them clear. Bring them to the bottom!",
+        "💖" to "Pink Tiko friends drop when the tiles under them clear. Bring them to the bottom!",
         "🎈" to "Make a word next to a balloon to pop it.",
         "💎" to "Clear the tiles on the sand to dig out treasure.",
         "⚡" to "Words fill the Power Meter. A full meter gives a mystery booster.",

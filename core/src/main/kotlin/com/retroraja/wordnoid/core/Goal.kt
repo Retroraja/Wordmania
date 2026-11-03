@@ -96,7 +96,7 @@ sealed class Objective {
     data class Rescue(override val count: Int) : Objective() {
         override fun progress(s: Stats) = s.rescued
         override val label get() = "Tiko friends"
-        override val icon get() = "🧸"
+        override val icon get() = "💖"
         override val text get() = "Rescue $count Tiko friends (bring them to the bottom)"
     }
 
