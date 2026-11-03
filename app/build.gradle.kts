@@ -6,12 +6,12 @@ plugins {
 
 android {
     namespace = "com.retroraja.wordnoid"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.retroraja.wordnoid"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         // Play needs a bigger number for every upload: the CI run number (+100 so it is above all old test builds).
         versionCode = 100 + (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
         versionName = "1.0.${System.getenv("GITHUB_RUN_NUMBER") ?: "0"}"
