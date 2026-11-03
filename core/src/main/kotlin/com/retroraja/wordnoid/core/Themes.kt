@@ -17,6 +17,14 @@ object Themes {
     ) {
         /** Names are only accepted as words while a Names goal is on. */
         val isNames: Boolean get() = name == NAMES
+
+        /** Up to [n] theme words that can be spelled with [letters] (the board's letters), short and easy ones first. */
+        fun examplesFrom(letters: String, n: Int = 3): List<String> {
+            val have = IntArray(26); for (ch in letters.uppercase()) if (ch in 'A'..'Z') have[ch - 'A']++
+            fun fits(w: String): Boolean { val need = IntArray(26); for (ch in w) { if (ch !in 'A'..'Z') return false; if (++need[ch - 'A'] > have[ch - 'A']) return false }; return true }
+            val pool = examples + words.filter { it.length in 3..6 }.sortedWith(compareBy({ it.length }, { it }))
+            return pool.distinct().filter(::fits).take(n)
+        }
         /** "food words", "names", "numbers" for goal text. */
         val goalNoun: String get() = when (name) {
             NAMES -> "names"

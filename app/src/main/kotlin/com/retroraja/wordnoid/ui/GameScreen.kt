@@ -2,6 +2,9 @@ package com.retroraja.wordnoid.ui
 
 import android.app.Activity
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import kotlinx.coroutines.launch
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -196,7 +199,7 @@ private fun LeftPanel(c: GameController, modifier: Modifier, onPause: () -> Unit
         verticalArrangement = Arrangement.spacedBy(5.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            RoundButton("⏸", 30.dp, onClick = onPause)
+            RoundButton("⏸", 48.dp, label = "Menu", labelColor = Look.skin.ink, onClick = onPause)
             Column(Modifier.padding(start = 6.dp).weight(1f)) {
                 Text("LEVEL ${level.number}", fontFamily = ArcadeFont, fontSize = 19.sp, color = Look.skin.ink)
                 Text("${world.emoji} ${world.name}", fontSize = 10.sp, color = Look.skin.ink.copy(alpha = 0.75f), maxLines = 1, fontWeight = Heavy)
@@ -262,8 +265,13 @@ private fun LeftPanel(c: GameController, modifier: Modifier, onPause: () -> Unit
 private fun GoalRow(o: Objective, c: GameController) {
     var themeOpen by remember { mutableStateOf(false) }
     val theme = (o as? Objective.Theme)?.let { com.retroraja.wordnoid.core.Themes.byName(it.theme) }
-    if (themeOpen && theme != null) androidx.compose.ui.window.Popup(onDismissRequest = { themeOpen = false }) {
-        Box(Modifier.clickable { themeOpen = false }.background(Color(0xEE1A2E7A), RoundedCornerShape(12.dp)).padding(4.dp)) { ThemeHelp(theme) }
+    if (themeOpen && theme != null) {
+        val letters = c.board.tiles().joinToString("") { it.letter.toString() }
+        LaunchedEffect(Unit) { c.glowThemeHint(theme.examplesFrom(letters)); kotlinx.coroutines.delay(5000); themeOpen = false }
+        DisposableEffect(Unit) { onDispose { c.glowThemeHint(emptyList()) } }
+        androidx.compose.ui.window.Popup(onDismissRequest = { themeOpen = false }) {
+            Box(Modifier.clickable { themeOpen = false }.background(Color(0xEE1A2E7A), RoundedCornerShape(12.dp)).padding(4.dp)) { ThemeHelp(theme, letters) }
+        }
     }
     val done = o.done(c.stats)
     val have = minOf(o.count, o.progress(c.stats))
@@ -333,22 +341,8 @@ fun panelBoosters(c: GameController): List<Booster> {
 @Composable
 private fun RightPanel(c: GameController, modifier: Modifier, covered: Boolean, onMore: () -> Unit) {
     val list = panelBoosters(c)
-    // The tools are drawn live in 3D over the buttons: they turn and bob, jump and spin on a tap.
-    val spots = remember { mutableStateMapOf<Booster, Pair<Offset, Float>>() }
-    val live = Fx.ok
-    val keys = list.joinToString { it.name }
-    LaunchedEffect(live, keys, spots.toMap(), covered) {
-        if (!live) return@LaunchedEffect
-        if (covered) { Fx.call("panelHold", Fx.obj("on" to true)); return@LaunchedEffect }
-        kotlinx.coroutines.delay(120)
-        val slots = org.json.JSONArray()
-        for (b in list) spots[b]?.let { (at, size) ->
-            slots.put(Fx.obj("k" to b.name, "x" to Fx.dp(at.x), "y" to Fx.dp(at.y), "s" to Fx.dp(size)))
-        }
-        if (slots.length() == list.size) { Fx.call("panelShow", Fx.obj("slots" to slots)); Fx.call("panelHold", Fx.obj("on" to false)) }
-    }
-    LaunchedEffect(c.armed) { if (live) Fx.call("panelArm", Fx.obj("k" to (c.armed?.name ?: ""))) }
-    DisposableEffect(Unit) { onDispose { Fx.call("panelHide") } }
+    // Each tool lives inside its own button: it bobs and sways, and jumps and spins when tapped.
+    LaunchedEffect(Unit) { if (Fx.ok) Fx.call("panelHide") }
     Column(
         modifier.skinPanel().padding(6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -356,14 +350,14 @@ private fun RightPanel(c: GameController, modifier: Modifier, covered: Boolean, 
     ) {
         Text("Boosters", fontSize = 12.sp, color = Look.skin.ink, fontWeight = Heavy)
         for (row in list.chunked(2)) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            for (b in row) BoosterButton(b, c, 56.dp, showName = true, live = live, onPlaced = { at, size -> spots[b] = at to size })
+            for (b in row) BoosterButton(b, c, 56.dp, showName = true, animated = true)
         }
         if (Booster.unlockedAt(c.level.number).size > 6) RoundButton("⋯", 32.dp, label = "More", onClick = onMore)
     }
 }
 
 @Composable
-fun RoundButton(text: String, size: Dp, label: String? = null, onClick: () -> Unit) {
+fun RoundButton(text: String, size: Dp, label: String? = null, labelColor: Color = Palette.cream, onClick: () -> Unit) {
     Column(Modifier.clickable(remember { MutableInteractionSource() }, null, onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             Modifier
@@ -372,7 +366,7 @@ fun RoundButton(text: String, size: Dp, label: String? = null, onClick: () -> Un
                 .border(2.dp, Color.White, CircleShape),
             contentAlignment = Alignment.Center,
         ) { Text(text, fontSize = (size.value * 0.42f).sp, color = Color(0xFF14307F), fontWeight = Heavy) }
-        label?.let { Text(it, fontSize = 9.sp, color = Palette.cream, fontWeight = Heavy) }
+        label?.let { Text(it, fontSize = if (size > 40.dp) 12.sp else 9.sp, color = labelColor, fontWeight = Heavy) }
     }
 }
 
@@ -380,8 +374,8 @@ fun RoundButton(text: String, size: Dp, label: String? = null, onClick: () -> Un
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 fun BoosterButton(
     b: Booster, c: GameController, size: Dp = 50.dp, showName: Boolean = false,
-    /** True when the 3D layer draws the tool live over this button (the right panel). */
-    live: Boolean = false,
+    /** True on the right panel: the tool bobs, sways, and jumps + spins on a tap, all inside the button. */
+    animated: Boolean = false,
     onPlaced: ((Offset, Float) -> Unit)? = null,
     onUsed: () -> Unit = {},
 ) {
@@ -397,6 +391,10 @@ fun BoosterButton(
     val owned = free || count > 0
     val icon = Fx.icons[b.name]
     val k = Look.skin
+    val wave by anim.animateFloat(0f, (2 * Math.PI).toFloat(), infiniteRepeatable(tween(2200, easing = LinearEasing)), label = "w")
+    val ph = b.ordinal * 1.3f
+    val hop = remember { Animatable(0f) }
+    val tapScope = rememberCoroutineScope()
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
     Box(contentAlignment = Alignment.Center) {
         // Ready glow: a soft ring behind the button when you own it.
@@ -422,7 +420,7 @@ fun BoosterButton(
                     interactionSource = remember { MutableInteractionSource() }, indication = null,
                     onLongClick = { c.boosterInfo(b) },
                 ) {
-                    if (live) Fx.call("panelTap", Fx.obj("k" to b.name))
+                    if (animated) tapScope.launch { hop.snapTo(0f); hop.animateTo(1f, tween(650, easing = FastOutSlowInEasing)); hop.snapTo(0f) }
                     c.boosterTapped(b); onUsed()
                 },
             contentAlignment = Alignment.Center,
@@ -430,10 +428,17 @@ fun BoosterButton(
             // A glossy highlight on the dome.
             Box(Modifier.align(Alignment.TopCenter).padding(top = size * 0.08f).size(size * 0.55f, size * 0.22f).background(Color.White.copy(alpha = 0.35f), RoundedCornerShape(50)))
             // Live 3D tool on top (drawn by the 3D layer); otherwise its 3D picture, else the emoji.
-            if (!live) {
-                if (icon != null) androidx.compose.foundation.Image(icon, b.title, Modifier.fillMaxSize(0.95f))
-                else Text(b.emoji, fontSize = (size.value * 0.5f).sp)
+            val toolMod = if (!animated) Modifier.fillMaxSize(0.92f) else Modifier.fillMaxSize(0.86f).graphicsLayer {
+                val h = hop.value
+                translationY = (kotlin.math.sin(wave + ph) * 2.5f - kotlin.math.sin(h * Math.PI.toFloat()) * 10f) * density
+                rotationZ = kotlin.math.sin(wave * 0.5f + ph) * 8f
+                rotationY = h * 360f
+                val sc = 1f + kotlin.math.sin(h * Math.PI.toFloat()) * 0.18f
+                scaleX = sc; scaleY = sc
+                cameraDistance = 12f * density
             }
+            if (icon != null) androidx.compose.foundation.Image(icon, b.title, toolMod)
+            else Box(toolMod, contentAlignment = Alignment.Center) { Text(b.emoji, fontSize = (size.value * 0.5f).sp) }
         }
         val badge = when {
             free -> "FREE"
@@ -453,7 +458,7 @@ fun BoosterButton(
                 .padding(horizontal = 6.dp, vertical = 1.dp),
         ) { Text(badge, fontFamily = ArcadeFont, fontSize = 13.sp, color = if (count > 0 && !free) Color(0xFF5A2E00) else Color.White) }
     }
-    if (showName) Text(b.title, fontSize = 10.sp, color = if (live) Look.skin.ink else Palette.cream, fontWeight = Heavy, maxLines = 1, lineHeight = 11.sp, modifier = Modifier.padding(top = 4.dp))
+    if (showName) Text(b.title, fontSize = 10.sp, color = if (animated) Look.skin.ink else Palette.cream, fontWeight = Heavy, maxLines = 1, lineHeight = 11.sp, modifier = Modifier.padding(top = 4.dp))
     }
 }
 

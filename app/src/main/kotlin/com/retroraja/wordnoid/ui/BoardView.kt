@@ -155,6 +155,7 @@ fun BoardView(c: GameController, cell: Dp, modifier: Modifier = Modifier) {
                     isSelected -> Palette.green
                     inTut -> Color.White.copy(alpha = 0.4f + 0.6f * pulse)
                     inHint -> Palette.cyan
+                    tile.id in c.themeGlow -> Palette.gold.copy(alpha = 0.5f + 0.5f * pulse)
                     inScan -> Palette.cyan.copy(alpha = 0.4f + 0.6f * pulse)
                     else -> null
                 }

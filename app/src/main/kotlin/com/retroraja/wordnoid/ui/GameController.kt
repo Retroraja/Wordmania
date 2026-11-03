@@ -82,6 +82,13 @@ class GameController(
     var popping = mutableStateListOf<Long>()
     var flipping = mutableStateListOf<Long>()
     var glowing = mutableStateListOf<Long>()
+    /** Tiles that glow while the theme hint is open: the letters of the example words. */
+    val themeGlow = mutableStateListOf<Long>()
+    fun glowThemeHint(words: List<String>) {
+        themeGlow.clear()
+        val left = board.tiles().toMutableList()
+        for (w in words) for (ch in w) left.firstOrNull { it.letter == ch }?.let { themeGlow.add(it.id); left.remove(it) }
+    }
     var banner by mutableStateOf<WordBanner?>(null); private set
     var shakeKey by mutableIntStateOf(0); private set
     var wobbleKey by mutableIntStateOf(0); private set

@@ -112,7 +112,7 @@ fun LevelStartCard(level: Level, progress: Progress, sounds: SoundFx, onPlay: (L
                 Text("  ${o.text}", color = Color.White, fontSize = 14.sp, fontWeight = Heavy)
             }
             // Theme goal: say what the theme means, with 3 example words as tiles.
-            level.themeName()?.let { Themes.byName(it) }?.let { th -> ThemeHelp(th) }
+            level.themeName()?.let { Themes.byName(it) }?.let { th -> ThemeHelp(th, level.start.joinToString("")) }
             if (level.introBoosters.isNotEmpty()) Text(
                 "New booster: " + level.introBoosters.joinToString { "${it.emoji} ${it.title}" } + " (first one free!)",
                 color = Palette.green, fontSize = 13.sp, fontWeight = Heavy, modifier = Modifier.padding(top = 4.dp),
@@ -314,15 +314,17 @@ fun BoostersGuide(progress: Progress, onBack: () -> Unit) {
 
 /** "Animals: Animals, birds and bugs" and 3 example words as small tiles. */
 @Composable
-fun ThemeHelp(th: com.retroraja.wordnoid.core.Themes.Theme) {
+fun ThemeHelp(th: com.retroraja.wordnoid.core.Themes.Theme, letters: String) {
+    // Only words the player can really make from the letters on the board.
+    val shown = remember(th, letters) { th.examplesFrom(letters) }
     Column(Modifier.padding(top = 6.dp).softCard().padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text("${th.emoji} ${th.name} words: ${th.about}", color = Palette.gold, fontSize = 14.sp, fontWeight = Heavy)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 4.dp)) {
-            for (w in th.examples) Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+            for (w in shown) Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
                 w.forEachIndexed { i, ch -> Tile3D(com.retroraja.wordnoid.core.Tile(i.toLong(), ch), 22.dp) }
             }
         }
-        Text("Like these!", color = Palette.cream, fontSize = 11.sp)
+        Text(if (shown.isEmpty()) "Look for them on the board!" else "These letters are on the board!", color = Palette.cream, fontSize = 11.sp)
     }
 }
 
@@ -404,7 +406,7 @@ private fun LevelStartBig(level: Level, progress: Progress, sounds: SoundFx, onP
                     }
                 }
             }
-            level.themeName()?.let { Themes.byName(it) }?.let { th -> ThemeHelp(th) }
+            level.themeName()?.let { Themes.byName(it) }?.let { th -> ThemeHelp(th, level.start.joinToString("")) }
             if (canPick) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(if (firstFree) "Start with a booster?\nFirst one FREE!" else "Start with\na booster?", color = Palette.green, fontSize = 13.sp, fontWeight = Heavy, lineHeight = 15.sp)
                 for (b in options) {
