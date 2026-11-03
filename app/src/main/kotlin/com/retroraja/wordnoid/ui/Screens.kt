@@ -24,6 +24,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
@@ -42,23 +43,31 @@ import kotlinx.coroutines.delay
 
 @Composable
 fun CoinBadge(progress: Progress, modifier: Modifier = Modifier, hold: Int = 0) {
+    val shown = progress.coins - hold - CoinFly.coinHold
+    val bump = remember { androidx.compose.animation.core.Animatable(1f) }
+    LaunchedEffect(CoinFly.landed) { if (CoinFly.landed > 0) { bump.snapTo(1.18f); bump.animateTo(1f, tween(160)) } }
     Row(
-        modifier.background(Color(0xCC1A3A9C), RoundedCornerShape(14.dp)).border(2.dp, Palette.gold, RoundedCornerShape(14.dp)).padding(horizontal = 10.dp, vertical = 3.dp),
+        modifier
+            .onGloballyPositioned { CoinFly.coinAt = it.positionInRoot() + androidx.compose.ui.geometry.Offset(it.size.width * 0.25f, it.size.height / 2f) }
+            .scale(bump.value)
+            .background(Color(0xCC1A3A9C), RoundedCornerShape(14.dp)).border(2.dp, Palette.gold, RoundedCornerShape(14.dp)).padding(horizontal = 10.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text("🪙", fontSize = 16.sp)
-        ArcadeText(" ${progress.coins - hold}", 17.sp, Palette.gold)
+        ArcadeText(" ${shown.coerceAtLeast(0)}", 17.sp, Palette.gold)
     }
 }
 
 @Composable
 fun BrickBadge(progress: Progress, modifier: Modifier = Modifier, hold: Int = 0) {
     Row(
-        modifier.background(Color(0xCC1A3A9C), RoundedCornerShape(14.dp)).border(2.dp, Color(0xFFFF8A65), RoundedCornerShape(14.dp)).padding(horizontal = 10.dp, vertical = 3.dp),
+        modifier
+            .onGloballyPositioned { CoinFly.brickAt = it.positionInRoot() + androidx.compose.ui.geometry.Offset(it.size.width * 0.25f, it.size.height / 2f) }
+            .background(Color(0xCC1A3A9C), RoundedCornerShape(14.dp)).border(2.dp, Color(0xFFFF8A65), RoundedCornerShape(14.dp)).padding(horizontal = 10.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text("🧱", fontSize = 16.sp)
-        ArcadeText(" ${(progress.bricksToSpend - hold).coerceAtLeast(0)}", 17.sp, Color(0xFFFFCCBC))
+        ArcadeText(" ${(progress.bricksToSpend - hold - CoinFly.brickHold).coerceAtLeast(0)}", 17.sp, Color(0xFFFFCCBC))
     }
 }
 

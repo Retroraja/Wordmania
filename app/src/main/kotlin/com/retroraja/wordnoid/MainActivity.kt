@@ -25,7 +25,7 @@ class MainActivity : ComponentActivity() {
         }
         // The app (Compose) and the 3D layer share one frame. The 3D layer sits on top for effects,
         // or underneath for full-screen scenes (town, intro, wheel...) shown through see-through screens.
-        val root = FrameLayout(this)
+        val root = FrameLayout(this).apply { setBackgroundColor(android.graphics.Color.BLACK) }
         val compose = ComposeView(this).apply { setContent { WordnoidApp() } }
         val web = FxWebView(this)
         root.addView(compose, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))

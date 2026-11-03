@@ -190,7 +190,8 @@ class Progress(context: Context) {
 
     // ---------------------------------------------------------------- daily gifts: spin
 
-    private fun dayInt(key: String): Int = if (prefs.getLong("${key}_day", -1) == today()) prefs.getInt(key, 0) else 0
+    /** Reads [version] so any screen showing daily values redraws when they change. */
+    private fun dayInt(key: String): Int { @Suppress("UNUSED_VARIABLE") val v = version; return if (prefs.getLong("${key}_day", -1) == today()) prefs.getInt(key, 0) else 0 }
     private fun setDayInt(key: String, v: Int) { prefs.edit().putLong("${key}_day", today()).putInt(key, v).apply(); bump() }
 
     val freeSpinReady: Boolean get() = dayInt("spins_free") == 0

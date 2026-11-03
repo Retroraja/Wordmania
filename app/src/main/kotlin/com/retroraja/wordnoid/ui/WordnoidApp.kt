@@ -79,6 +79,8 @@ fun WordnoidApp() {
     var attempts by remember { mutableIntStateOf(0) }
     // Levels 1-3: the player arrives in town straight from the level (coins and bricks fly in, then build).
     var arrival by remember { mutableStateOf<TownArrival?>(null) }
+    // Which Daily Gifts tab to open (the mini quiz returns to Challenges).
+    var dailyTab by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(screen) {
         music.play(
@@ -136,7 +138,7 @@ fun WordnoidApp() {
                 onShop = { go(Screen.Shop) },
                 onBoosters = { go(Screen.Boosters) },
                 onWordbook = { go(Screen.Wordbook) },
-                onDaily = { go(Screen.Daily) },
+                onDaily = { tab -> dailyTab = tab; go(Screen.Daily) },
                 onSettings = { go(Screen.Settings) },
                 onQuit = { leaveAsk = true },
                 arrival = arrival,
@@ -165,7 +167,7 @@ fun WordnoidApp() {
             Screen.Shop -> ShopScreen(progress, sounds, onBack = { screen = back })
             Screen.Wordbook -> WordbookScreen(progress, onBack = { screen = back })
             Screen.Boosters -> BoostersGuide(progress, onBack = { screen = back })
-            Screen.Daily -> DailyGiftsScreen(progress, sounds, onBack = { screen = Screen.Town }, onMiniQuiz = { screen = Screen.Quiz(null, 0) })
+            Screen.Daily -> DailyGiftsScreen(progress, sounds, startTab = dailyTab, onTab = { dailyTab = it }, onBack = { screen = Screen.Town }, onMiniQuiz = { dailyTab = 2; screen = Screen.Quiz(null, 0) })
             Screen.Settings -> SettingsScreen(progress, sounds, onBack = { screen = Screen.Town }, onHowToPlay = { screen = Screen.HowTo })
             Screen.HowTo -> HowToPlayScreen(progress, onBack = { screen = Screen.Settings })
             is Screen.Quiz -> QuizScreen(

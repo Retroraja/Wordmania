@@ -151,13 +151,14 @@ fun TownScreen(
     onShop: () -> Unit,
     onBoosters: () -> Unit,
     onWordbook: () -> Unit,
-    onDaily: () -> Unit,
+    onDaily: (Int) -> Unit,
     onSettings: () -> Unit,
     onQuit: () -> Unit = {},
     arrival: TownArrival? = null,
     onArrivalNext: (Int) -> Unit = {},
 ) {
     var tasksOpen by remember { mutableStateOf(false) }
+    val townScope = rememberCoroutineScope()
     var fixing by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var buildingGift by remember { mutableStateOf<Int?>(null) }
     // Levels 1-3 arrival: counters hold back what's still flying in; then a guided build; then a big Next level button.
@@ -252,7 +253,7 @@ fun TownScreen(
         }
         Column(Modifier.align(Alignment.CenterStart).padding(start = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             val dailyReady = progress.dailyGiftDay() > 0 || progress.freeSpinReady
-            SideButton("🎁", "Daily Gifts", badge = if (dailyReady) "!" else null, onClick = onDaily)
+            SideButton("🎁", "Daily Gifts", badge = if (dailyReady) "!" else null, onClick = { onDaily(0) })
             SideButton("🛒", "Shop", onClick = onShop)
             SideButton("🎒", "Boosters", onClick = onBoosters)
         }
@@ -301,7 +302,11 @@ fun TownScreen(
             onDo = { i -> tasksOpen = false; guideBuild = false; view = current; fixing = current to i },
         )
         fixing?.let { (d, i) ->
-            val done: () -> Unit = { fixing = null; progress.markSeen("town_build_tut"); if (arrival != null) showNext = true }
+            val done: () -> Unit = {
+                fixing = null; progress.markSeen("town_build_tut"); if (arrival != null) showNext = true
+                // The task reward flies into the coin counter after "Yay!".
+                CoinFly.release(townScope, sounds, DISTRICTS[d].tasks[i].coins)
+            }
             if (use3d) FixScene3D(DISTRICTS[d], i, sounds, onDone = { rev++; done() })
             else FixScene(DISTRICTS[d], i, sounds, onDone = done)
         }
@@ -321,7 +326,7 @@ fun TownScreen(
                     Text(if (prize != null) "${prize.emoji} ${prize.title}" else "🪙 50", color = Color.White, fontSize = 22.sp, fontWeight = Heavy)
                     Spacer(Modifier.height(10.dp))
                     ArcadeButton("Collect") {
-                        if (prize != null) progress.addBooster(prize) else progress.addCoins(50)
+                        if (prize != null) progress.addBooster(prize) else CoinFly.coins(townScope, progress, sounds, 50)
                         progress.claimBuildingGift(w)
                         sounds.play("cash")
                         buildingGift = null
@@ -506,7 +511,7 @@ private fun TasksDialog(d: District, progress: Progress, sounds: SoundFx, guide:
                         if (!done) Box {
                             ArcadeButton("Build", enabled = progress.bricksToSpend >= t.cost, textSize = 14.sp, modifier = if (i == handTask) Modifier.scale(1f + 0.08f * tap) else Modifier) {
                                 if (progress.doTask(d.world, i, t.cost)) {
-                                    progress.addCoins(t.coins)
+                                    progress.addCoins(t.coins); CoinFly.holdCoins(t.coins)
                                     t.booster?.let { progress.addBooster(it) }
                                     sounds.play("thunk")
                                     onDo(i)

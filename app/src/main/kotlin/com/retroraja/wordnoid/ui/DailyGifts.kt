@@ -14,6 +14,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -31,8 +34,9 @@ import kotlinx.coroutines.launch
 
 /** One "Daily Gifts" button with 3 tabs: Rewards (7-day calendar), Spin, Challenges. */
 @Composable
-fun DailyGiftsScreen(progress: Progress, sounds: SoundFx, onBack: () -> Unit, onMiniQuiz: () -> Unit) {
-    var tab by remember { mutableIntStateOf(0) }
+fun DailyGiftsScreen(progress: Progress, sounds: SoundFx, startTab: Int = 0, onTab: (Int) -> Unit = {}, onBack: () -> Unit, onMiniQuiz: () -> Unit) {
+    var tab by remember { mutableIntStateOf(startTab) }
+    LaunchedEffect(tab) { onTab(tab) }
     val activity = LocalContext.current as Activity
     @Suppress("UNUSED_VARIABLE") val v = progress.version
     // In 3D the gift box and the spin wheel are scenes behind this screen (as the approved preview).
@@ -99,18 +103,19 @@ private fun RewardsTab(progress: Progress, sounds: SoundFx, activity: Activity) 
         if (day > 0 && g == null) ArcadeButton("Open today's gift!", enabled = !opening) {
             val r = Daily.CALENDAR[day - 1]
             progress.claimDaily()
-            progress.addCoins(r.coins)
+            progress.addCoins(r.coins); CoinFly.holdCoins(r.coins)
             r.booster?.let { progress.addBooster(it) }
-            if (r.bricks > 0) progress.addBonusBricks(r.bricks)
+            if (r.bricks > 0) { progress.addBonusBricks(r.bricks); CoinFly.holdBricks(r.bricks) }
             if (Fx.ok) {
                 opening = true
                 Fx.act("open", Fx.obj("emoji" to (r.booster?.emoji ?: "🪙"), "name" to (r.booster?.title ?: "${r.coins} coins"), "text" to "You got ${r.text}!"))
-                scope.launch { Fx.await("giftOpened", 4000); sounds.play("cash"); got = r; opening = false }
-            } else { sounds.play("fanfare"); sounds.play("cash"); got = r }
+                scope.launch { Fx.await("giftOpened", 4000); sounds.play("cash"); got = r; opening = false
+                    CoinFly.release(scope, sounds, r.coins); CoinFly.releaseBricks(scope, sounds, r.bricks) }
+            } else { sounds.play("fanfare"); sounds.play("cash"); got = r; CoinFly.release(scope, sounds, r.coins); CoinFly.releaseBricks(scope, sounds, r.bricks) }
         } else if (g != null) {
             Text("You got ${g.text}!", color = Palette.gold, fontSize = 20.sp, fontWeight = Heavy)
             if (!doubled) WatchButton("x2 today's gift", Ads.Spot.DOUBLE_DAILY, activity) {
-                progress.addCoins(g.coins); g.booster?.let { progress.addBooster(it) }; doubled = true; sounds.play("cash")
+                CoinFly.coins(scope, progress, sounds, g.coins); g.booster?.let { progress.addBooster(it) }; doubled = true; sounds.play("cash")
             }
         } else Text("Today's gift is collected. See you tomorrow!", color = Color.White, fontSize = 16.sp)
     }
@@ -185,13 +190,19 @@ private fun SpinTab(progress: Progress, sounds: SoundFx, activity: Activity) {
 @Composable
 private fun ChallengesTab(progress: Progress, sounds: SoundFx, activity: Activity, onMiniQuiz: () -> Unit) {
     val list = Daily.today()
+    val scope = rememberCoroutineScope()
+    @Suppress("UNUSED_VARIABLE") val v = progress.version
+    val anim = androidx.compose.animation.core.rememberInfiniteTransition(label = "chest")
+    val glow by anim.animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable(tween(600), androidx.compose.animation.core.RepeatMode.Reverse), label = "g")
     Column(Modifier.width(620.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("3 new challenges every day. Finish all 3 for a bonus chest!", color = Color.White, fontSize = 14.sp)
         list.forEachIndexed { i, ch ->
             val have = progress.challengeProgress(i).coerceAtMost(ch.target)
             val done = Daily.done(progress, i)
             val claimed = progress.challengeClaimed(i)
-            Row(Modifier.fillMaxWidth().arcadePanel().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            val pop = remember { Animatable(1f) }
+            var btnAt by remember { mutableStateOf(Offset.Zero) }
+            Row(Modifier.fillMaxWidth().scale(pop.value).arcadePanel().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(if (claimed) "✅" else "⭐", fontSize = 24.sp)
                 Column(Modifier.weight(1f).padding(start = 8.dp)) {
                     Text(ch.text, color = Color.White, fontSize = 16.sp, fontWeight = Heavy)
@@ -199,17 +210,29 @@ private fun ChallengesTab(progress: Progress, sounds: SoundFx, activity: Activit
                 }
                 when {
                     claimed -> Text("Done", color = Palette.green, fontSize = 14.sp, fontWeight = Heavy)
-                    done -> ArcadeButton("Claim", textSize = 15.sp) { progress.claimChallenge(i); progress.addCoins(ch.coins); sounds.play("cash") }
+                    done -> ArcadeButton("Claim", textSize = 15.sp, modifier = Modifier.onGloballyPositioned { btnAt = it.positionInRoot() + Offset(it.size.width / 2f, it.size.height / 2f) }) {
+                        progress.claimChallenge(i)
+                        sounds.play("cash")
+                        CoinFly.coins(scope, progress, sounds, ch.coins, btnAt)
+                        scope.launch { pop.snapTo(1.06f); pop.animateTo(1f, tween(260)) }
+                    }
                     ch.kind == Daily.Kind.QUIZ -> ArcadeButton("Play quiz", color = Palette.purple, textSize = 15.sp, onClick = onMiniQuiz)
                     else -> WatchButton("Skip", Ads.Spot.SKIP_CHALLENGE, activity) { progress.addChallenge(i, ch.target) }
                 }
             }
         }
         val allClaimed = list.indices.all { progress.challengeClaimed(it) }
+        var chestAt by remember { mutableStateOf(Offset.Zero) }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
             if (progress.challengeChestClaimed) Text("🧰 Bonus chest opened. New challenges tomorrow!", color = Color.White, fontSize = 14.sp)
-            else ArcadeButton("🧰 Bonus chest: 🪙${Daily.CHEST_COINS} + 🧱1", enabled = allClaimed, modifier = Modifier.alpha(if (allClaimed) 1f else 0.6f)) {
-                progress.claimChallengeChest(); progress.addCoins(Daily.CHEST_COINS); progress.addBonusBricks(1); sounds.play("fanfare")
+            else ArcadeButton(
+                "🧰 Bonus chest: 🪙${Daily.CHEST_COINS} + 🧱1", enabled = allClaimed, color = if (allClaimed) Palette.goldDeep else Palette.slate,
+                modifier = Modifier.alpha(if (allClaimed) 1f else 0.6f).scale(if (allClaimed) 1f + 0.07f * glow else 1f)
+                    .onGloballyPositioned { chestAt = it.positionInRoot() + Offset(it.size.width / 2f, it.size.height / 2f) },
+            ) {
+                progress.claimChallengeChest(); sounds.play("fanfare")
+                CoinFly.coins(scope, progress, sounds, Daily.CHEST_COINS, chestAt)
+                CoinFly.bricks(scope, progress, sounds, 1, chestAt)
             }
         }
     }
