@@ -48,6 +48,7 @@ import com.retroraja.wordnoid.data.Daily
 import com.retroraja.wordnoid.data.Progress
 import com.retroraja.wordnoid.data.Rewards
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.sin
 
 /** One town task: costs Letter Bricks, fixes one spot of the district, gives a reward and a story line. */
@@ -156,6 +157,7 @@ fun TownScreen(
     onQuit: () -> Unit = {},
     arrival: TownArrival? = null,
     onArrivalNext: (Int) -> Unit = {},
+    onLandComplete: (Int) -> Unit = {},
 ) {
     var tasksOpen by remember { mutableStateOf(false) }
     val townScope = rememberCoroutineScope()
@@ -332,6 +334,9 @@ fun TownScreen(
                 fixing = null; progress.markSeen("town_build_tut"); if (arrival != null) showNext = true
                 // The task reward flies into the coin counter after "Yay!".
                 CoinFly.release(townScope, sounds, DISTRICTS[d].tasks[i].coins)
+                // Every task in the land done: the grand opening, prize, bridge and next land (once).
+                if (progress.tasksDone(DISTRICTS[d].world) >= DISTRICTS[d].tasks.size && !progress.seen(Story.seenKey(d, "complete")))
+                    townScope.launch { delay(1600); onLandComplete(d) }
             }
             if (use3d) FixScene3D(DISTRICTS[d], i, sounds, onDone = { rev++; done() })
             else FixScene(DISTRICTS[d], i, sounds, onDone = done)
@@ -607,7 +612,6 @@ private fun FixScene3D(d: District, task: Int, sounds: SoundFx, onDone: () -> Un
     else DimBox(0.35f) {
         Column(Modifier.width(440.dp).arcadePanel().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             ArcadeText(t.title, 22.sp, Palette.gold)
-            Text(t.story, color = Color.White, fontSize = 15.sp, textAlign = TextAlign.Center)
             Text("+🪙${t.coins}" + (t.booster?.let { "  +${it.emoji} ${it.title}" } ?: ""), color = Palette.gold, fontSize = 18.sp, fontWeight = Heavy)
             Spacer(Modifier.height(8.dp))
             ArcadeButton("Yay!", onClick = onDone)

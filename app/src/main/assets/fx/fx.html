@@ -21,11 +21,38 @@ html,body{margin:0;height:100%;overflow:hidden;background:transparent;-webkit-us
   text-shadow:0 5px 0 #8a3b00,0 0 30px rgba(255,220,100,.7);opacity:0;transform:scale(.3);transition:transform .45s cubic-bezier(.3,1.7,.5,1),opacity .3s}
 .big-msg.show{opacity:1;transform:scale(1)}
 .big-msg.out{opacity:0;transform:scale(1.4) translateY(-40%);transition:all .5s ease-in}
+.cbar{position:absolute;left:0;right:0;height:0;background:#05060f;z-index:2;transition:height .6s ease;pointer-events:none}
+#cbT{top:0}#cbB{bottom:0}
+body.cine .cbar{height:8%}
+#sFlash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:3}
+#sSay{position:absolute;right:max(16px,3%);bottom:calc(8% + 50px);transform:translate(0,16px);opacity:0;max-width:min(460px,52%);background:rgba(255,255,255,.96);color:#1b2140;border-radius:18px;padding:10px 20px 12px;
+  font-weight:600;font-size:clamp(15px,calc(4.2 * var(--vh,1vh)),23px);line-height:1.25;box-shadow:0 10px 28px rgba(10,14,40,.28);transition:all .35s cubic-bezier(.2,1.2,.4,1);text-align:center;z-index:4}
+#sSay.show{opacity:1;transform:translate(0,0)}
+#sSay b{display:block;font-family:var(--display);font-weight:400;font-size:.72em;letter-spacing:.08em;text-transform:uppercase;margin-bottom:2px}
+#sTitle{position:absolute;left:50%;top:18%;transform:translate(-50%,0);padding:14px 10px 18px;border-radius:30px;background:radial-gradient(ellipse at center,rgba(12,16,48,.55),rgba(12,16,48,0) 72%);text-align:center;opacity:0;transition:opacity .7s,letter-spacing 1.6s;letter-spacing:.02em;z-index:4;pointer-events:none;width:90%}
+#sTitle.show{opacity:1;letter-spacing:.06em}
+#sTitle i{display:block;font-style:normal;font-weight:700;font-size:clamp(12px,calc(3.4 * var(--vh,1vh)),18px);letter-spacing:.4em;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.45)}
+#sTitle b{display:block;font-family:var(--display);font-weight:400;font-size:clamp(34px,calc(12 * var(--vh,1vh)),76px);color:#fff;text-shadow:0 4px 0 rgba(20,30,90,.55),0 8px 24px rgba(0,0,0,.35);line-height:1.05}
+#sTitle span{display:block;font-weight:700;font-size:clamp(13px,calc(3.6 * var(--vh,1vh)),19px);color:#ffe27a;text-shadow:0 2px 6px rgba(0,0,0,.5)}
+#sCard{position:absolute;left:50%;top:50%;transform:translate(-50%,-46%) scale(.85);opacity:0;transition:all .5s cubic-bezier(.2,1.3,.4,1);width:min(540px,88%);pointer-events:none;z-index:4;
+  background:linear-gradient(160deg,rgba(255,255,255,.97),rgba(240,244,255,.95));border-radius:26px;padding:18px 22px;text-align:center;color:#1b2140;box-shadow:0 18px 50px rgba(10,14,40,.35);display:flex;flex-direction:column;gap:10px}
+#sCard.show{opacity:1;transform:translate(-50%,-64%) scale(1)}
+#sCard .k{font-weight:700;letter-spacing:.3em;font-size:clamp(11px,calc(3.2 * var(--vh,1vh)),15px);color:#7b4dff}
+#sCard .t{font-family:var(--display);font-size:clamp(26px,calc(8.5 * var(--vh,1vh)),48px);line-height:1.05;color:#1b2140}
+#sCard .s{font-weight:600;font-size:clamp(13px,calc(3.6 * var(--vh,1vh)),18px);color:#5a6288}
+.fprize{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.fprize span{background:#eef1ff;border:2px solid #dfe4ff;border-radius:14px;padding:5px 12px;font-weight:700;font-size:clamp(13px,calc(3.8 * var(--vh,1vh)),19px)}
+.cbar{position:fixed}#sTitle,#sSay,#sCard,#sFlash{position:fixed}
+:root{--vh:1vh}
+#sSay,#sCard,#sTitle{font-family:Roboto,"Noto Sans",system-ui,sans-serif}#sCard .t,#sTitle b,#sSay b{font-family:var(--display)}
+
 </style>
 </head>
 <body>
 <canvas id="gl"></canvas>
 <div id="ov">
+  <div id="sFlash"></div><div class="cbar" id="cbT"></div><div class="cbar" id="cbB"></div>
+  <div id="sTitle"></div><div id="sSay"></div><div id="sCard"></div>
   <div class="intro-sub" id="introSub">Word Match with Fun Boosters</div>
   <div class="intro-name" id="introName">RETRORAJA GAMES</div>
   <div class="big-msg" id="xMsg"></div>
@@ -33,5 +60,6 @@ html,body{margin:0;height:100%;overflow:hidden;background:transparent;-webkit-us
 <script src="three.min.js"></script>
 <script src="core.js"></script>
 <script src="main.js"></script>
+<script src="story.js"></script>
 </body>
 </html>

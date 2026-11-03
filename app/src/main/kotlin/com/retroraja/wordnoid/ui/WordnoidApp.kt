@@ -40,6 +40,7 @@ private sealed interface Screen {
     data class Quiz(val world: Int?, val slot: Int) : Screen
     data class Start(val level: Int) : Screen
     data class Play(val level: Int, val attempt: Int, val boosters: List<Booster>) : Screen
+    data class Story(val land: Int, val part: String, val then: Screen) : Screen
 }
 
 @Composable
@@ -99,6 +100,10 @@ fun WordnoidApp() {
     }
 
     fun go(s: Screen) { back = screen; screen = s }
+    /** A story moment the first time only (the land prize is given inside). */
+    fun storyOr(land: Int, part: String, then: Screen): Screen = if (!progress.seen(Story.seenKey(land, part))) Screen.Story(land, part, then) else then
+    /** The first level of a new land starts with that land's story intro. */
+    fun startLevel(n: Int): Screen = if ((n - 1) % 10 == 0) storyOr((n - 1) / 10, "intro", Screen.Start(n)) else Screen.Start(n)
     fun levelScreen(n: Int): Screen = Screen.World(((n - 1) / 10).coerceIn(0, WORLDS.size - 1))
 
     // 3D scenes live behind only these screens; everywhere else the 3D layer is just for effects.
@@ -129,11 +134,11 @@ fun WordnoidApp() {
                 progress.markSeen("welcome_build3")
                 if (Build.VERSION.SDK_INT >= 33) notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
                 // New players go straight into the Level 1 demo.
-                screen = if (progress.unlocked <= 1 && dict != null) Screen.Play(1, ++attempts, emptyList()) else Screen.Town
+                screen = if (progress.unlocked <= 1 && dict != null) storyOr(0, "intro", Screen.Play(1, ++attempts, emptyList())) else Screen.Town
             }
             Screen.Town -> TownScreen(
                 ready = dict != null, progress = progress, sounds = sounds,
-                onPlay = { val n = progress.unlocked.coerceAtMost(Levels.all.size); screen = Screen.Start(n) },
+                onPlay = { val n = progress.unlocked.coerceAtMost(Levels.all.size); screen = startLevel(n) },
                 onMap = { screen = Screen.Map },
                 onShop = { go(Screen.Shop) },
                 onBoosters = { go(Screen.Boosters) },
@@ -142,7 +147,8 @@ fun WordnoidApp() {
                 onSettings = { go(Screen.Settings) },
                 onQuit = { leaveAsk = true },
                 arrival = arrival,
-                onArrivalNext = { n -> arrival = null; screen = if (Levels.get(n) != null) Screen.Start(n) else Screen.Town },
+                onArrivalNext = { n -> arrival = null; screen = if (Levels.get(n) != null) startLevel(n) else Screen.Town },
+                onLandComplete = { d -> screen = storyOr(d, "complete", Screen.Town) },
             )
             Screen.Map -> LevelMapScreen(progress, sounds, onTown = { screen = Screen.Town }, onWorld = { screen = Screen.World(it) })
             is Screen.World, is Screen.Start -> {
@@ -175,6 +181,7 @@ fun WordnoidApp() {
                 onClose = { screen = if (s.world != null) Screen.World(s.world) else Screen.Daily },
                 onFinished = { right -> if (s.world == null && right >= 2) Daily.report(progress, Daily.Kind.QUIZ) },
             )
+            is Screen.Story -> StoryScreen(progress, sounds, s.land, s.part, onDone = { screen = s.then })
             is Screen.Play -> {
                 val level = Levels.get(s.level)
                 val d = dict
@@ -185,7 +192,7 @@ fun WordnoidApp() {
                         startBoosters = s.boosters,
                         onMap = { screen = levelScreen(s.level) },
                         onTown = {
-                            screen = Screen.Town
+                            screen = if (level.boss) storyOr((s.level - 1) / 10, "boss", Screen.Town) else Screen.Town
                             if (level.boss) askReview(activity, progress)
                         },
                         onRestart = { screen = Screen.Start(s.level) },
@@ -193,12 +200,13 @@ fun WordnoidApp() {
                             // After the 4th and 8th level of a world, it's Quiz Time.
                             val inWorld = (s.level - 1) % 10
                             val w = (s.level - 1) / 10
-                            screen = when {
+                            val to = when {
                                 inWorld == 3 && progress.quizScore(w, 0) < 0 -> Screen.Quiz(w, 0)
                                 inWorld == 7 && progress.quizScore(w, 1) < 0 -> Screen.Quiz(w, 1)
-                                Levels.get(n) != null -> Screen.Start(n)
+                                Levels.get(n) != null -> startLevel(n)
                                 else -> Screen.Town
                             }
+                            screen = if (level.boss) storyOr(w, "boss", to) else to
                         },
                         onAutoTown = { coins, bricks -> arrival = TownArrival(s.level, coins, bricks); screen = Screen.Town },
                     )
