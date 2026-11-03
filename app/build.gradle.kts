@@ -12,8 +12,9 @@ android {
         applicationId = "com.retroraja.wordnoid"
         minSdk = 26
         targetSdk = 35
-        versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
-        versionName = "0.1.${System.getenv("GITHUB_RUN_NUMBER") ?: "0"}"
+        // Play needs a bigger number for every upload: the CI run number (+100 so it is above all old test builds).
+        versionCode = 100 + (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
+        versionName = "1.0.${System.getenv("GITHUB_RUN_NUMBER") ?: "0"}"
     }
 
     signingConfigs {
@@ -25,11 +26,23 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+        // The private Play Store upload key. CI writes it from the UPLOAD_KEY secret (never kept in the repo).
+        val upload = rootProject.file("upload.jks")
+        if (upload.exists()) create("release") {
+            storeFile = upload
+            storePassword = System.getenv("UPLOAD_KEY_PASSWORD")
+            keyAlias = "upload"
+            keyPassword = System.getenv("UPLOAD_KEY_PASSWORD")
+        }
     }
 
     buildTypes {
         debug {
             signingConfig = signingConfigs.getByName("debug")
+        }
+        release {
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
 

@@ -34,10 +34,25 @@ jobs:
       - name: Name the APK
         run: cp app/build/outputs/apk/debug/app-debug.apk Wordnoid.apk
 
+      # The Play Store file (.aab), signed with the private upload key from the UPLOAD_KEY secret ("password:base64").
+      - name: Build Play Store bundle
+        env:
+          UPLOAD_KEY: ${{ secrets.UPLOAD_KEY }}
+        run: |
+          if [ -z "$UPLOAD_KEY" ]; then echo "No UPLOAD_KEY secret yet: skipping the .aab"; exit 0; fi
+          echo "${UPLOAD_KEY#*:}" | base64 -d > upload.jks
+          export UPLOAD_KEY_PASSWORD="${UPLOAD_KEY%%:*}"
+          ./gradlew :app:bundleRelease --no-daemon
+          cp app/build/outputs/bundle/release/app-release.aab Wordnoid.aab
+          rm -f upload.jks
+
       - uses: actions/upload-artifact@v4
         with:
           name: Wordnoid-apk
-          path: Wordnoid.apk
+          path: |
+            Wordnoid.apk
+            Wordnoid.aab
+          if-no-files-found: ignore
 
       # Publish a download page. main -> "latest", claude/first-playable -> "preview" (test builds).
       # Work-in-progress branches only build, so the player's download link never gets a half-done build.
@@ -52,5 +67,6 @@ jobs:
             TAG=preview; TITLE="Wordnoid (test build)"; EXTRA="--prerelease"
           fi
           gh release delete "$TAG" --yes --cleanup-tag || true
-          gh release create "$TAG" Wordnoid.apk --target "$GITHUB_SHA" --title "$TITLE" $EXTRA \
+          FILES="Wordnoid.apk"; [ -f Wordnoid.aab ] && FILES="$FILES Wordnoid.aab"
+          gh release create "$TAG" $FILES --target "$GITHUB_SHA" --title "$TITLE" $EXTRA \
             --notes "Build ${GITHUB_RUN_NUMBER} from ${GITHUB_REF_NAME} (${GITHUB_SHA::7}). Download Wordnoid.apk below on your Android phone and open it to install."
