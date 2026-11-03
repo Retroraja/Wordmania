@@ -41,10 +41,14 @@ import com.retroraja.wordnoid.data.Progress
  * Without internet the game works normally; Watch buttons just say "Needs internet".
  */
 object Ads {
-    private const val REWARDED = "ca-app-pub-3940256099942544/5224354917"
-    private const val INTERSTITIAL = "ca-app-pub-3940256099942544/1033173712"
-    private const val BANNER = "ca-app-pub-3940256099942544/9214589741"
+    // Real AdMob units in the Play bundle; Google's test units in the test APK (safe to tap).
+    private val REAL = com.retroraja.wordnoid.BuildConfig.REAL_ADS
+    private val REWARDED = if (REAL) "ca-app-pub-3867331045861180/9863612729" else "ca-app-pub-3940256099942544/5224354917"
+    private val INTERSTITIAL = if (REAL) "ca-app-pub-3867331045861180/6957026594" else "ca-app-pub-3940256099942544/1033173712"
+    private val BANNER = if (REAL) "ca-app-pub-3867331045861180/1477644215" else "ca-app-pub-3940256099942544/9214589741"
     private const val APP_OPEN = "ca-app-pub-3940256099942544/9257395921"
+    /** App Open ads are switched off (the owner chose not to use them). */
+    private const val APP_OPEN_ON = false
 
     /** The 13 rewarded spots, with how many times a day each may be used. */
     enum class Spot(val perDay: Int) {
@@ -80,7 +84,7 @@ object Ads {
         MobileAds.initialize(activity) {
             loadRewarded(activity)
             loadInterstitial(activity)
-            loadAppOpen(activity)
+            if (APP_OPEN_ON) loadAppOpen(activity)
         }
     }
 

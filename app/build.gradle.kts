@@ -37,10 +37,16 @@ android {
     }
 
     buildTypes {
+        // Ads: the test APK (debug) always shows Google's TEST ads, so tapping them is safe.
+        // The Play Store bundle (release) uses the real AdMob ids.
         debug {
             signingConfig = signingConfigs.getByName("debug")
+            manifestPlaceholders["admobAppId"] = "ca-app-pub-3940256099942544~3347511713"
+            buildConfigField("boolean", "REAL_ADS", "false")
         }
         release {
+            manifestPlaceholders["admobAppId"] = "ca-app-pub-3867331045861180~6000389333"
+            buildConfigField("boolean", "REAL_ADS", "true")
             isMinifyEnabled = false
             signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
@@ -51,7 +57,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true }
+    buildFeatures { compose = true; buildConfig = true }
     androidResources { noCompress += "txt" }
 }
 
