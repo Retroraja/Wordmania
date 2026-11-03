@@ -23,7 +23,9 @@ object Rewards {
         val out = LinkedHashSet<Booster>()
         var guard = 0
         while (out.size < 3 && guard++ < 100) out += randomBooster(unlockedLevel, random)
-        while (out.size < 3) out += Booster.HAMMER
+        // Early on fewer than 3 boosters are unlocked: fill up with the next ones to come
+        // (adding HAMMER again here never grew the set and froze the game when the meter filled in Levels 3-4).
+        for (b in Booster.entries.sortedBy { it.introLevel }) { if (out.size >= 3) break; out += b }
         return out.toList()
     }
 
