@@ -46,9 +46,9 @@ object Ads {
     private val REWARDED = if (REAL) "ca-app-pub-3867331045861180/9863612729" else "ca-app-pub-3940256099942544/5224354917"
     private val INTERSTITIAL = if (REAL) "ca-app-pub-3867331045861180/6957026594" else "ca-app-pub-3940256099942544/1033173712"
     private val BANNER = if (REAL) "ca-app-pub-3867331045861180/1477644215" else "ca-app-pub-3940256099942544/9214589741"
-    private const val APP_OPEN = "ca-app-pub-3940256099942544/9257395921"
-    /** App Open ads are switched off (the owner chose not to use them). */
-    private const val APP_OPEN_ON = false
+    private val APP_OPEN = if (REAL) "ca-app-pub-3867331045861180/8294158995" else "ca-app-pub-3940256099942544/9257395921"
+    /** App Open ads: on (after 30+ min away, max 3 a day, never in the first 2 days). */
+    private const val APP_OPEN_ON = true
 
     /** The 13 rewarded spots, with how many times a day each may be used. */
     enum class Spot(val perDay: Int) {
