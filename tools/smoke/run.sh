@@ -34,11 +34,7 @@ texts() { dump; grep -o 'text="[^"]*"' $OUT/ui.xml | head -40; }
 # ---- First run: studio intro, birth year, Tiko's Town, level 1 tutorial.
 shot first-time
 texts
-tap_text "OK"; sleep 2; shot welcome
-tap_text "Let's play!"; sleep 4; shot town
-texts
-tap_text "PLAY Level 1"; sleep 3; shot level-start
-tap_text "▶ PLAY"; sleep 4; shot intro
+tap_text "I'm 13 or older"; sleep 4; shot intro
 tap_text "Let's go!"; sleep 5; shot board-tutorial
 texts
 W=$(adb shell wm size | grep -o '[0-9]*x[0-9]*' | tail -1); echo "size $W"
@@ -67,9 +63,10 @@ adb shell chmod 644 /data/local/tmp/wordnoid_v2.xml
 adb shell run-as $PKG mkdir -p shared_prefs
 adb shell run-as $PKG cp /data/local/tmp/wordnoid_v2.xml shared_prefs/wordnoid_v2.xml
 adb shell am start -n $PKG/.MainActivity
-sleep 12
+sleep 22
 shot town-late
 texts
+tap_text "Let's go!"; sleep 2
 tap_text "Tasks"; sleep 2; shot tasks
 tap_text "Build"; sleep 4; shot fixing
 tap_text "Yay!"; sleep 2

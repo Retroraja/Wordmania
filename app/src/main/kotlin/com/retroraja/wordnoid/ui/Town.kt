@@ -203,7 +203,7 @@ fun TownScreen(
                 Spacer(Modifier.width(8.dp))
                 RoundButton("⚙", 34.dp, onClick = onSettings)
                 Spacer(Modifier.width(6.dp))
-                RoundButton("⏻", 34.dp, onClick = onQuit)
+                RoundButton("🚪", 34.dp, onClick = onQuit)
             }
         }
         Column(Modifier.align(Alignment.CenterStart).padding(start = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
