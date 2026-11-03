@@ -35,7 +35,9 @@ texts() { dump; grep -o 'text="[^"]*"' $OUT/ui.xml | head -40; }
 shot first-time
 texts
 tap_text "I'm 13 or older"; sleep 4; shot intro
-tap_text "Let's go!"; sleep 5; shot board-tutorial
+tap_text "Let's go!"; sleep 9; shot story-land1-intro
+sleep 6; shot story-land1-scrambled
+tap_text "Skip ⏭"; sleep 5; shot board-tutorial
 texts
 W=$(adb shell wm size | grep -o '[0-9]*x[0-9]*' | tail -1); echo "size $W"
 for s in "1000 450 1150 450" "1150 600 1150 750" "900 350 1050 350" "1300 450 1300 600" "800 600 950 600"; do
@@ -82,19 +84,22 @@ adb shell input keyevent 4; sleep 1; adb shell input keyevent 4; sleep 2
 tap_text "Shop"; sleep 2; shot shop
 adb shell input keyevent 4; sleep 2
 tap_text "Level Map"; sleep 3; shot level-map
-tap_text "Sunny Galaxy"; sleep 3; shot world-5
-tap_text "QUIZ"; sleep 3; shot quiz
-adb shell input keyevent 4; sleep 2
-tap_text "BOSS"; sleep 3; shot start-50
+tap_text "Open ▶"; sleep 4; shot world-5-zoom
+texts
+tap_text "QUIZ!"; sleep 3; shot quiz
+adb shell input keyevent 4; sleep 4; shot back-from-quiz
+tap_text "👾 50"; sleep 3; shot start-50
 tap_text "▶ PLAY"; sleep 4; shot intro-50
 tap_text "Let's go!"; sleep 5; shot board-50
 texts
 for s in "1000 450 1150 450" "1150 600 1150 750" "900 350 1050 350" "1000 300 1000 450"; do adb shell input swipe $s 150; sleep 4; done
 shot after-swaps-50
 adb shell input keyevent 4; sleep 3; shot back-to-world
-tap_text "Level Map"; sleep 2
-tap_text "Under the Sea"; sleep 2
-tap_text "11"; sleep 2; tap_text "▶ PLAY"; sleep 4; tap_text "Let's go!"; sleep 4; shot board-11
+tap_text "◀ Islands"; sleep 3; shot map-overview
+tap_text "◀"; sleep 1; tap_text "◀"; sleep 1; tap_text "◀"; sleep 2
+tap_text "Open ▶"; sleep 4; tap_text "11"; sleep 8; shot story-land2-intro
+tap_text "Skip ⏭"; sleep 3; tap_text "▶ PLAY"; sleep 4; tap_text "Let's go!"; sleep 4; shot board-11
+shot board-11-panel
 
 # ---- Third run: Level 2 teaches the Hammer (help card with a 3D demo, then a hand on the button and the tile).
 adb shell am force-stop $PKG
@@ -120,6 +125,40 @@ tap_text "Let's go!"; sleep 3; shot help-hammer
 tap_text "Try it! 👆"; sleep 2; shot hand-on-button
 tap_text "Hammer"; sleep 2; shot hand-on-tile
 texts
+
+# ---- Fourth run: the last Candy Street task -> Land 1 complete story, prize, bridge, Land 2 intro.
+adb shell am force-stop $PKG
+cat > $OUT/prefs3.xml <<EOF
+<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
+<map>
+    <int name="unlocked" value="11" />
+    <int name="coins" value="300" />
+    <int name="bricks_spent" value="20" />
+    <int name="birth_year" value="1990" />
+    <boolean name="seen_first_time" value="true" />
+    <boolean name="seen_welcome_build3" value="true" />
+    <boolean name="seen_town_build_tut" value="true" />
+    <boolean name="seen_intro_gift" value="true" />
+    <boolean name="seen_intro_spin" value="true" />
+    <boolean name="seen_intro_challenges" value="true" />
+    <boolean name="seen_story_intro_0" value="true" />
+    <boolean name="seen_story_boss_0" value="true" />
+$(for i in $(seq 1 10); do echo "    <int name=\"stars_$i\" value=\"3\" />"; done)
+$(for i in $(seq 0 6); do echo "    <boolean name=\"task_0_$i\" value=\"true\" />"; done)
+</map>
+EOF
+adb push $OUT/prefs3.xml /data/local/tmp/wordnoid_v2.xml
+adb shell chmod 644 /data/local/tmp/wordnoid_v2.xml
+adb shell run-as $PKG cp /data/local/tmp/wordnoid_v2.xml shared_prefs/wordnoid_v2.xml
+adb shell am start -n $PKG/.MainActivity
+sleep 22
+shot town-last-task
+tap_text "Tasks"; sleep 2; shot tasks-last
+tap_text "Build"; sleep 5; tap_text "Yay!"; sleep 6; shot story-complete-a
+sleep 6; shot story-complete-card
+sleep 10; shot story-bridge
+sleep 12; shot story-land2
+sleep 20; shot after-story
 
 adb logcat -d > $OUT/logcat.txt
 grep -E "FATAL EXCEPTION" -A 30 $OUT/logcat.txt > $OUT/crash.txt || true
