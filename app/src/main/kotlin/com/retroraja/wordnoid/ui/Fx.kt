@@ -44,6 +44,9 @@ object Fx {
     private val queue = ArrayList<String>()
     private val waiting = HashMap<String, MutableList<CompletableDeferred<String>>>()
     var density = 1f
+    /** Screen size in pixels. */
+    val screenW: Float get() = (web?.width ?: 1000).toFloat()
+    val screenH: Float get() = (web?.height ?: 600).toFloat()
     var sounds: SoundFx? = null
 
     /** True when the 3D layer works on this phone. */
@@ -74,7 +77,7 @@ object Fx {
         v.loadUrl("file:///android_asset/fx/fx.html")
     }
 
-    fun detach() { web?.destroy(); web = null; loaded = false; ok = false }
+    fun detach() { web?.destroy(); web = null; loaded = false; ok = false; scene = null; front = true }
 
     private object Bridge {
         @JavascriptInterface fun sfx(name: String) { sounds?.play(name) }

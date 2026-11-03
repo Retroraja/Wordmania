@@ -59,7 +59,7 @@ val DISTRICTS = listOf(
         0, "Candy Street", "Candy Factory", "a free booster",
         listOf("BAKREY" to "BAKERY", "SWEETS" to "SWEETS", "TYOS" to "TOYS", "CFAE" to "CAFE"),
         listOf(
-            TownTask("Fix the Bakery sign", 2, 0, "Tiko: \"BAKREY? Let's put those letters back!\"", 20),
+            TownTask("Fix the Bakery sign", 1, 0, "Tiko: \"BAKREY? Let's put those letters back!\"", 20),
             TownTask("Paint the Bakery", 3, 0, "Tiko: \"Pink walls, fresh bread. Smells great!\"", 25, Booster.HAMMER),
             TownTask("Build the lollipop fountain", 3, 4, "Tiko: \"A fountain of fizzy pop!\"", 30),
             TownTask("Fix the Sweet Shop", 3, 1, "Tiko: \"Professor Scramble mixed up every jar!\"", 30),
@@ -216,6 +216,10 @@ fun TownScreen(
             val canBuild = DISTRICTS[current].tasks.withIndex().any { (i, t) -> !progress.taskDone(current, i) && t.cost <= progress.bricksToSpend }
             Box(Modifier.graphicsLayer { translationY = if (canBuild) -6f * bounce * density.density else 0f }) {
                 SideButton("🔨", "Tasks", badge = if (canBuild) "${progress.bricksToSpend}🧱" else null) { tasksOpen = true }
+                // First visit with bricks: Tiko shows where to build.
+                if (canBuild && !progress.seen("town_build_tut") && !tasksOpen && fixing == null) Text(
+                    "👇", fontSize = 30.sp, modifier = Modifier.align(Alignment.TopCenter).offset(y = (-38).dp - (8 * bounce).dp),
+                )
             }
             SideButton("🗺️", "Level Map", onClick = onMap)
             SideButton("📖", "Wordbook", onClick = onWordbook)
@@ -226,10 +230,31 @@ fun TownScreen(
                 modifier = Modifier.scale(1f + 0.04f * bounce),
             ) { sounds.play("pop"); onPlay() }
         }
+        if (canBuildNow(progress, current) && !progress.seen("town_build_tut") && !tasksOpen && fixing == null) Row(
+            Modifier.align(Alignment.BottomStart).padding(start = 10.dp, bottom = 96.dp).width(330.dp).arcadePanel().padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Tiko(Modifier.size(48.dp))
+            Text("You won Letter Bricks 🧱! Tap Tasks, then Build to fix my town!", color = Color.White, fontSize = 14.sp, fontWeight = Heavy, modifier = Modifier.padding(start = 8.dp))
+        }
+        // Players coming from an older build: what's new (their levels, coins and town are kept).
+        var welcomeBack by remember { mutableStateOf(progress.unlocked > 1 && !progress.seen("welcome_build3")) }
+        if (welcomeBack) DimBox {
+            Column(Modifier.width(440.dp).arcadePanel().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Tiko(Modifier.size(56.dp))
+                ArcadeText("Welcome back!", 24.sp, Palette.gold)
+                Text(
+                    "Your levels, coins and town are all saved. New in this update:\n🏙️ A 3D town to rebuild\n😈 Bosses peek over the board\n🔒 The new Lock booster\n🗣️ Voice cheers (turn off in settings)",
+                    color = Color.White, fontSize = 14.sp, textAlign = TextAlign.Center, lineHeight = 19.sp,
+                )
+                Spacer(Modifier.height(8.dp))
+                ArcadeButton("Let's go!") { progress.markSeen("welcome_build3"); welcomeBack = false }
+            }
+        }
         if (tasksOpen) TasksDialog(DISTRICTS[current], progress, sounds, onClose = { tasksOpen = false }, onDo = { i -> tasksOpen = false; view = current; fixing = current to i })
         fixing?.let { (d, i) ->
-            if (use3d) FixScene3D(DISTRICTS[d], i, sounds, onDone = { fixing = null; rev++ })
-            else FixScene(DISTRICTS[d], i, sounds, onDone = { fixing = null })
+            if (use3d) FixScene3D(DISTRICTS[d], i, sounds, onDone = { fixing = null; rev++; progress.markSeen("town_build_tut") })
+            else FixScene(DISTRICTS[d], i, sounds, onDone = { fixing = null; progress.markSeen("town_build_tut") })
         }
         buildingGift?.let { w ->
             DimBox {
@@ -429,6 +454,10 @@ private fun TasksDialog(d: District, progress: Progress, sounds: SoundFx, onClos
         }
     }
 }
+
+/** A task in the current street that the player has enough bricks for. */
+fun canBuildNow(progress: Progress, current: Int = currentDistrict(progress)): Boolean =
+    DISTRICTS[current].tasks.withIndex().any { (i, t) -> !progress.taskDone(current, i) && t.cost <= progress.bricksToSpend }
 
 /** Unfinished tasks in a street the player can build in. */
 private fun openTasks(d: District, progress: Progress, current: Int): Int =

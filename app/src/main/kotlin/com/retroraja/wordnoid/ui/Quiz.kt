@@ -41,7 +41,9 @@ fun QuizScreen(world: Int?, slot: Int, progress: Progress, dict: Dictionary?, so
     var reward by remember(attempt) { mutableStateOf("") }
     val activity = LocalContext.current as Activity
     val skin = world ?: (progress.unlocked - 1) / 10
-    LivingBackground(skin * 10 + 1) {
+    // Floating question marks and Tiko in 3D behind the quiz (Tiko cheers or shakes his head).
+    LaunchedEffect(Fx.ok) { if (Fx.ok) Fx.backdrop("quiz") }
+    QuizBackground(skin) {
         Column(Modifier.fillMaxSize().padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 ArcadeButton("✕", color = Palette.slate, textSize = 16.sp, onClick = onClose)
@@ -57,6 +59,7 @@ fun QuizScreen(world: Int?, slot: Int, progress: Progress, dict: Dictionary?, so
                     QuestionView(q, picked, sounds) { ok, choice ->
                         picked = choice
                         if (ok) { right++; sounds.play("ding") } else sounds.play("nope")
+                        Fx.act(if (ok) "right" else "wrong", Fx.obj("x" to Fx.dp(Fx.screenW / 2), "y" to Fx.dp(Fx.screenH * 0.45f)))
                     }
                 }
                 if (picked != null) {
@@ -158,3 +161,9 @@ private fun QuestionView(q: QuizBank.Question, picked: Int?, sounds: SoundFx, on
     }
 }
 
+
+@Composable
+private fun QuizBackground(skin: Int, content: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit) {
+    if (Fx.ok) androidx.compose.foundation.layout.Box(Modifier.fillMaxSize(), content = content)
+    else LivingBackground(skin * 10 + 1, content = content)
+}

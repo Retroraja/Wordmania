@@ -105,6 +105,9 @@ class Progress(context: Context) {
     }
 
     /** Adds Power Meter segments. Returns how many times it filled up (each fill = one mystery card pick). */
+    /** Level 3 teaches the meter: it starts almost full so the first word fills it. */
+    fun primeMeter(n: Int) { if (meter < n) { meter = n; prefs.edit().putInt("meter", meter).apply() } }
+
     fun addMeter(n: Int): Int {
         val total = meter + n
         val fills = total / Game.METER_SIZE

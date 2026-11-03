@@ -99,7 +99,7 @@ fun WordnoidApp() {
 
     // 3D scenes live behind only these screens; everywhere else the 3D layer is just for effects.
     LaunchedEffect(screen) {
-        if (screen != Screen.Intro && screen != Screen.FirstTime && screen != Screen.Town) Fx.backdrop(null)
+        if (screen != Screen.Intro && screen != Screen.FirstTime && screen != Screen.Town && screen !is Screen.Quiz) Fx.backdrop(null)
     }
 
     // Back on the home screen asks before leaving.
@@ -122,8 +122,10 @@ fun WordnoidApp() {
             Screen.Intro -> StudioIntro(sounds) { screen = if (progress.seen("first_time")) Screen.Town else Screen.FirstTime }
             Screen.FirstTime -> FirstTimeScreen(progress) {
                 progress.markSeen("first_time")
+                progress.markSeen("welcome_build3")
                 if (Build.VERSION.SDK_INT >= 33) notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                screen = Screen.Town
+                // New players go straight into the Level 1 demo.
+                screen = if (progress.unlocked <= 1 && dict != null) Screen.Play(1, ++attempts, emptyList()) else Screen.Town
             }
             Screen.Town -> TownScreen(
                 ready = dict != null, progress = progress, sounds = sounds,
@@ -185,6 +187,10 @@ fun WordnoidApp() {
                             val inWorld = (s.level - 1) % 10
                             val w = (s.level - 1) / 10
                             screen = when {
+                                // Levels 1-3: pop over to the town when there is something to build.
+                                s.level <= 3 && canBuildNow(progress) && !progress.seen("town_after_${s.level}") -> {
+                                    progress.markSeen("town_after_${s.level}"); Screen.Town
+                                }
                                 inWorld == 3 && progress.quizScore(w, 0) < 0 -> Screen.Quiz(w, 0)
                                 inWorld == 7 && progress.quizScore(w, 1) < 0 -> Screen.Quiz(w, 1)
                                 Levels.get(n) != null -> Screen.Start(n)

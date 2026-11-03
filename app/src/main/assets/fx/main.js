@@ -562,7 +562,7 @@ SCENES.gift=function(w,o){const scene=w.scene,cam=w.cam;cam.fov=38;cam.updatePro
 /* ---------- quiz: floating question marks and Tiko ---------- */
 SCENES.quiz=function(w){const scene=w.scene,cam=w.cam;addLights(scene,{hemi:.9,sun:.8,pos:[3,6,9]});const tiko=makeTiko();tiko.scale.setScalar(1.5);tiko.rotation.y=.45;scene.add(tiko);const qs=[];let mood=null,moodT=0;
   for(let i=0;i<10;i++){const q=textMesh('?',{h:.9+Math.random()*.8,colors:['#ffffff','#d9c8ff','#9b74ff'],stroke:'#2a1470'});q.position.set(rnd(14),rnd(8),-3-Math.random()*4);q.userData.p=Math.random()*6;scene.add(q);qs.push(q)}
-  return{act(name,d){mood=name==='right'?'yes':'no';moodT=T;if(name==='right'){const wp=screenToWorld(cam,d.x,d.y,1);starsAt(wp,18,0xffd84a,1.3);confettiAt(wp,60,1);flash(wp,4,0xfff0a0);popupTo('+2 🧱',wp.clone().add(v3(0,1.2,.5)),null,null,{...BRICK_TXT,h:1})}},
+  return{act(name,d){mood=name==='right'?'yes':'no';moodT=T;if(name==='right'){const wp=screenToWorld(cam,d.x,d.y,1);starsAt(wp,18,0xffd84a,1.3);confettiAt(wp,60,1);flash(wp,4,0xfff0a0);popupTo('RIGHT!',wp.clone().add(v3(0,1.2,.5)),null,null,{...GREEN_TXT,h:1})}},
     update(dt,t){cam.position.set(Math.sin(t*.3)*.4,0,10);cam.lookAt(0,0,0);const xL=-(Math.tan(20*Math.PI/180)*10*W/H)+1.6;tiko.position.x=xL;
       qs.forEach(q=>{q.position.y+=dt*.3;if(q.position.y>5)q.position.y=-5;q.rotation.z=Math.sin(t+q.userData.p)*.2});
       const k=T-moodT;tiko.position.y=-2.6+(mood==='yes'&&k<2?Math.abs(Math.sin(T*9))*.6:Math.abs(Math.sin(t*2.2))*.06);tiko.rotation.y=.45+(mood==='no'&&k<1.2?Math.sin(T*25)*.35:0)}}};

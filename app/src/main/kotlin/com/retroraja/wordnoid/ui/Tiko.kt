@@ -118,3 +118,6 @@ fun TikoStrip(text: String, modifier: Modifier = Modifier, tikoSize: Dp = 44.dp,
         }
     }
 }
+
+/** The Tiko friends to rescue are pink Tikos. */
+val PINK_TIKO = androidx.compose.ui.graphics.Color(0xFFFF7EB6)

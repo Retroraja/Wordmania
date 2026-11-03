@@ -268,6 +268,7 @@ private fun GoalRow(o: Objective, c: GameController) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (o is Objective.Letter) Tile3D(com.retroraja.wordnoid.core.Tile(0, o.letter), 20.dp)
+            else if (o is Objective.Rescue) Tiko(Modifier.size(20.dp), color = PINK_TIKO, hat = false, letter = null)
             else if (o is Objective.Gold) Tile3D(com.retroraja.wordnoid.core.Tile(0, 'G', kind = com.retroraja.wordnoid.core.TileKind.GOLD), 20.dp)
             else Text(o.icon, fontSize = 15.sp)
             Text(o.text + if (theme != null) " ⓘ" else "", Modifier.weight(1f).padding(start = 5.dp), fontSize = 11.sp, color = Color.White, fontWeight = Heavy, lineHeight = 12.sp, maxLines = 3)
@@ -411,7 +412,13 @@ fun introFor(level: Level, progress: Progress): IntroInfo? {
     return when {
         level.number == 1 -> IntroInfo("How to play", "🔤", "Swap two neighbouring tiles to spell a word. Words count left to right, right to left, up or down. Only words made with the tile you moved count, so think before you swap!")
         level.number == 2 -> IntroInfo("Long words give moves", "📏", "3 and 4 letter words are fine, but 5-letter words give +1 move and 6+ letters give +2 moves. Plan bigger words to go further!")
-        level.number == 3 -> IntroInfo("Power Meter", "⚡", "Every word fills your Power Meter. Fill it to pick a free mystery booster! Win levels to earn Letter Bricks 🧱 and coins 🪙 for Tiko's Town.")
+        level.number == 3 -> {
+            progress.primeMeter(Game.METER_SIZE - 1)
+            IntroInfo(
+                "Power Meter", "⚡",
+                "👈 The Power Meter is on the left.\n1. Every word charges it.\n2. When it's full, pick a FREE mystery booster!\n3. Leftover power is saved for the next level.\nIt's almost full now. Make one word!",
+            )
+        }
         level.feature != null -> IntroInfo(level.feature!!.title, featureEmoji(level.feature!!), level.feature!!.text, level.feature)
         else -> null
     }
@@ -447,7 +454,9 @@ fun IntroCard(info: IntroInfo, onGo: () -> Unit) {
             LaunchedEffect(Unit) { pop.animateTo(1f, spring(dampingRatio = 0.4f)) }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Tiko(Modifier.size(64.dp))
-                Text(info.emoji, fontSize = 40.sp, modifier = Modifier.scale(pop.value).padding(start = 8.dp))
+                // The Tiko friends are little pink Tikos.
+                if (info.feature == Feature.RESCUE) Tiko(Modifier.size(48.dp).scale(pop.value).padding(start = 8.dp), color = PINK_TIKO, hat = false)
+                else Text(info.emoji, fontSize = 40.sp, modifier = Modifier.scale(pop.value).padding(start = 8.dp))
             }
             ArcadeText(info.title, 26.sp, Palette.gold)
             // Tiko's quick demo of a new goal.
@@ -474,7 +483,7 @@ private fun FeatureDemo(f: Feature) {
             }
             Feature.RESCUE -> {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Tiko(Modifier.size(34.dp).graphicsLayer { translationY = 40f * t }, color = buddyColor(1), hat = false)
+                    Tiko(Modifier.size(34.dp).graphicsLayer { translationY = 40f * t }, color = PINK_TIKO, hat = false)
                     Tile3D(tile('S'), 30.dp, Modifier.alpha(1f - t))
                 }
                 Text("➡ 🏁", fontSize = 22.sp)

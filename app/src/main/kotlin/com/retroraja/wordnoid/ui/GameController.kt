@@ -594,7 +594,7 @@ class GameController(
         if (r.rescued > 0) {
             sounds.play("fanfare")
             if (fx3) Fx.call("friend", Fx.at(center())) else {
-                toast("🧸 Friend rescued!", center(), Palette.green, big = true)
+                toast("💖 Friend rescued!", center(), Palette.green, big = true)
                 particles.sparkle(center(), Palette.green, 20)
             }
         }

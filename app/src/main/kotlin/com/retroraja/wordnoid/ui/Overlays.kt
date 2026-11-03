@@ -40,6 +40,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
@@ -313,6 +315,7 @@ fun MoreBoosters(c: GameController, onClose: () -> Unit) {
 @Composable
 fun MysteryCards(cards: List<Booster>, sounds: SoundFx, onPicked: (Booster) -> Unit, onDone: () -> Unit) {
     var picked by remember { mutableStateOf(-1) }
+    if (Fx.ok) { MysteryCards3D(cards, sounds, onPicked, onDone); return }
     DimBox(0.7f) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             ArcadeText("⚡ POWER METER FULL! ⚡", 26.sp, Palette.gold)
@@ -351,6 +354,48 @@ fun MysteryCards(cards: List<Booster>, sounds: SoundFx, onPicked: (Booster) -> U
     }
 }
 
+/** The same, with 3D cards that fly in, flip and fly into the bag. Compose only takes the taps. */
+@Composable
+private fun MysteryCards3D(cards: List<Booster>, sounds: SoundFx, onPicked: (Booster) -> Unit, onDone: () -> Unit) {
+    var picked by remember { mutableStateOf(-1) }
+    var canCollect by remember { mutableStateOf(false) }
+    val rects = remember { arrayOfNulls<androidx.compose.ui.geometry.Rect>(cards.size) }
+    var sent by remember { mutableStateOf(false) }
+    DisposableEffect(Unit) { onDispose { Fx.call("cardsClear") } }
+    LaunchedEffect(picked) { if (picked >= 0) { delay(1900); canCollect = true } }
+    DimBox(0.7f) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            ArcadeText("⚡ POWER METER FULL! ⚡", 26.sp, Palette.gold)
+            Text(if (picked < 0) "Pick a mystery card" else "You got ${cards[picked].emoji} ${cards[picked].title}!", color = Palette.cream, fontSize = 16.sp, fontWeight = Heavy)
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                cards.forEachIndexed { i, b ->
+                    Box(
+                        Modifier.size(width = 100.dp, height = 140.dp)
+                            .onGloballyPositioned { co ->
+                                val p = co.positionInRoot()
+                                rects[i] = androidx.compose.ui.geometry.Rect(p.x, p.y, p.x + co.size.width, p.y + co.size.height)
+                                if (!sent && rects.all { it != null }) {
+                                    sent = true
+                                    val items = org.json.JSONArray(); val rs = org.json.JSONArray()
+                                    cards.forEachIndexed { k, cb ->
+                                        items.put(Fx.obj("emoji" to cb.emoji, "name" to cb.title, "rare" to cb.strong))
+                                        val r = rects[k]!!
+                                        rs.put(Fx.obj("x" to Fx.dp(r.left), "y" to Fx.dp(r.top), "w" to Fx.dp(r.width), "h" to Fx.dp(r.height)))
+                                    }
+                                    Fx.call("cards", Fx.obj("fx" to 60.0, "fy" to 200.0, "items" to items, "rects" to rs))
+                                }
+                            }
+                            .clickable(enabled = picked < 0) { picked = i; sounds.play("flip"); onPicked(b); Fx.call("cardPick", Fx.obj("i" to i)) },
+                    )
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            Box(Modifier.height(56.dp)) { if (canCollect) ArcadeButton("Collect!", onClick = onDone) }
+        }
+    }
+}
+
 // ---------------------------------------------------------------- end of level
 
 /** A "Watch a video" button for one of the rewarded ad spots. Hidden when the spot is used up for today. */
@@ -373,7 +418,18 @@ fun WinDialog(c: GameController, activity: Activity, onNext: () -> Unit, onTown:
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.width(460.dp).arcadePanel().padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 ArcadeText(if (c.level.boss) "BOSS DEFEATED!" else "LEVEL COMPLETE!", 26.sp, Palette.gold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
+                if (Fx.ok) {
+                    // Big 3D W-I-N bricks drop into a box here (earned ones in colour).
+                    var sent by remember { mutableStateOf(false) }
+                    DisposableEffect(Unit) { onDispose { Fx.call("winClear") } }
+                    Box(Modifier.size(300.dp, 104.dp).onGloballyPositioned { co ->
+                        if (!sent) {
+                            sent = true
+                            val p = co.positionInRoot()
+                            Fx.call("win", Fx.obj("x" to Fx.dp(p.x), "y" to Fx.dp(p.y), "w" to Fx.dp(co.size.width.toFloat()), "h" to Fx.dp(co.size.height.toFloat()), "n" to c.winStars))
+                        }
+                    })
+                } else Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
                     for (i in 1..3) {
                         val s = remember { Animatable(3f) }
                         val on = i <= c.winStars
@@ -391,6 +447,7 @@ fun WinDialog(c: GameController, activity: Activity, onNext: () -> Unit, onTown:
                     "Your words: " + c.foundWords.joinToString(", "),
                     color = Color.White, fontSize = 12.sp, textAlign = TextAlign.Center, maxLines = 3, lineHeight = 15.sp,
                 )
+                if (c.progress.meter > 0) Text("⚡ Power saved for the next level!", color = Palette.cyan, fontSize = 13.sp, fontWeight = Heavy)
                 if (c.newWordsThisLevel > 0) Text("📖 ${c.newWordsThisLevel} new words in your Wordbook", color = Palette.cream, fontSize = 12.sp)
                 c.winBooster?.let { Text("🎁 Prize: ${it.emoji} ${it.title}!", color = Palette.green, fontSize = 15.sp, fontWeight = Heavy) }
                 if (c.level.bonusWord != null && !c.bonusFound) Text("The bonus word was ${c.level.bonusWord}", color = Palette.cream.copy(alpha = 0.8f), fontSize = 12.sp)
@@ -458,7 +515,6 @@ fun LoseDialog(c: GameController, activity: Activity, onRetry: () -> Unit, onMap
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     ArcadeButton("Try again", color = Color(0xFFE5533D), textSize = 16.sp, onClick = onRetry)
                     ArcadeButton("Level Map", color = Palette.slate, textSize = 16.sp, onClick = onMap)
-                    ArcadeButton("🏠 Home", color = Palette.slate, textSize = 16.sp, onClick = onHome)
                 }
                 // A free Hammer after a fail, for a video.
                 var gotHammer by remember { mutableStateOf(false) }
@@ -481,6 +537,7 @@ fun PauseDialog(progress: Progress, c: GameController, activity: Activity, onRes
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     ArcadeButton("Restart", color = Color(0xFFE5533D), textSize = 16.sp, onClick = onRestart)
                     ArcadeButton("Level Map", color = Palette.slate, textSize = 16.sp, onClick = onMap)
+                    ArcadeButton("🏠 Home", color = Palette.slate, textSize = 16.sp, onClick = onHome)
                 }
             }
             Box(Modifier.padding(start = 10.dp).width(250.dp)) { Ads.Banner(big = true) }
