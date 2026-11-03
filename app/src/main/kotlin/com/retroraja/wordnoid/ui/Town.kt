@@ -177,6 +177,7 @@ fun TownScreen(
     var coinAt by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
     var brickAt by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
     val current = currentDistrict(progress)
+    SideEffect { Look.world = current }
     val anim = rememberInfiniteTransition(label = "town")
     val bounce by anim.animateFloat(0f, 1f, infiniteRepeatable(tween(800), RepeatMode.Reverse), label = "bounce")
     val time by anim.animateFloat(0f, 1f, infiniteRepeatable(tween(8000, easing = LinearEasing)), label = "time")

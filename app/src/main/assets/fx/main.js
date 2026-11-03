@@ -699,12 +699,37 @@ SCENES.map=function(w,o){const scene=w.scene,cam=w.cam;document.body.style.backg
     if(i===4){const pl=new THREE.Mesh(new THREE.SphereGeometry(.6,24,18),std('#ffb020',.4));pl.position.set(-.8,2,-.8);g.add(pl);const rg=new THREE.Mesh(new THREE.TorusGeometry(.95,.06,8,40),std('#ff6fa8',.4));rg.position.copy(pl.position);rg.rotation.x=1.2;g.add(rg)}}
   for(let i=0;i<5;i++){const g=new THREE.Group();g.position.set(i*7.5,i%2?.6:0,0);const lockd=i>=open;const t=new THREE.Mesh(new THREE.CylinderGeometry(2.8,2.6,.5,40),std(lockd?'#b8bcc8':tops[i],.7));t.receiveShadow=true;t.castShadow=true;g.add(t);
     const rk=new THREE.Mesh(new THREE.ConeGeometry(2.6,2.8,40),std('#8a6a4a',.9));rk.rotation.x=Math.PI;rk.position.y=-1.65;g.add(rk);deco(i,g);const nm=textMesh((lockd?'🔒 ':'')+names[i],{h:.6});nm.position.set(0,3.2,0);g.add(nm);scene.add(rich(g));g.userData.ph=i;isl.push(g)}
-  const stones=[];for(let k=0;k<10;k++){const s=new THREE.Mesh(new THREE.CylinderGeometry(.28,.3,.14,20),std('#9aa3b5',.6));s.castShadow=true;s.position.set(-2+k*.44,.32,.9+Math.sin(k*.9)*.9);stones.push(s)}
-  let cw=clamp(o.world||0,0,4);const cl=clamp(o.level==null?0:o.level,0,9);const home=cw;stones.forEach((s,i)=>{s.material=std(i<cl?'#ffc93c':i===cl?'#36d878':'#9aa3b5',.5,i<cl?.3:0);isl[home].add(s)});
-  const tiko=makeTiko();tiko.scale.setScalar(.55);scene.add(tiko);let camX=cw*7.5,hop=0;
-  return{act(name,d){if(name==='hop')hop=T;if(name==='world')cw=clamp(d.w|0,0,4)},
-    update(dt,t){isl.forEach(g=>{g.position.y=(g.userData.ph%2?.6:0)+Math.sin(t*.8+g.userData.ph)*.12});const p=wpos(stones[cl]);tiko.position.copy(p).add(v3(0,.05+Math.abs(Math.sin(t*2.4))*.15,0));
-      camX+=(cw*7.5-camX)*Math.min(1,dt*2);cam.position.set(camX+.5,5.2,clamp(fitDist(cam,13,7,W,H*.8),9,20));cam.lookAt(camX+.5,.2,0);tiko.rotation.y=Math.sin(t*.8)*.3}}};
+  /* Each island's levels: 10 stepping stones on a winding path, 2 quiz chests, the boss castle; Tiko on the next level. */
+  const PATH=[[-2.1,1.3],[-1.35,1.65],[-.55,1.55],[.15,1.15],[.95,1.05],[1.75,.85],[1.85,.05],[1.1,-.25],[.3,-.35],[-.75,-.6]];
+  const QPOS=[[.45,1.75],[1.25,-.75]];
+  function castle(col){const g=new THREE.Group();const wall=std('#d9d4e6',.7),roof=std(col,.4);
+    const keep=new THREE.Mesh(new THREE.BoxGeometry(.9,.9,.7),wall);keep.position.y=.45;g.add(keep);
+    for(const[x,z]of[[-.5,-.3],[.5,-.3],[-.5,.3],[.5,.3]]){const t=new THREE.Mesh(new THREE.CylinderGeometry(.17,.19,1.2,12),wall);t.position.set(x,.6,z);g.add(t);const c=new THREE.Mesh(new THREE.ConeGeometry(.24,.42,12),roof);c.position.set(x,1.4,z);g.add(c)}
+    const d=new THREE.Mesh(new THREE.BoxGeometry(.3,.42,.05),std('#5a3a22',.8));d.position.set(0,.21,.36);g.add(d);
+    const fl=new THREE.Mesh(new THREE.PlaneGeometry(.35,.22),new THREE.MeshStandardMaterial({color:'#e5333d',side:THREE.DoubleSide}));fl.position.set(.68,1.85,.3);g.add(fl);
+    const pole=new THREE.Mesh(new THREE.CylinderGeometry(.015,.015,.5,6),std('#444'));pole.position.set(.5,1.75,.3);g.add(pole);return rich(g)}
+  const lv=isl.map(()=>({g:null}));
+  function buildLevels(i,d){if(lv[i].g)isl[i].remove(lv[i].g);const g=new THREE.Group();g.position.y=.26;isl[i].add(g);lv[i].g=g;const st=d.levels||[];const qs=d.quiz||[];
+    const stones=[];PATH.forEach(([x,z],k)=>{const s0=st[k]|0;const boss=k===9;
+      if(boss){const c=castle(s0?'#ff6fa8':'#9aa3b5');c.position.set(x,0,z);c.scale.setScalar(.85);g.add(c);stones.push(c);return}
+      const m=new THREE.Mesh(new THREE.CylinderGeometry(.27,.3,.16,24),std(s0===1?'#ffc93c':s0===2?'#36d878':'#b8bcc8',.45,s0===1?.35:0));m.position.set(x,.08,z);m.castShadow=true;m.receiveShadow=true;g.add(m);stones.push(m)});
+    // little path dots between stones
+    for(let k=0;k<9;k++){const[a1,b1]=PATH[k],[a2,b2]=PATH[k+1];for(const f of[.33,.66]){const dot=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,.04,8),std('#ffffff',.6));dot.position.set(a1+(a2-a1)*f,.03,b1+(b2-b1)*f);g.add(dot)}}
+    const chests=QPOS.map(([x,z],q)=>{const c=fitTool('CHEST',.55);c.position.set(x,.3,z);c.rotation.y=-.3;g.add(c);c.userData.q=qs[q]|0;if(!(qs[q]|0))c.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.color.multiplyScalar(.55)}});return c});
+    lv[i].stones=stones;lv[i].chests=chests;lv[i].next=st.indexOf(2);return lv[i]}
+  let cw=clamp(o.world||0,0,4);const home=cw;buildLevels(home,o.home||{levels:Array.from({length:10},(_,k)=>k<(o.level|0)?1:k===(o.level|0)?2:0)});
+  const tiko=makeTiko();tiko.scale.setScalar(.42);scene.add(tiko);let camX=cw*7.5,hop=0,zoom=-1,zk=0,sentAt=-1;
+  function tikoSpot(){const L=lv[zoom>=0?zoom:home];if(!L||!L.stones)return null;const k=L.next>=0?L.next:Math.min(9,L.stones.length-1);return L.stones[k]}
+  function proj(o){const v=wpos(o).project(cam);return[(v.x+1)/2*W,(1-v.y)/2*H]}
+  return{act(name,d){if(name==='hop')hop=T;if(name==='world')cw=clamp(d.w|0,0,4);
+      if(name==='zoom'){zoom=clamp(d.w|0,0,4);cw=zoom;buildLevels(zoom,d);sentAt=T+1.3;sfx.whoosh()}
+      if(name==='unzoom'){zoom=-1;sentAt=-1;sfx.whoosh()}},
+    update(dt,t){isl.forEach((g,i)=>{g.position.y=(g.userData.ph%2?.6:0)+(i===zoom?0:Math.sin(t*.8+g.userData.ph)*.12)});
+      const sp=tikoSpot();if(sp){tiko.visible=true;const p=wpos(sp);tiko.position.copy(p).add(v3(0,(sp.isMesh?.09:1.2)+Math.abs(Math.sin(t*2.4))*.12,0))}else tiko.visible=false;
+      zk+=((zoom>=0?1:0)-zk)*Math.min(1,dt*2.2);camX+=(cw*7.5-camX)*Math.min(1,dt*2.2);
+      const far=clamp(fitDist(cam,13,7,W,H*.8),9,20),near=clamp(fitDist(cam,7.4,6,W,H*.8),5,13);const iy=zoom>=0?isl[zoom].position.y:0;
+      cam.position.set(camX+.5*(1-zk),5.2+(near*.62+iy-5.2)*zk,far+(near*.62-far)*zk);cam.lookAt(camX+.5*(1-zk),.2+(iy+.2)*zk,zk*.35);tiko.rotation.y=Math.sin(t*.8)*.3;
+      if(sentAt>0&&T>sentAt&&zoom>=0){sentAt=-1;const L=lv[zoom];emit('mapSpots',{stones:L.stones.map(proj),chests:L.chests.map(proj)})}}}};
 
 /* ====================================================================== API for Kotlin */
 let ready=false;

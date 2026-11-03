@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
@@ -28,8 +29,11 @@ import com.retroraja.wordnoid.data.Progress
 
 /** Level Map: a grid of world cards. Locked worlds look frosted. */
 @Composable
-fun LevelMapScreen(progress: Progress, sounds: SoundFx, onTown: () -> Unit, onWorld: (Int) -> Unit) {
-    if (Fx.ok) { LevelMap3D(progress, sounds, onTown, onWorld); return }
+fun LevelMapScreen(
+    progress: Progress, sounds: SoundFx, onTown: () -> Unit, onWorld: (Int) -> Unit,
+    zoomTo: Int? = null, onLevel: (Int) -> Unit = {}, onQuiz: (Int, Int) -> Unit = { _, _ -> },
+) {
+    if (Fx.ok) { LevelMap3D(progress, sounds, onTown, zoomTo, onLevel, onQuiz); return }
     LivingBackground(progress.unlocked.coerceAtMost(50)) {
         Column(Modifier.fillMaxSize().padding(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -163,43 +167,116 @@ private sealed interface Card {
 }
 
 
-/** The 3D level map (as the approved preview): floating islands, Tiko on the stepping stones of the current world. */
+/**
+ * The 3D level map: floating islands. Tap an island and the camera flies down to it: 10 levels as stepping
+ * stones, 2 quiz treasure chests, the boss castle, and Tiko standing on the next level.
+ */
 @Composable
-private fun LevelMap3D(progress: Progress, sounds: SoundFx, onTown: () -> Unit, onWorld: (Int) -> Unit) {
+private fun LevelMap3D(progress: Progress, sounds: SoundFx, onTown: () -> Unit, zoomTo: Int?, onLevel: (Int) -> Unit, onQuiz: (Int, Int) -> Unit) {
     val cur = ((progress.unlocked.coerceAtMost(50) - 1) / 10).coerceIn(0, WORLDS.size - 1)
-    var view by remember { mutableIntStateOf(cur) }
+    var view by remember { mutableIntStateOf(zoomTo ?: cur) }
+    var zoom by remember { mutableStateOf<Int?>(null) }
+    var spots by remember { mutableStateOf<List<Offset>>(emptyList()) }
+    var chests by remember { mutableStateOf<List<Offset>>(emptyList()) }
     val open = WORLDS.count { progress.unlocked >= it.index * 10 + 1 }
+    fun levelsOf(w: Int) = org.json.JSONArray().apply {
+        for (k in 0 until 10) { val n = w * 10 + 1 + k; put(if (progress.bricks(n) > 0 && n != progress.unlocked) 1 else if (n == progress.unlocked) 2 else if (n < progress.unlocked) 1 else 0) }
+    }
+    fun quizOf(w: Int) = org.json.JSONArray().apply { put(if (progress.unlocked > w * 10 + 4) 1 else 0); put(if (progress.unlocked > w * 10 + 8) 1 else 0) }
     LaunchedEffect(Unit) {
         val names = org.json.JSONArray().apply { WORLDS.forEach { put("${it.index + 1} ${it.name}") } }
-        Fx.backdrop("map", Fx.obj("names" to names, "open" to open, "world" to cur, "level" to ((progress.unlocked.coerceAtMost(50) - 1) % 10)))
+        Fx.backdrop("map", Fx.obj("names" to names, "open" to open, "world" to cur, "home" to Fx.obj("levels" to levelsOf(cur), "quiz" to quizOf(cur))))
+        if (zoomTo != null) zoom = zoomTo
     }
     LaunchedEffect(view) { Fx.act("world", Fx.obj("w" to view)) }
+    LaunchedEffect(zoom) {
+        spots = emptyList(); chests = emptyList()
+        val z = zoom
+        if (z == null) { Fx.act("unzoom", Fx.obj()); return@LaunchedEffect }
+        Fx.act("zoom", Fx.obj("w" to z, "levels" to levelsOf(z), "quiz" to quizOf(z)))
+        val js = Fx.await("mapSpots", 6000) ?: return@LaunchedEffect
+        val o = org.json.JSONObject(js)
+        fun pts(a: org.json.JSONArray) = List(a.length()) { i -> a.getJSONArray(i).let { Offset(it.getDouble(0).toFloat(), it.getDouble(1).toFloat()) } }
+        spots = pts(o.getJSONArray("stones")); chests = pts(o.getJSONArray("chests"))
+    }
+    androidx.activity.compose.BackHandler(zoom != null) { zoom = null }
     val w = WORLDS[view]
     val first = w.index * 10 + 1
     val isOpen = progress.unlocked >= first
+    val anim = rememberInfiniteTransition(label = "map")
+    val pulse by anim.animateFloat(1f, 1.15f, infiniteRepeatable(tween(600), RepeatMode.Reverse), label = "pulse")
     Box(Modifier.fillMaxSize()) {
-        // Tap the island to open the world.
-        Box(Modifier.fillMaxSize().clickable(remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, null) {
-            if (isOpen) { sounds.play("pop"); onWorld(view) } else sounds.play("nope")
+        // Overview: tap the island to fly down to its levels.
+        if (zoom == null) Box(Modifier.fillMaxSize().clickable(remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, null) {
+            if (isOpen) { sounds.play("pop"); zoom = view } else sounds.play("nope")
         })
+        // Zoomed: each stone and chest is a button with its number on top.
+        zoom?.let { z ->
+            val zf = z * 10 + 1
+            spots.forEachIndexed { k, p ->
+                val n = zf + k
+                val openL = n <= progress.unlocked && Levels.get(n) != null
+                val next = n == progress.unlocked
+                val boss = k == 9
+                Box(
+                    Modifier.offset { androidx.compose.ui.unit.IntOffset((p.x * density - 32.dp.toPx()).toInt(), (p.y * density - 40.dp.toPx()).toInt()) }
+                        .size(64.dp).clickable(remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, null) {
+                            if (openL) { sounds.play("pop"); onLevel(n) } else sounds.play("nope")
+                        },
+                    contentAlignment = Alignment.TopCenter,
+                ) {
+                    Text(
+                        if (boss) "${WORLDS[z].villainEmoji} $n" else if (openL) "$n" else "🔒",
+                        fontFamily = ArcadeFont, fontSize = if (next) 22.sp else 18.sp, color = Color.White,
+                        modifier = Modifier.scale(if (next) pulse else 1f)
+                            .background(if (next) Palette.greenDeep else if (boss) Palette.red else if (openL) Palette.goldDeep else Color(0xAA5A6070), RoundedCornerShape(50))
+                            .border(2.dp, Color.White, RoundedCornerShape(50)).padding(horizontal = 8.dp),
+                    )
+                }
+            }
+            chests.forEachIndexed { q, p ->
+                val after = zf + if (q == 0) 3 else 7
+                val openQ = progress.unlocked > after
+                val score = progress.quizScore(z, q)
+                Box(
+                    Modifier.offset { androidx.compose.ui.unit.IntOffset((p.x * density - 36.dp.toPx()).toInt(), (p.y * density - 46.dp.toPx()).toInt()) }
+                        .size(72.dp).clickable(remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, null) {
+                            if (openQ) { sounds.play("pop"); onQuiz(z, q) } else sounds.play("nope")
+                        },
+                    contentAlignment = Alignment.TopCenter,
+                ) {
+                    Text(
+                        if (score >= 0) "QUIZ ✓" else if (openQ) "QUIZ!" else "🔒 QUIZ", fontFamily = ArcadeFont, fontSize = 14.sp, color = Color.White,
+                        modifier = Modifier.scale(if (openQ && score < 0) pulse else 1f).background(Palette.purple, RoundedCornerShape(50)).border(2.dp, Color.White, RoundedCornerShape(50)).padding(horizontal = 8.dp),
+                    )
+                }
+            }
+        }
         Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            ArcadeButton("🏠 Town", color = Palette.slate, textSize = 16.sp, onClick = onTown)
+            if (zoom != null) ArcadeButton("◀ Islands", color = Palette.slate, textSize = 16.sp) { sounds.play("whoosh"); zoom = null }
+            else ArcadeButton("🏠 Town", color = Palette.slate, textSize = 16.sp, onClick = onTown)
             Spacer(Modifier.width(12.dp))
-            ArcadeText("Level Map", 28.sp, Color.White)
+            ArcadeText(zoom?.let { "${WORLDS[it].emoji} ${WORLDS[it].name}" } ?: "Level Map", 28.sp, Color.White)
         }
         Row(Modifier.align(Alignment.TopEnd).padding(10.dp)) { BrickBadge(progress); Spacer(Modifier.width(8.dp)); CoinBadge(progress) }
-        if (view > 0) ArcadeButton("◀", color = Palette.royal, textSize = 26.sp, modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp)) { view--; sounds.play("whoosh") }
-        if (view < WORLDS.size - 1) ArcadeButton("▶", color = Palette.royal, textSize = 26.sp, modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp)) { view++; sounds.play("whoosh") }
-        Row(
-            Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp).arcadePanel().padding(horizontal = 14.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Column {
-                ArcadeText("${w.emoji} ${w.name}", 20.sp, Palette.gold)
-                Text("Levels $first-${first + 9} · ${w.villainEmoji} Boss: ${w.villain} · 🧱 ${progress.worldBricks(w.index)}/30", color = Color.White, fontSize = 12.sp, fontWeight = Heavy)
+        if (zoom == null) {
+            if (view > 0) ArcadeButton("◀", color = Palette.royal, textSize = 26.sp, modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp)) { view--; sounds.play("whoosh") }
+            if (view < WORLDS.size - 1) ArcadeButton("▶", color = Palette.royal, textSize = 26.sp, modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp)) { view++; sounds.play("whoosh") }
+            Row(
+                Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp).arcadePanel().padding(horizontal = 14.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Column {
+                    ArcadeText("${w.emoji} ${w.name}", 20.sp, Palette.gold)
+                    Text("Levels $first-${first + 9} · ${w.villainEmoji} Boss: ${w.villain} · 🧱 ${progress.worldBricks(w.index)}/30", color = Color.White, fontSize = 12.sp, fontWeight = Heavy)
+                }
+                if (isOpen) ArcadeButton("Open ▶", textSize = 20.sp) { sounds.play("pop"); zoom = view }
+                else Text("🔒 Beat ${WORLDS[(view - 1).coerceAtLeast(0)].villain} first", color = Palette.cream, fontSize = 14.sp, fontWeight = Heavy)
             }
-            if (isOpen) ArcadeButton("Open ▶", textSize = 20.sp) { sounds.play("pop"); onWorld(view) }
-            else Text("🔒 Beat ${WORLDS[(view - 1).coerceAtLeast(0)].villain} first", color = Palette.cream, fontSize = 14.sp, fontWeight = Heavy)
-        }
+        } else Text(
+            "🧱 ${progress.worldBricks(zoom!!)}/30 · Tap a stone to play",
+            Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp).arcadePanel().padding(horizontal = 14.dp, vertical = 6.dp),
+            color = Color.White, fontSize = 15.sp, fontWeight = Heavy,
+        )
     }
 }

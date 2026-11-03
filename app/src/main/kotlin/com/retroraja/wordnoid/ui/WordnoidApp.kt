@@ -150,15 +150,23 @@ fun WordnoidApp() {
                 onArrivalNext = { n -> arrival = null; screen = if (Levels.get(n) != null) startLevel(n) else Screen.Town },
                 onLandComplete = { d -> screen = storyOr(d, "complete", Screen.Town) },
             )
-            Screen.Map -> LevelMapScreen(progress, sounds, onTown = { screen = Screen.Town }, onWorld = { screen = Screen.World(it) })
+            Screen.Map -> LevelMapScreen(
+                progress, sounds, onTown = { screen = Screen.Town }, onWorld = { screen = Screen.World(it) },
+                onLevel = { screen = startLevel(it) }, onQuiz = { w, slot -> screen = Screen.Quiz(w, slot) },
+            )
             is Screen.World, is Screen.Start -> {
                 val w = if (s is Screen.World) s.world else ((s as Screen.Start).level - 1) / 10
+                // In 3D a world is the island on the 3D map, flown down to (no flat level grid).
+                if (s is Screen.World && Fx.ok) LevelMapScreen(
+                    progress, sounds, onTown = { screen = Screen.Town }, onWorld = { screen = Screen.World(it) },
+                    zoomTo = w, onLevel = { screen = startLevel(it) }, onQuiz = { ww, slot -> screen = Screen.Quiz(ww, slot) },
+                )
                 // In 3D the level start is its own full screen (floating tiles behind a big card).
-                if (s is Screen.World || !Fx.ok) WorldScreen(
+                else if (s is Screen.World || !Fx.ok) WorldScreen(
                     w, progress, sounds,
                     onBack = { screen = Screen.Map },
                     onTown = { screen = Screen.Town },
-                    onLevel = { screen = Screen.Start(it) },
+                    onLevel = { screen = startLevel(it) },
                     onQuiz = { slot -> screen = Screen.Quiz(w, slot) },
                 )
                 if (s is Screen.Start) {
