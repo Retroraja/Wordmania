@@ -60,7 +60,7 @@ class GameController(
     val level: Level,
     private val dict: Dictionary,
     val progress: Progress,
-    private val sounds: SoundFx,
+    val sounds: SoundFx,
     private val haptics: Haptics,
     private val scope: CoroutineScope,
     bonusMoves: Int,
