@@ -73,7 +73,12 @@ class SoundFx(context: Context) {
         }
     }
 
+    /** Voice lines; "wordnoid" and "say:..." names go to it. */
+    var voice: Voice? = null
+
     fun play(name: String) {
+        if (name == "wordnoid") { voice?.say(Voice.WORDNOID); return }
+        if (name.startsWith("say:")) { voice?.say(name.removePrefix("say:")); return }
         if (!enabled) return
         val id = ids[name] ?: return
         runCatching { pool.play(id, 1f, 1f, 1, 0, 1f) }

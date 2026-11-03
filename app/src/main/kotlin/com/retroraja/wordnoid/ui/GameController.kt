@@ -28,6 +28,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
 import kotlin.random.Random
 
 /** The big word shown in the middle of the board. */
@@ -86,6 +88,8 @@ class GameController(
     /** The boss shakes when it is hit (a word) and when it attacks. */
     var bossHitKey by mutableIntStateOf(0); private set
     var bossAttackKey by mutableIntStateOf(0); private set
+    /** Hides the flat board while its 3D copy falls apart (out of moves). */
+    var boardHidden by mutableStateOf(false); private set
     var hint by mutableStateOf<Pair<Pos, Pos>?>(null); private set
     /** A locked letter the player tapped: the "🔓 Unlock" bubble shows over it. */
     var unlockAsk by mutableStateOf<Pos?>(null); private set
@@ -257,7 +261,7 @@ class GameController(
             val r = game.unlock(p)
             if (r == null) { busy = false; return@launch }
             flipping.add(id)
-            particles.sparkle(cellCenter(p), Palette.gold, 14)
+            if (fx3) Fx.call("booster", fxBoard(Fx.at(cellCenter(p), Fx.obj("k" to "UNLOCK")))) else particles.sparkle(cellCenter(p), Palette.gold, 14)
             board = r.changedBoard
             delay(250)
             flipping.clear()
@@ -267,6 +271,9 @@ class GameController(
     }
 
     fun closeUnlock() { unlockAsk = null }
+
+    /** Long press on a booster button: what it does. */
+    fun boosterInfo(b: Booster) { sounds.play("tick"); say("${b.emoji} ${b.title}: ${b.description}", 3200) }
 
     private fun say(text: String, ms: Long = 2400) {
         message = text
@@ -489,7 +496,8 @@ class GameController(
                 Booster.SPIN -> a?.let { listOf(Pos(it.row, it.col + 1), Pos(it.row + 1, it.col), Pos(it.row + 1, it.col + 1)) } ?: emptyList()
                 else -> emptyList()
             }
-            fx = BoosterFx(b, cells, ++keys)
+            if (fx3) Fx.call("booster", fxBoard(Fx.obj("k" to b.name, "cells" to fxCells(cells))).also { o -> a?.let { Fx.at(cellCenter(it), o) } })
+            else fx = BoosterFx(b, cells, ++keys)
             sounds.play(boosterSound(b))
             haptics.tap()
             delay(boosterLead(b))
@@ -582,16 +590,22 @@ class GameController(
         if (!fx0.isEmpty) celebrate(r) else if (r.boardAfter !== r.changedBoard) {
             board = r.boardAfter
         }
-        for (p in fx0.iceCracked) { particles.shards(cellCenter(p)); sounds.play("crack"); say("Cracked! One more hit melts the ice.", 1800) }
+        for (p in fx0.iceCracked) { if (fx3) Fx.call("iceCrack", Fx.at(cellCenter(p))) else particles.shards(cellCenter(p)); sounds.play("crack"); say("Cracked! One more hit melts the ice.", 1800) }
         if (r.rescued > 0) {
             sounds.play("fanfare")
-            toast("🧸 Friend rescued!", center(), Palette.green, big = true)
-            particles.sparkle(center(), Palette.green, 20)
+            if (fx3) Fx.call("friend", Fx.at(center())) else {
+                toast("🧸 Friend rescued!", center(), Palette.green, big = true)
+                particles.sparkle(center(), Palette.green, 20)
+            }
         }
         if (booster != Booster.TREASURE_FINDER) for (i in r.chestsFound) treasureFound(i)
         sync()
         r.bossAttack?.let { atk ->
             bossAttackKey++
+            if (fx3 && level.boss) {
+                Fx.call("bossAttack", Fx.at(cellCenter(atk.pos), Fx.obj("freeze" to atk.freeze)))
+                Fx.await("bossAttackLanded", 1600)
+            }
             sounds.play(if (atk.freeze) "shatter" else "thunk")
             haptics.big()
             say("${worldOf(level.number).villain} ${if (atk.freeze) "froze a tile!" else "dropped a box!"}", 1800)
@@ -622,7 +636,7 @@ class GameController(
     private fun treasureFound(i: Int) {
         val cells = level.chests.getOrNull(i) ?: return
         val at = cellCenter(cells.first())
-        particles.firework(at)
+        if (fx3) Fx.call("chest", Fx.at(at, Fx.obj("n" to 3))) else particles.firework(at)
         sounds.play("fanfare")
         val prize = Rewards.randomBooster(level.number, random)
         progress.addBooster(prize)
@@ -685,8 +699,15 @@ class GameController(
                 if (fx0.bonusWord && w.word == level.bonusWord) add("Bonus word! 🎁")
             }
             banner = WordBanner(w.word, if (fx0.words.size >= 2 && wi == 1) "DOUBLE!" else praise(w.length), lines, ++keys, isNew)
+            if (fx3) {
+                val mid = cellCenter(cellsInOrder[cellsInOrder.size / 2])
+                val first = cellCenter(cellsInOrder.first()); val last = cellCenter(cellsInOrder.last())
+                Fx.call("word", Fx.obj("cells" to fxCells(cellsInOrder, b0), "cx" to Fx.dp((first.x + last.x) / 2), "cy" to Fx.dp((first.y + last.y) / 2),
+                    "text" to (if (fx0.words.size >= 2 && wi == 1) "DOUBLE!" else praise(w.length)), "green" to isNew))
+                if (level.boss) Fx.call("bossHit", Fx.at(mid, Fx.obj("hp" to (1f - liveProgress).toDouble())))
+            }
             haptics.word()
-            if (w.length >= 5) { shakeKey++; haptics.big(); sounds.play("fanfare") }
+            if (w.length >= 5) { shakeKey++; haptics.big(); sounds.play("fanfare"); sounds.play("say:" + praise(w.length).lowercase().trimEnd('!')) }
             // Words stay on screen long enough to read (about 1.5 seconds).
             delay(if (fx0.words.size > 1) 1100 else 1500)
         }
@@ -694,15 +715,15 @@ class GameController(
         val cleared = fx0.cleared
         for (p in cleared) {
             val t = b0[p]
-            if (!t.isCrate) particles.burst(cellCenter(p), tileColor(t), if (fx0.words.any { it.length >= 5 }) 1.4f else 1f)
+            if (!t.isCrate && !fx3) particles.burst(cellCenter(p), tileColor(t), if (fx0.words.any { it.length >= 5 }) 1.4f else 1f)
         }
         if (fx0.words.isNotEmpty()) sounds.play("burst")
         if (fx0.words.any { it.length >= 5 }) {
-            particles.firework(center())
+            if (fx3) Fx.call("fireworks", Fx.obj("n" to 2)) else particles.firework(center())
             sounds.play("bang")
         }
         for (h in fx0.crateHits) {
-            particles.splinters(cellCenter(h.pos))
+            if (!fx3) particles.splinters(cellCenter(h.pos))
             sounds.play("crack")
             if (h.broken) Daily.report(progress, Daily.Kind.CRATES)
             h.prize?.let { prize ->
@@ -713,22 +734,26 @@ class GameController(
                 }
                 if (prize.kind == PrizeKind.COINS) coinsThisLevel += prize.amount
                 // The prize jumps out big and shows its name.
-                particles.sparkle(cellCenter(h.pos), Palette.gold, 18)
-                toast(text, cellCenter(h.pos), Palette.gold, big = true)
+                if (fx3) Fx.call("crate", Fx.at(cellCenter(h.pos), Fx.obj("text" to text, "to" to if (prize.kind == PrizeKind.MOVES) "moves" else "coins")))
+                else {
+                    particles.sparkle(cellCenter(h.pos), Palette.gold, 18)
+                    toast(text, cellCenter(h.pos), Palette.gold, big = true)
+                }
             }
+            if (fx3 && h.prize == null && h.broken) Fx.call("crate", Fx.at(cellCenter(h.pos), Fx.obj("prize" to false)))
         }
         if (fx0.iceMelted.isNotEmpty()) sounds.play("shatter")
-        for (p in fx0.iceMelted) particles.shards(cellCenter(p))
+        for (p in fx0.iceMelted) if (fx3) Fx.call("ice", Fx.at(cellCenter(p))) else particles.shards(cellCenter(p))
         if (fx0.chainsBroken.isNotEmpty()) sounds.play("snap")
-        for (p in fx0.chainsBroken) particles.links(cellCenter(p))
+        for (p in fx0.chainsBroken) if (fx3) Fx.call("chain", Fx.at(cellCenter(p))) else particles.links(cellCenter(p))
         if (fx0.balloons.isNotEmpty()) sounds.play("pop")
-        for (p in fx0.balloons) { particles.burst(cellCenter(p), Palette.pink, 1.2f); toast("🎈 Pop!", cellCenter(p), Palette.pink) }
-        for (p in fx0.gold) { particles.sparkle(cellCenter(p)); particles.coins(cellCenter(p), goalAnchor, 2) }
+        for (p in fx0.balloons) if (fx3) Fx.call("balloon", Fx.at(cellCenter(p), Fx.obj("cell" to Fx.dp(cellPx)))) else { particles.burst(cellCenter(p), Palette.pink, 1.2f); toast("🎈 Pop!", cellCenter(p), Palette.pink) }
+        for (p in fx0.gold) if (fx3) Fx.call("gold", Fx.at(cellCenter(p), Fx.obj("n" to 2))) else { particles.sparkle(cellCenter(p)); particles.coins(cellCenter(p), goalAnchor, 2) }
         if (fx0.gold.isNotEmpty()) Daily.report(progress, Daily.Kind.GOLD, fx0.gold.size)
         // 3. Coins (from boxes) fly to the counter; moves and boosters are handed out.
         if (fx0.coins > 0) {
             val from = fx0.words.firstOrNull()?.cells?.let { cellCenter(it[it.size / 2]) } ?: center()
-            particles.coins(from, coinAnchor, fx0.coins)
+            if (fx3) Fx.call("coins", Fx.at(from, Fx.obj("n" to fx0.coins.coerceAtMost(8)))) else particles.coins(from, coinAnchor, fx0.coins)
             progress.addCoins(fx0.coins)
             scope.launch { delay(700); sounds.play("coin") }
         }
@@ -757,11 +782,20 @@ class GameController(
         hintWords = emptyList()
         delay(400)
         sounds.play("win")
+        sounds.play("wordnoid")
         message = if (level.boss) "You beat ${worldOf(level.number).villain}!" else "LEVEL COMPLETE!"
-        particles.confettiRain(screenWidth)
+        if (fx3) Fx.call("confetti", Fx.obj("x" to Fx.dp(screenWidth / 2), "y" to Fx.dp(screenHeight * 0.3f), "n" to 120, "spread" to 6)) else particles.confettiRain(screenWidth)
         // Leftover moves: tiles burst into coins (1 coin each, up to 10).
         val left = game.movesLeft
-        if (left > 0) {
+        if (left > 0 && fx3) {
+            // Goal reached: the leftover tiles burst one by one into coins that fly to the coin box.
+            wordRain = true
+            val cells = board.positions().filter { board[it].hasLetter }.shuffled(random).take(left.coerceAtMost(10))
+            Fx.call("goalBlast", Fx.obj("cells" to fxCells(cells), "cx" to Fx.dp(center().x), "cy" to Fx.dp(center().y)))
+            Fx.await("goalBlastDone", 4000)
+            wordRain = false
+            if (r.leftoverCoins > 0) { progress.addCoins(r.leftoverCoins); coinsThisLevel += r.leftoverCoins }
+        } else if (left > 0) {
             wordRain = true
             val cells = board.positions().filter { board[it].hasLetter }
             repeat(left.coerceAtMost(10)) {
@@ -774,7 +808,7 @@ class GameController(
             wordRain = false
             if (r.leftoverCoins > 0) { progress.addCoins(r.leftoverCoins); coinsThisLevel += r.leftoverCoins }
         }
-        repeat(5) {
+        if (fx3) { Fx.call("fireworks", Fx.obj("n" to 5)); delay(1300) } else repeat(5) {
             particles.firework(Offset(screenWidth * (0.2f + random.nextFloat() * 0.6f), screenHeight * (0.15f + random.nextFloat() * 0.35f)))
             sounds.play(if (it % 2 == 0) "bang" else "crackle")
             delay(260)
@@ -804,6 +838,13 @@ class GameController(
         idleJob?.cancel()
         delay(500)
         sounds.play("lose")
+        if (fx3) {
+            // The tiles turn grey and fall off the board.
+            Fx.call("lose", Fx.obj("cells" to fxCells(board.positions().filter { board[it].hasLetter || board[it].isCrate })))
+            delay(60)
+            boardHidden = true
+            Fx.await("loseDone", 3000)
+        }
         showLose = true
     }
 
@@ -822,6 +863,7 @@ class GameController(
     private fun addMoves(n: Int) {
         game.continueWith(n)
         showLose = false
+        boardHidden = false
         status = GameStatus.PLAYING
         sync()
         toast("+$n moves!", movesAnchor, Palette.green, big = true)
@@ -862,6 +904,36 @@ class GameController(
     /** Goal progress 0..1 (the boss health bar goes down as this goes up). */
     val goalProgress: Float
         get() = level.targets.sumOf { minOf(it.count, it.progress(stats)) }.toFloat() / level.targets.sumOf { it.count }.coerceAtLeast(1)
+
+    // ---------------------------------------------------------------- 3D layer
+
+    private val fx3 get() = Fx.ok
+
+    private fun fxCell(p: Pos, b: Board = board): JSONObject =
+        Fx.at(cellCenter(p), Fx.obj("ch" to (if (b[p].hasLetter) b[p].letter.uppercaseChar().toString() else " "), "c" to Fx.hex(tileColor(b[p]))))
+
+    private fun fxCells(ps: Collection<Pos>, b: Board = board): JSONArray = JSONArray().apply { ps.forEach { put(fxCell(it, b)) } }
+
+    private fun fxBoard(o: JSONObject): JSONObject = o.put("bx", Fx.dp(boardOrigin.x)).put("by", Fx.dp(boardOrigin.y))
+        .put("bw", Fx.dp(board.cols * cellPx)).put("bh", Fx.dp(board.rows * cellPx)).put("cell", Fx.dp(cellPx))
+
+    /** Tells the 3D layer the cell size and where the counters are. Called when the board is laid out. */
+    fun fxLayout() {
+        if (cellPx <= 1f) return
+        Fx.call("unit", Fx.obj("u" to Fx.dp(cellPx)))
+        Fx.call("anchors", Fx.obj("coins" to Fx.xy(coinAnchor), "moves" to Fx.xy(movesAnchor), "goal" to Fx.xy(goalAnchor)))
+    }
+
+    /** The boss in 3D, peeking over the top of the board. */
+    fun fxBoss() {
+        if (!level.boss || cellPx <= 1f) return
+        Fx.call("bossShow", Fx.obj("x" to Fx.dp(boardOrigin.x), "y" to Fx.dp(boardOrigin.y) - 8.0, "w" to Fx.dp(board.cols * cellPx),
+            "hp" to (1f - goalProgress).toDouble(), "name" to worldOf(level.number).villain.uppercase()))
+    }
+
+    /** Goal progress straight from the game (before the screen catches up). */
+    private val liveProgress: Float
+        get() = level.targets.sumOf { minOf(it.count, it.progress(game.stats)) }.toFloat() / level.targets.sumOf { it.count }.coerceAtLeast(1)
 
     fun cellCenter(p: Pos): Offset = Offset(boardOrigin.x + (p.col + 0.5f) * cellPx, boardOrigin.y + (p.row + 0.5f) * cellPx)
 

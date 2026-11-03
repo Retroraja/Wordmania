@@ -82,7 +82,8 @@ class GameTest {
     }
 
     @Test fun lockedLetterMakesNoWordUntilUnlocked() {
-        val g = Game(level.copy(targets = listOf(Objective.Words(2))), dict)
+        // Row 2 keeps a word possible (DGO -> DOG), so the board is not shuffled after the dry swap.
+        val g = Game(level.copy(start = listOf("CTAQJ", "DGOQJ", "JZQJZ", "QJZQJ"), targets = listOf(Objective.Words(2))), dict)
         // Lock the A, move it next to C and T: no word while locked, the swap still costs a move.
         assertNotNull(g.useBooster(Booster.LOCK, Pos(0, 2)))
         val r = g.swap(Pos(0, 1), Pos(0, 2))

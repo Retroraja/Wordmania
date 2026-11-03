@@ -32,6 +32,8 @@ import com.retroraja.wordnoid.R
 import com.retroraja.wordnoid.audio.SoundFx
 import com.retroraja.wordnoid.core.Tile
 import com.retroraja.wordnoid.data.Progress
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.delay
 import java.time.LocalDate
 
@@ -78,9 +80,34 @@ fun askReview(activity: Activity, progress: Progress, force: Boolean = false) {
     }
 }
 
-/** RetroRaja Games studio intro, then the Wordnoid logo. About 3 seconds, tap to skip. */
+/** RetroRaja Games studio intro, then the Wordnoid logo. In 3D when the phone can draw it. Tap to skip. */
 @Composable
 fun StudioIntro(sounds: SoundFx, onDone: () -> Unit) {
+    // Wait a moment for the 3D layer to start; old phones without it get the flat intro.
+    var mode by remember { mutableIntStateOf(0) } // 0 waiting, 1 3D, 2 flat
+    var done by remember { mutableStateOf(false) }
+    fun finish() { if (!done) { done = true; onDone() } }
+    LaunchedEffect(Unit) {
+        val ok = kotlinx.coroutines.withTimeoutOrNull(2500) { snapshotFlow { Fx.ok }.first { it } } ?: false
+        mode = if (ok) 1 else 2
+        if (ok) {
+            Fx.backdrop("intro")
+            Fx.await("introName", 6800)
+            sounds.play("wordnoid")
+            Fx.await("introDone", 2500)
+            delay(500)
+            finish()
+        }
+    }
+    when (mode) {
+        1 -> Box(Modifier.fillMaxSize().clickable { finish() })
+        0 -> Box(Modifier.fillMaxSize().background(Color(0xFF0B1440)))
+        else -> FlatIntro(sounds) { finish() }
+    }
+}
+
+@Composable
+private fun FlatIntro(sounds: SoundFx, finish: () -> Unit) {
     val logo = remember { Animatable(0f) }
     var step by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) {
@@ -88,11 +115,12 @@ fun StudioIntro(sounds: SoundFx, onDone: () -> Unit) {
         sounds.play("fanfare")
         delay(1300)
         step = 1
+        sounds.play("wordnoid")
         delay(1600)
-        onDone()
+        finish()
     }
     Box(
-        Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0xFF3566E8), Color(0xFF0B1440)))).clickable { onDone() },
+        Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0xFF3566E8), Color(0xFF0B1440)))).clickable { finish() },
         contentAlignment = Alignment.Center,
     ) {
         if (step == 0) Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -106,53 +134,47 @@ fun StudioIntro(sounds: SoundFx, onDone: () -> Unit) {
                     Tile3D(Tile(i.toLong(), ch), 58.dp, Modifier.graphicsLayer { translationY = drop.value; rotationZ = if (i % 2 == 0) -4f else 4f })
                 }
             }
-            Text("Swap · Spell · Build!", color = Color.White, fontSize = 18.sp, fontWeight = Heavy, modifier = Modifier.padding(top = 8.dp))
+            Text("Word Match with Fun Boosters", color = Palette.gold, fontSize = 20.sp, fontWeight = Heavy, modifier = Modifier.padding(top = 8.dp))
         }
     }
 }
 
 /**
- * First time only: a neutral birth-year question (for child-safe ads), then Tiko says hello.
- * Under 13: non-personalised, child-safe ads and no sign-in.
+ * First time only: agree to the privacy policy and say if you are 13 or older (for child-safe ads).
+ * Under 13: non-personalised, child-safe ads and no sign-in. The Wordnoid tiles bob behind in 3D.
  */
 @Composable
 fun FirstTimeScreen(progress: Progress, onDone: () -> Unit) {
-    var step by remember { mutableIntStateOf(if (progress.birthYear == 0) 0 else 1) }
+    val context = LocalContext.current
     val thisYear = LocalDate.now().year
-    var year by remember { mutableIntStateOf(thisYear - 12) }
-    LivingBackground(1) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Column(Modifier.width(500.dp).arcadePanel().padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Tiko(Modifier.size(80.dp))
-                if (step == 0) {
-                    ArcadeText("Hi! I'm Tiko!", 26.sp, Palette.gold)
-                    Text("What year were you born?", color = Color.White, fontSize = 17.sp)
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(10.dp)) {
-                        ArcadeButton("−", color = Palette.slate, textSize = 22.sp) { year = (year - 1).coerceAtLeast(thisYear - 100) }
-                        ArcadeText("  $year  ", 30.sp, Color.White)
-                        ArcadeButton("+", color = Palette.slate, textSize = 22.sp) { year = (year + 1).coerceAtMost(thisYear) }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        for (d in listOf(-10, -5, 5, 10)) Text(
-                            if (d > 0) "+$d" else "$d",
-                            Modifier.background(Color(0x33FFFFFF), RoundedCornerShape(8.dp)).clickable { year = (year + d).coerceIn(thisYear - 100, thisYear) }.padding(horizontal = 10.dp, vertical = 4.dp),
-                            color = Color.White, fontSize = 14.sp,
-                        )
-                    }
-                    Spacer(Modifier.height(10.dp))
-                    ArcadeButton("OK") { progress.birthYear = year; step = 1 }
-                } else {
-                    ArcadeText("Welcome to Wordnoid!", 24.sp, Palette.gold)
-                    Text(
-                        "Villains scrambled the letters of our town! Spell words to beat them, earn Letter Bricks 🧱 and help me rebuild Tiko's Town.",
-                        color = Color.White, fontSize = 16.sp, textAlign = TextAlign.Center, lineHeight = 21.sp,
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    ArcadeButton("Let's play!", onClick = onDone)
+    LaunchedEffect(Fx.ok) { if (Fx.ok) Fx.backdrop("title") }
+    val content: @Composable BoxScope.() -> Unit = {
+        Box(Modifier.fillMaxSize().padding(bottom = 10.dp), contentAlignment = Alignment.BottomCenter) {
+            Column(Modifier.width(520.dp).arcadePanel().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Tiko(Modifier.size(56.dp))
+                    ArcadeText(" Welcome to Wordnoid!", 22.sp, Palette.gold)
+                }
+                Text(
+                    "Spell words, beat the villains and rebuild Tiko's Town!",
+                    color = Color.White, fontSize = 15.sp, textAlign = TextAlign.Center,
+                )
+                Text(
+                    "By playing you agree to our Privacy Policy",
+                    Modifier.padding(top = 4.dp).clickable {
+                        try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY_URL))) } catch (_: Exception) {}
+                    },
+                    color = Palette.cyan, fontSize = 13.sp, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
+                )
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    ArcadeButton("I'm 13 or older") { progress.birthYear = thisYear - 20; onDone() }
+                    ArcadeButton("I'm under 13", color = Palette.slate) { progress.birthYear = thisYear - 10; onDone() }
                 }
             }
         }
     }
+    if (Fx.ok) Box(Modifier.fillMaxSize(), content = content) else LivingBackground(1, content = content)
 }
 
 /** How to play: a short guide (from Settings). */

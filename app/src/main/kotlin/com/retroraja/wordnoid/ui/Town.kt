@@ -27,6 +27,9 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -145,6 +148,7 @@ fun TownScreen(
     onWordbook: () -> Unit,
     onDaily: () -> Unit,
     onSettings: () -> Unit,
+    onQuit: () -> Unit = {},
 ) {
     var tasksOpen by remember { mutableStateOf(false) }
     var fixing by remember { mutableStateOf<Pair<Int, Int>?>(null) }
@@ -156,13 +160,31 @@ fun TownScreen(
     val nextLevel = progress.unlocked.coerceAtMost(Levels.all.size)
     val world = WORLDS[current]
     @Suppress("UNUSED_VARIABLE") val v = progress.version
-    BoxWithConstraints(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(world.top, world.bottom)))) {
+    val use3d = Fx.ok
+    // 3D town: one street at a time, the arrows walk to the other streets. Rebuilt after each fix.
+    var view by remember { mutableIntStateOf(current) }
+    var rev by remember { mutableIntStateOf(0) }
+    LaunchedEffect(use3d, view, rev) { if (use3d) Fx.backdrop("town", townData(DISTRICTS[view], progress, DISTRICTS[view].world <= current)) }
+    BoxWithConstraints(Modifier.fillMaxSize().then(if (use3d) Modifier else Modifier.background(Brush.verticalGradient(listOf(world.top, world.bottom))))) {
         val screenW = maxWidth
         val scroll = rememberScrollState()
         val density = LocalDensity.current
         LaunchedEffect(current) { scroll.scrollTo(with(density) { (screenW * current).toPx() }.toInt()) }
+        if (use3d) {
+            // Drag to turn the street a little.
+            Box(Modifier.fillMaxSize().pointerInput(Unit) {
+                detectDragGestures { _, d -> Fx.act("drag", Fx.obj("dx" to (d.x / density.density).toDouble())) }
+            })
+            val vd = DISTRICTS[view]
+            if (vd.world > current) Text(
+                "🔒 ${vd.name}\nComing after ${WORLDS[vd.world - 1].name}", Modifier.align(Alignment.Center).background(Color(0xAAFFFFFF), RoundedCornerShape(14.dp)).padding(12.dp),
+                color = Color(0xFF1B2140), fontSize = 20.sp, fontWeight = Heavy, textAlign = TextAlign.Center,
+            )
+            if (view > 0) StreetArrow("◀", DISTRICTS[view - 1], progress, current, Modifier.align(Alignment.CenterStart).padding(start = 96.dp)) { view-- ; sounds.play("whoosh") }
+            if (view < DISTRICTS.size - 1) StreetArrow("▶", DISTRICTS[view + 1], progress, current, Modifier.align(Alignment.CenterEnd).padding(end = 10.dp)) { view++; sounds.play("whoosh") }
+        }
         // The long street: one screen-wide district per world. Swipe left and right.
-        Row(Modifier.fillMaxSize().horizontalScroll(scroll)) {
+        if (!use3d) Row(Modifier.fillMaxSize().horizontalScroll(scroll)) {
             for (d in DISTRICTS) {
                 val unlocked = d.world <= current
                 DistrictView(d, progress, unlocked, time, Modifier.width(screenW).fillMaxHeight()) {
@@ -177,9 +199,11 @@ fun TownScreen(
         }
         Column(Modifier.align(Alignment.TopEnd).padding(10.dp), horizontalAlignment = Alignment.End) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("${world.emoji} ${DISTRICTS[current].name}", color = Color.White, fontSize = 16.sp, fontWeight = Heavy, modifier = Modifier.background(Color(0x661A3A9C), RoundedCornerShape(10.dp)).padding(horizontal = 8.dp, vertical = 2.dp))
+                Text(if (use3d) "${WORLDS[view].emoji} ${DISTRICTS[view].name}" else "${world.emoji} ${DISTRICTS[current].name}", color = Color.White, fontSize = 16.sp, fontWeight = Heavy, modifier = Modifier.background(Color(0x661A3A9C), RoundedCornerShape(10.dp)).padding(horizontal = 8.dp, vertical = 2.dp))
                 Spacer(Modifier.width(8.dp))
                 RoundButton("⚙", 34.dp, onClick = onSettings)
+                Spacer(Modifier.width(6.dp))
+                RoundButton("⏻", 34.dp, onClick = onQuit)
             }
         }
         Column(Modifier.align(Alignment.CenterStart).padding(start = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -202,8 +226,11 @@ fun TownScreen(
                 modifier = Modifier.scale(1f + 0.04f * bounce),
             ) { sounds.play("pop"); onPlay() }
         }
-        if (tasksOpen) TasksDialog(DISTRICTS[current], progress, sounds, onClose = { tasksOpen = false }, onDo = { i -> tasksOpen = false; fixing = current to i })
-        fixing?.let { (d, i) -> FixScene(DISTRICTS[d], i, sounds, onDone = { fixing = null }) }
+        if (tasksOpen) TasksDialog(DISTRICTS[current], progress, sounds, onClose = { tasksOpen = false }, onDo = { i -> tasksOpen = false; view = current; fixing = current to i })
+        fixing?.let { (d, i) ->
+            if (use3d) FixScene3D(DISTRICTS[d], i, sounds, onDone = { fixing = null; rev++ })
+            else FixScene(DISTRICTS[d], i, sounds, onDone = { fixing = null })
+        }
         buildingGift?.let { w ->
             DimBox {
                 Column(Modifier.width(400.dp).arcadePanel().padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -403,6 +430,69 @@ private fun TasksDialog(d: District, progress: Progress, sounds: SoundFx, onClos
     }
 }
 
+/** Unfinished tasks in a street the player can build in. */
+private fun openTasks(d: District, progress: Progress, current: Int): Int =
+    if (d.world > current) 0 else d.tasks.indices.count { !progress.taskDone(d.world, it) }
+
+/** Arrow at the screen edge to walk to the next street, with how many tasks are waiting there. */
+@Composable
+private fun StreetArrow(arrow: String, d: District, progress: Progress, current: Int, modifier: Modifier, onClick: () -> Unit) {
+    val n = openTasks(d, progress, current)
+    Column(modifier.clickable(onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(arrow, color = Color.White, fontSize = 30.sp, modifier = Modifier.background(Color(0x881A3A9C), CircleShape).padding(10.dp))
+        Text(d.name, color = Color.White, fontSize = 11.sp, fontWeight = Heavy, modifier = Modifier.background(Color(0x881A3A9C), RoundedCornerShape(6.dp)).padding(horizontal = 4.dp))
+        if (n > 0) Text("🔨 $n tasks", color = Color.White, fontSize = 11.sp, fontWeight = Heavy, modifier = Modifier.padding(top = 2.dp).background(Palette.red, RoundedCornerShape(6.dp)).padding(horizontal = 4.dp))
+    }
+}
+
+private val SHOP_COLORS = listOf("#ff7eb6", "#7ed957", "#ffb84d", "#6fc3ff")
+
+/** What the 3D street shows: shops are grey until their task is built; the big building gets its colours when all 8 tasks are done. */
+private fun townData(d: District, progress: Progress, unlocked: Boolean): org.json.JSONObject {
+    val w = WORLDS[d.world]
+    val shops = org.json.JSONArray()
+    for (i in 0 until 4) shops.put(Fx.obj(
+        "name" to d.signs[i].second, "bad" to d.signs[i].first, "fixed" to (unlocked && spotFixed(progress, d, i)),
+        "col" to SHOP_COLORS[i], "roof" to SHOP_COLORS[(i + 2) % 4],
+    ))
+    val allDone = unlocked && progress.tasksDone(d.world) >= d.tasks.size
+    return Fx.obj(
+        "shops" to shops,
+        "big" to Fx.obj("name" to d.building, "fixed" to allDone, "label" to if (allDone) null else d.building, "col" to Fx.hex(w.bottom), "roof" to "#ffc93c"),
+        "deco" to Fx.obj("fountain" to (unlocked && spotFixed(progress, d, 4)), "trees" to (unlocked && spotFixed(progress, d, 5)),
+            "lamps" to (unlocked && spotFixed(progress, d, 6)), "extra" to (unlocked && spotFixed(progress, d, 7))),
+        "skyTop" to Fx.hex(w.top), "sky" to Fx.hex(w.bottom), "grass" to Fx.hex(w.ground),
+    )
+}
+
+/** 3D: Tiko hops over, bricks fly in, the colours and the sign come back. Then the story card. */
+@Composable
+private fun FixScene3D(d: District, task: Int, sounds: SoundFx, onDone: () -> Unit) {
+    val t = d.tasks[task]
+    var step by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        if (t.spot < 4) {
+            Fx.act("fix", Fx.obj("spot" to t.spot))
+            Fx.await("townFixDone", 9000)
+        } else {
+            Fx.act("cheer")
+            sounds.play("fanfare")
+            delay(900)
+        }
+        step = 1
+    }
+    if (step == 0) Box(Modifier.fillMaxSize().clickable(remember { MutableInteractionSource() }, null) {})
+    else DimBox(0.35f) {
+        Column(Modifier.width(440.dp).arcadePanel().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            ArcadeText(t.title, 22.sp, Palette.gold)
+            Text(t.story, color = Color.White, fontSize = 15.sp, textAlign = TextAlign.Center)
+            Text("+🪙${t.coins}" + (t.booster?.let { "  +${it.emoji} ${it.title}" } ?: ""), color = Palette.gold, fontSize = 18.sp, fontWeight = Heavy)
+            Spacer(Modifier.height(8.dp))
+            ArcadeButton("Yay!", onClick = onDone)
+        }
+    }
+}
+
 /** Tiko runs over and fixes the spot: hammering, sparkles, grey turns to colour, then a story line and the reward. */
 @Composable
 private fun FixScene(d: District, task: Int, sounds: SoundFx, onDone: () -> Unit) {
@@ -430,6 +520,23 @@ private fun FixScene(d: District, task: Int, sounds: SoundFx, onDone: () -> Unit
                 Spacer(Modifier.height(8.dp))
                 ArcadeButton("Yay!", onClick = onDone)
             } else Text("Tiko is building…", color = Color.White, fontSize = 14.sp)
+        }
+    }
+}
+
+/** "Leave Wordnoid?" when Back is pressed (or Quit tapped) on the home screen. */
+@Composable
+fun LeaveDialog(onYes: () -> Unit, onNo: () -> Unit) {
+    DimBox {
+        Column(Modifier.width(360.dp).arcadePanel().padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Tiko(Modifier.size(64.dp))
+            ArcadeText("Leave Wordnoid?", 24.sp, Palette.gold)
+            Text("Tiko will miss you! Your town and levels are saved.", color = Color.White, fontSize = 14.sp, textAlign = TextAlign.Center)
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                ArcadeButton("Yes", color = Color(0xFFE5533D), onClick = onYes)
+                ArcadeButton("Cancel", onClick = onNo)
+            }
         }
     }
 }

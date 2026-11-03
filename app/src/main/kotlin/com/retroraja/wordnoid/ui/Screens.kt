@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.sp
 import com.retroraja.wordnoid.ads.Ads
 import com.retroraja.wordnoid.audio.SoundFx
 import com.retroraja.wordnoid.core.Booster
+import com.retroraja.wordnoid.core.Themes
 import com.retroraja.wordnoid.core.Level
 import com.retroraja.wordnoid.data.Progress
 import com.retroraja.wordnoid.data.Rewards
@@ -89,6 +90,8 @@ fun LevelStartCard(level: Level, progress: Progress, sounds: SoundFx, onPlay: (L
                 Text(o.icon, fontSize = 20.sp)
                 Text("  ${o.text}", color = Color.White, fontSize = 14.sp, fontWeight = Heavy)
             }
+            // Theme goal: say what the theme means, with 3 example words as tiles.
+            level.themeName()?.let { Themes.byName(it) }?.let { th -> ThemeHelp(th) }
             if (level.introBoosters.isNotEmpty()) Text(
                 "New booster: " + level.introBoosters.joinToString { "${it.emoji} ${it.title}" } + " (first one free!)",
                 color = Palette.green, fontSize = 13.sp, fontWeight = Heavy, modifier = Modifier.padding(top = 4.dp),
@@ -271,5 +274,19 @@ fun BoostersGuide(progress: Progress, onBack: () -> Unit) {
                 }
             }
         }
+    }
+}
+
+/** "Animals: Animals, birds and bugs" and 3 example words as small tiles. */
+@Composable
+fun ThemeHelp(th: com.retroraja.wordnoid.core.Themes.Theme) {
+    Column(Modifier.padding(top = 6.dp).softCard().padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text("${th.emoji} ${th.name} words: ${th.about}", color = Palette.gold, fontSize = 14.sp, fontWeight = Heavy)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 4.dp)) {
+            for (w in th.examples) Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+                w.forEachIndexed { i, ch -> Tile3D(com.retroraja.wordnoid.core.Tile(i.toLong(), ch), 22.dp) }
+            }
+        }
+        Text("Like these!", color = Palette.cream, fontSize = 11.sp)
     }
 }

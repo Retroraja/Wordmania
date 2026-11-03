@@ -126,7 +126,7 @@ fun BoardView(c: GameController, cell: Dp, modifier: Modifier = Modifier) {
         }
         val tut = c.tutorial
         val handCells = tut?.swap?.toList() ?: emptyList()
-        for (p in board.positions()) {
+        if (!c.boardHidden) for (p in board.positions()) {
             val tile = board[p]
             key(tile.id) {
                 val target = Offset(p.col * cellPx, p.row * cellPx)

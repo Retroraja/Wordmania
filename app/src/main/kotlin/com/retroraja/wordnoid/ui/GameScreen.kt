@@ -13,6 +13,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -76,6 +77,18 @@ fun GameScreen(
     LaunchedEffect(Unit) { if (intro == null) c.begin() }
     LaunchedEffect(Unit) { if (bonus > 0) c.toast("+3 bonus moves to help you!", Offset(400f, 300f), Palette.green, big = true) }
 
+    // 3D layer: on top of the game; the boss peeks over the board; hidden behind cards and dialogs.
+    LaunchedEffect(Fx.ok) {
+        Fx.backdrop(null)
+        if (Fx.ok) { kotlinx.coroutines.delay(500); c.fxLayout(); c.fxBoss() }
+    }
+    DisposableEffect(Unit) { onDispose { Fx.call("clear") } }
+    val covered = paused || more || intro != null || c.showLose || c.mysteryCards != null || c.buyAsk != null || c.letterPick != null
+    LaunchedEffect(covered) { Fx.call("bossHold", Fx.obj("on" to covered)) }
+
+    // Back button in a level opens the pause menu (Resume, Restart, Level Map, Home).
+    androidx.activity.compose.BackHandler { if (!c.showWin && !c.showLose) paused = !paused }
+
     val shake = remember { Animatable(0f) }
     LaunchedEffect(c.shakeKey) {
         if (c.shakeKey > 0) for (i in 0 until 8) { shake.animateTo(if (i % 2 == 0) 14f - i else -14f + i, tween(35)) }
@@ -87,9 +100,10 @@ fun GameScreen(
             val density = LocalDensity.current
             with(density) { c.screenWidth = maxWidth.toPx(); c.screenHeight = maxHeight.toPx() }
             val sideW = maxWidth * 0.25f
-            val rightW = maxWidth * 0.17f
+            val rightW = maxWidth * 0.2f
             val stripH = 54.dp
-            val bossH = if (level.boss) 56.dp else 0.dp
+            // The 3D boss needs room above the board; the flat boss bar is smaller.
+            val bossH = if (!level.boss) 0.dp else if (Fx.ok) maxHeight * 0.24f else 56.dp
             val boardW = maxWidth - sideW - rightW - 44.dp
             val boardH = maxHeight - stripH - bossH - 34.dp
             // A smaller board than Build 1, so the panels and text can be bigger.
@@ -100,7 +114,8 @@ fun GameScreen(
             ) {
                 LeftPanel(c, Modifier.width(sideW).fillMaxHeight(), onPause = { paused = true })
                 Column(Modifier.weight(1f).fillMaxHeight().padding(horizontal = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    if (level.boss) BossBar(c, Modifier.height(bossH))
+                    if (level.boss && !Fx.ok) BossBar(c, Modifier.height(bossH))
+                    if (level.boss && Fx.ok) Spacer(Modifier.height(bossH))
                     Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { BoardView(c, cell) }
                     Box(Modifier.height(stripH).clickable(remember { MutableInteractionSource() }, null) { c.dismissTutorial() }, contentAlignment = Alignment.Center) {
                         TikoStrip(c.stripText, highlight = c.tutorial != null || c.message != null)
@@ -120,7 +135,7 @@ fun GameScreen(
                 onTown = { Ads.maybeInterstitial(activity, level.number) { onTown() } },
             )
             if (c.showLose) LoseDialog(c, activity, onRetry = { c.giveUp(); onRestart() }, onMap = { c.giveUp(); onMap() })
-            if (paused) PauseDialog(progress, c, activity, onResume = { paused = false }, onRestart = onRestart, onMap = onMap)
+            if (paused) PauseDialog(progress, c, activity, onResume = { paused = false }, onRestart = onRestart, onMap = onMap, onHome = onTown)
             intro?.let { card -> IntroCard(card, onGo = { intro = null; c.begin() }) }
         }
     }
@@ -235,6 +250,11 @@ private fun LeftPanel(c: GameController, modifier: Modifier, onPause: () -> Unit
 
 @Composable
 private fun GoalRow(o: Objective, c: GameController) {
+    var themeOpen by remember { mutableStateOf(false) }
+    val theme = (o as? Objective.Theme)?.let { com.retroraja.wordnoid.core.Themes.byName(it.theme) }
+    if (themeOpen && theme != null) androidx.compose.ui.window.Popup(onDismissRequest = { themeOpen = false }) {
+        Box(Modifier.clickable { themeOpen = false }.background(Color(0xEE1A2E7A), RoundedCornerShape(12.dp)).padding(4.dp)) { ThemeHelp(theme) }
+    }
     val done = o.done(c.stats)
     val have = minOf(o.count, o.progress(c.stats))
     val frac by animateFloatAsState(have.toFloat() / o.count.coerceAtLeast(1), tween(500), label = "goal")
@@ -242,6 +262,7 @@ private fun GoalRow(o: Objective, c: GameController) {
         Modifier
             .fillMaxWidth()
             .background(if (done) Color(0x6639E07A) else Color(0x33FFFFFF), RoundedCornerShape(10.dp))
+            .then(if (theme != null) Modifier.clickable { themeOpen = !themeOpen } else Modifier)
             .padding(horizontal = 6.dp, vertical = 3.dp)
             .onGloballyPositioned { if (o is Objective.Gold) c.goalAnchor = it.positionInRoot() + Offset(20f, it.size.height / 2f) },
     ) {
@@ -249,7 +270,7 @@ private fun GoalRow(o: Objective, c: GameController) {
             if (o is Objective.Letter) Tile3D(com.retroraja.wordnoid.core.Tile(0, o.letter), 20.dp)
             else if (o is Objective.Gold) Tile3D(com.retroraja.wordnoid.core.Tile(0, 'G', kind = com.retroraja.wordnoid.core.TileKind.GOLD), 20.dp)
             else Text(o.icon, fontSize = 15.sp)
-            Text(o.text, Modifier.weight(1f).padding(start = 5.dp), fontSize = 11.sp, color = Color.White, fontWeight = Heavy, lineHeight = 12.sp, maxLines = 3)
+            Text(o.text + if (theme != null) " ⓘ" else "", Modifier.weight(1f).padding(start = 5.dp), fontSize = 11.sp, color = Color.White, fontWeight = Heavy, lineHeight = 12.sp, maxLines = 3)
             if (done) Text("✅", fontSize = 13.sp)
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -307,8 +328,8 @@ private fun RightPanel(c: GameController, modifier: Modifier, onMore: () -> Unit
     ) {
         Text("Boosters", fontSize = 11.sp, color = Palette.gold, fontWeight = Heavy)
         val list = panelBoosters(c)
-        for (row in list.chunked(2)) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            for (b in row) BoosterButton(b, c, 46.dp)
+        for (row in list.chunked(2)) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            for (b in row) BoosterButton(b, c, 54.dp, showName = true)
         }
         if (Booster.unlockedAt(c.level.number).size > 6) RoundButton("⋯", 32.dp, label = "More", onClick = onMore)
     }
@@ -329,7 +350,8 @@ fun RoundButton(text: String, size: Dp, label: String? = null, onClick: () -> Un
 }
 
 @Composable
-fun BoosterButton(b: Booster, c: GameController, size: Dp = 50.dp, onUsed: () -> Unit = {}) {
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+fun BoosterButton(b: Booster, c: GameController, size: Dp = 50.dp, showName: Boolean = false, onUsed: () -> Unit = {}) {
     val anim = rememberInfiniteTransition(label = "bb")
     val pulse by anim.animateFloat(1f, 1.15f, infiniteRepeatable(tween(450), RepeatMode.Reverse), label = "p")
     val spotlight = c.tutorial?.booster == b || c.nudge == b
@@ -337,6 +359,8 @@ fun BoosterButton(b: Booster, c: GameController, size: Dp = 50.dp, onUsed: () ->
     val count = c.progress.count(b)
     val free = c.progress.hasFreeUse(b)
     val owned = free || count > 0
+    val icon = Fx.icons[b.name]
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
     Box(contentAlignment = Alignment.Center) {
         Box(
             Modifier
@@ -349,9 +373,16 @@ fun BoosterButton(b: Booster, c: GameController, size: Dp = 50.dp, onUsed: () ->
                     CircleShape,
                 )
                 .border(if (spotlight) 4.dp else 2.dp, if (spotlight) Color.White else Palette.gold, CircleShape)
-                .clickable(remember { MutableInteractionSource() }, null) { c.boosterTapped(b); onUsed() },
+                .combinedClickable(
+                    interactionSource = remember { MutableInteractionSource() }, indication = null,
+                    onLongClick = { c.boosterInfo(b) },
+                ) { c.boosterTapped(b); onUsed() },
             contentAlignment = Alignment.Center,
-        ) { Text(b.emoji, fontSize = (size.value * 0.46f).sp) }
+        ) {
+            // The 3D picture of the tool when the phone can draw it, else the emoji.
+            if (icon != null) androidx.compose.foundation.Image(icon, b.title, Modifier.fillMaxSize(0.92f))
+            else Text(b.emoji, fontSize = (size.value * 0.5f).sp)
+        }
         val badge = when {
             free -> "FREE"
             count > 0 -> "$count"
@@ -362,8 +393,10 @@ fun BoosterButton(b: Booster, c: GameController, size: Dp = 50.dp, onUsed: () ->
             Modifier.align(Alignment.BottomEnd).offset(6.dp, 4.dp)
                 .background(if (free) Palette.green else if (count > 0) Palette.red else Color(0xFF2B2F4A), RoundedCornerShape(8.dp))
                 .padding(horizontal = 4.dp),
-            fontSize = 9.sp, color = Color.White, fontWeight = Heavy,
+            fontSize = 11.sp, color = Color.White, fontWeight = Heavy,
         )
+    }
+    if (showName) Text(b.title, fontSize = 10.sp, color = Palette.cream, fontWeight = Heavy, maxLines = 1, lineHeight = 11.sp)
     }
 }
 

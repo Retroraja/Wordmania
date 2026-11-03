@@ -16,6 +16,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.retroraja.wordnoid.ads.Ads
 import com.retroraja.wordnoid.audio.Music
 import com.retroraja.wordnoid.audio.SoundFx
+import com.retroraja.wordnoid.audio.Voice
 import com.retroraja.wordnoid.core.Booster
 import com.retroraja.wordnoid.core.Dictionary
 import com.retroraja.wordnoid.core.Levels
@@ -46,10 +47,11 @@ fun WordnoidApp() {
     val context = LocalContext.current
     val activity = context as Activity
     val progress = remember { Progress(context) }
-    val sounds = remember { SoundFx(context).also { Fx.sounds = it } }
+    val sounds = remember { SoundFx(context).also { Fx.sounds = it; it.voice = Voice(context) } }
     val music = remember { Music() }
     val haptics = remember { Haptics(context) }
-    DisposableEffect(Unit) { onDispose { sounds.release(); music.release() } }
+    DisposableEffect(Unit) { onDispose { sounds.release(); sounds.voice?.release(); music.release() } }
+    LaunchedEffect(progress.voice, progress.sound) { sounds.voice?.enabled = progress.voice && progress.sound }
     LaunchedEffect(progress.sound) { sounds.enabled = progress.sound }
     LaunchedEffect(progress.music) { music.enabled = progress.music }
     LaunchedEffect(progress.vibration) { haptics.enabled = progress.vibration }
@@ -95,6 +97,15 @@ fun WordnoidApp() {
     fun go(s: Screen) { back = screen; screen = s }
     fun levelScreen(n: Int): Screen = Screen.World(((n - 1) / 10).coerceIn(0, WORLDS.size - 1))
 
+    // 3D scenes live behind only these screens; everywhere else the 3D layer is just for effects.
+    LaunchedEffect(screen) {
+        if (screen != Screen.Intro && screen != Screen.FirstTime && screen != Screen.Town) Fx.backdrop(null)
+    }
+
+    // Back on the home screen asks before leaving.
+    var leaveAsk by remember { mutableStateOf(false) }
+    BackHandler(enabled = screen == Screen.Town) { leaveAsk = !leaveAsk }
+
     BackHandler(enabled = screen != Screen.Town) {
         screen = when (val s = screen) {
             is Screen.Play, is Screen.Start -> levelScreen((s as? Screen.Play)?.level ?: (s as Screen.Start).level)
@@ -123,6 +134,7 @@ fun WordnoidApp() {
                 onWordbook = { go(Screen.Wordbook) },
                 onDaily = { go(Screen.Daily) },
                 onSettings = { go(Screen.Settings) },
+                onQuit = { leaveAsk = true },
             )
             Screen.Map -> LevelMapScreen(progress, sounds, onTown = { screen = Screen.Town }, onWorld = { screen = Screen.World(it) })
             is Screen.World, is Screen.Start -> {
@@ -183,5 +195,7 @@ fun WordnoidApp() {
                 }
             }
         }
+        if (leaveAsk && screen == Screen.Town) LeaveDialog(onYes = { activity.finish() }, onNo = { leaveAsk = false })
     }
+
 }

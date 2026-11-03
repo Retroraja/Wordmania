@@ -24,6 +24,7 @@ class Progress(context: Context) {
     var music by mutableStateOf(prefs.getBoolean("music", true)); private set
     var sound by mutableStateOf(prefs.getBoolean("sound", true)); private set
     var vibration by mutableStateOf(prefs.getBoolean("vibration", true)); private set
+    var voice by mutableStateOf(prefs.getBoolean("voice", true)); private set
     var notifications by mutableStateOf(prefs.getBoolean("notifications", true)); private set
     var noAds by mutableStateOf(prefs.getBoolean("no_ads", false)); private set
     /** Bricks spent on town tasks. Bricks to spend = earned - spent. */
@@ -130,6 +131,7 @@ class Progress(context: Context) {
     // ---------------------------------------------------------------- settings
 
     fun toggleMusic() { music = !music; prefs.edit().putBoolean("music", music).apply() }
+    fun toggleVoice() { voice = !voice; prefs.edit().putBoolean("voice", voice).apply() }
     fun toggleSound() { sound = !sound; prefs.edit().putBoolean("sound", sound).apply() }
     fun toggleVibration() { vibration = !vibration; prefs.edit().putBoolean("vibration", vibration).apply() }
     fun toggleNotifications() { notifications = !notifications; prefs.edit().putBoolean("notifications", notifications).apply() }

@@ -69,7 +69,7 @@ import kotlin.math.sin
 fun Overlays(c: GameController) {
     c.banner?.let { b -> key(b.key) { WordBannerView(b) } }
     for (t in c.toasts) key(t.id) { ToastView(t) }
-    c.fx?.let { f -> key(f.key) { BoosterFxView(f, c) } }
+    if (!Fx.ok) c.fx?.let { f -> key(f.key) { BoosterFxView(f, c) } }
     if (c.wordRain) MessageBar("☔ Leftover moves burst into coins!")
 }
 
@@ -458,6 +458,7 @@ fun LoseDialog(c: GameController, activity: Activity, onRetry: () -> Unit, onMap
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     ArcadeButton("Try again", color = Color(0xFFE5533D), textSize = 16.sp, onClick = onRetry)
                     ArcadeButton("Level Map", color = Palette.slate, textSize = 16.sp, onClick = onMap)
+                    ArcadeButton("🏠 Home", color = Palette.slate, textSize = 16.sp, onClick = onHome)
                 }
                 // A free Hammer after a fail, for a video.
                 var gotHammer by remember { mutableStateOf(false) }
@@ -468,10 +469,10 @@ fun LoseDialog(c: GameController, activity: Activity, onRetry: () -> Unit, onMap
 }
 
 @Composable
-fun PauseDialog(progress: Progress, c: GameController, activity: Activity, onResume: () -> Unit, onRestart: () -> Unit, onMap: () -> Unit) {
+fun PauseDialog(progress: Progress, c: GameController, activity: Activity, onResume: () -> Unit, onRestart: () -> Unit, onMap: () -> Unit, onHome: () -> Unit) {
     DimBox {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.width(340.dp).arcadePanel().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.width(400.dp).arcadePanel().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 ArcadeText("Paused", 26.sp, Palette.gold)
                 Text(c.level.targets.joinToString("\n") { "${it.icon} ${it.text}: ${minOf(it.count, it.progress(c.stats))}/${it.count}" }, color = Color.White, fontSize = 13.sp, textAlign = TextAlign.Center)
                 SettingsToggles(progress)
@@ -492,6 +493,7 @@ fun SettingsToggles(progress: Progress) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Toggle("🎵", "Music", progress.music) { progress.toggleMusic() }
         Toggle("🔊", "Sound", progress.sound) { progress.toggleSound() }
+        Toggle("🗣️", "Voice", progress.voice) { progress.toggleVoice() }
         Toggle("📳", "Vibrate", progress.vibration) { progress.toggleVibration() }
         Toggle("🔔", "Reminders", progress.notifications) { progress.toggleNotifications() }
     }

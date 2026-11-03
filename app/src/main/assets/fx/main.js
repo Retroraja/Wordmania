@@ -317,7 +317,9 @@ function bossArm(i,t){const b=boss,s=i?1:-1,h=b.BS.hands[i],a=b.BS.arms[i];const
   else{h.position.copy(h.userData.grip);h.position.y+=Math.abs(Math.sin(t*2.6+i*1.7))*.08*b.sc}
   const M=S.clone().add(h.position).multiplyScalar(.5).add(v3(s*.55*b.sc,.55*b.sc,-.15*b.sc));
   placeSeg(a.up,S,M);placeSeg(a.lo,M,h.position);a.up.scale.x=a.up.scale.z=a.lo.scale.x=a.lo.scale.z=b.sc;a.j1.position.copy(S);a.j2.position.copy(M);a.j1.scale.setScalar(b.sc);a.j2.scale.setScalar(b.sc)}
-function bossUpdate(dt,t){const b=boss;if(!b)return;const g=b.BS.g,bod=b.BS.bod;
+let bossHeld=false;
+function bossUpdate(dt,t){const b=boss;if(!b)return;const g=b.BS.g,bod=b.BS.bod;const vis=!bossHeld;g.visible=vis;b.bar.visible=vis;
+  if(b.state!=='dead'){b.BS.hands.forEach(h=>h.visible=vis);b.BS.arms.forEach(a=>Object.values(a).forEach(m=>m.visible=vis))}
   if(b.state!=='dead'){const k=T-b.stT;const lean=b.state==='attack'?Math.min(1,k*3)*(k<1.4?1:Math.max(0,1-(k-1.4)*3)):0;const fl=b.state==='hit'?Math.max(0,1-k*.8):0;
     g.position.copy(b.root);g.position.y+=(Math.sin(t*1.8)*.08+lean*.3)*b.sc;g.rotation.set(lean*.28-fl*.3+Math.sin(T*22)*.03*fl,Math.sin(t*.7)*.1,Math.sin(t*.9)*.04);
     bod.scale.set(1+Math.sin(t*2.2)*.015,1-Math.sin(t*2.2)*.015,1);
@@ -347,7 +349,7 @@ function ovUpdate(dt,t){bossUpdate(dt,t);if(cardSet&&!cardSet.picked)cardSet.lis
 
 /* ====================================================================== backdrops (full-screen scenes) */
 const SCENES={};
-function setBackdrop(name,data){if(bd&&bd.api.dispose){use(bd.world);try{bd.api.dispose()}catch(e){}}$('#introName').classList.remove('show');$('#introSub').classList.remove('show');document.body.className='';
+function setBackdrop(name,data){document.body.style.background="";if(bd&&bd.api.dispose){use(bd.world);try{bd.api.dispose()}catch(e){}}$('#introName').classList.remove('show');$('#introSub').classList.remove('show');document.body.className='';
   bd=null;shake=0;if(!name||!SCENES[name]){use(ov);return}const world=mkWorld(40);world.cam.aspect=W/H;world.cam.updateProjectionMatrix();use(world);
   const api=SCENES[name](world,data||{});bd={world,name,api};api.start&&api.start();use(ov)}
 function act(name,data){if(!bd||!bd.api.act)return;use(bd.world);bd.api.act(name,data||{});use(ov)}
@@ -596,7 +598,7 @@ window.FX={
   crate:wrap(crateBreak),iceCrack:wrap(iceCrack),ice:wrap(iceBreak),chain:wrap(chainBreak),gold:wrap(goldBurst),balloon:wrap(balloonPop),chest:wrap(chestOpen),friend:wrap(friendHop),
   booster:wrap(booster),win:wrap(win),winClear:wrap(winClear),lose:wrap(lose),confetti:wrap(confetti),fireworks:wrap(fireworks),
   cards:wrap(cards),cardPick:wrap(cardPick),cardsClear:wrap(cardsClear),
-  bossShow:wrap(bossShow),bossHit:wrap(bossHit),bossAttack:wrap(bossAttack),bossDefeat:wrap(bossDefeat),bossHide:wrap(bossHide),
+  bossShow:wrap(bossShow),bossHold:wrap(o=>{bossHeld=!!o.on}),bossHit:wrap(bossHit),bossAttack:wrap(bossAttack),bossDefeat:wrap(bossDefeat),bossHide:wrap(bossHide),
   shopShow:wrap(shopShow),shopHide:wrap(shopHide),shopBuy:wrap(shopBuy),
   icons:wrap(icons),
 };
