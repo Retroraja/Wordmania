@@ -29,6 +29,7 @@ import com.retroraja.wordnoid.data.Progress
 /** Level Map: a grid of world cards. Locked worlds look frosted. */
 @Composable
 fun LevelMapScreen(progress: Progress, sounds: SoundFx, onTown: () -> Unit, onWorld: (Int) -> Unit) {
+    if (Fx.ok) { LevelMap3D(progress, sounds, onTown, onWorld); return }
     LivingBackground(progress.unlocked.coerceAtMost(50)) {
         Column(Modifier.fillMaxSize().padding(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -159,4 +160,46 @@ fun WorldScreen(world: Int, progress: Progress, sounds: SoundFx, onBack: () -> U
 private sealed interface Card {
     data class L(val i: Int) : Card
     data class Q(val slot: Int) : Card
+}
+
+
+/** The 3D level map (as the approved preview): floating islands, Tiko on the stepping stones of the current world. */
+@Composable
+private fun LevelMap3D(progress: Progress, sounds: SoundFx, onTown: () -> Unit, onWorld: (Int) -> Unit) {
+    val cur = ((progress.unlocked.coerceAtMost(50) - 1) / 10).coerceIn(0, WORLDS.size - 1)
+    var view by remember { mutableIntStateOf(cur) }
+    val open = WORLDS.count { progress.unlocked >= it.index * 10 + 1 }
+    LaunchedEffect(Unit) {
+        val names = org.json.JSONArray().apply { WORLDS.forEach { put("${it.index + 1} ${it.name}") } }
+        Fx.backdrop("map", Fx.obj("names" to names, "open" to open, "world" to cur, "level" to ((progress.unlocked.coerceAtMost(50) - 1) % 10)))
+    }
+    LaunchedEffect(view) { Fx.act("world", Fx.obj("w" to view)) }
+    val w = WORLDS[view]
+    val first = w.index * 10 + 1
+    val isOpen = progress.unlocked >= first
+    Box(Modifier.fillMaxSize()) {
+        // Tap the island to open the world.
+        Box(Modifier.fillMaxSize().clickable(remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, null) {
+            if (isOpen) { sounds.play("pop"); onWorld(view) } else sounds.play("nope")
+        })
+        Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            ArcadeButton("🏠 Town", color = Palette.slate, textSize = 16.sp, onClick = onTown)
+            Spacer(Modifier.width(12.dp))
+            ArcadeText("Level Map", 28.sp, Color.White)
+        }
+        Row(Modifier.align(Alignment.TopEnd).padding(10.dp)) { BrickBadge(progress); Spacer(Modifier.width(8.dp)); CoinBadge(progress) }
+        if (view > 0) ArcadeButton("◀", color = Palette.royal, textSize = 26.sp, modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp)) { view--; sounds.play("whoosh") }
+        if (view < WORLDS.size - 1) ArcadeButton("▶", color = Palette.royal, textSize = 26.sp, modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp)) { view++; sounds.play("whoosh") }
+        Row(
+            Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp).arcadePanel().padding(horizontal = 14.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Column {
+                ArcadeText("${w.emoji} ${w.name}", 20.sp, Palette.gold)
+                Text("Levels $first-${first + 9} · ${w.villainEmoji} Boss: ${w.villain} · 🧱 ${progress.worldBricks(w.index)}/30", color = Color.White, fontSize = 12.sp, fontWeight = Heavy)
+            }
+            if (isOpen) ArcadeButton("Open ▶", textSize = 20.sp) { sounds.play("pop"); onWorld(view) }
+            else Text("🔒 Beat ${WORLDS[(view - 1).coerceAtLeast(0)].villain} first", color = Palette.cream, fontSize = 14.sp, fontWeight = Heavy)
+        }
+    }
 }

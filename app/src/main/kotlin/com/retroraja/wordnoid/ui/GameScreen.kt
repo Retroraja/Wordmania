@@ -66,15 +66,19 @@ fun GameScreen(
     onTown: () -> Unit,
     onRestart: () -> Unit,
     onNext: (Int) -> Unit,
+    onAutoTown: (coins: Int, bricks: Int) -> Unit = { _, _ -> onTown() },
 ) {
     val scope = rememberCoroutineScope()
     val activity = LocalContext.current as Activity
     val bonus = if (progress.fails(level.number) >= 3) 3 else 0
     val c = remember { GameController(level, dict, progress, sounds, haptics, scope, bonus, startBoosters) }
-    var intro by remember { mutableStateOf(introFor(level, progress)) }
+    // Cards before the level starts: the intro(s), then the new booster's help card.
+    val intros = remember { mutableStateListOf<IntroInfo>().apply { addAll(introsFor(level, progress)) } }
+    val intro = intros.firstOrNull()
+    var help by remember { mutableStateOf(helpFor(level, progress)) }
     var paused by remember { mutableStateOf(false) }
     var more by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { if (intro == null) c.begin() }
+    LaunchedEffect(Unit) { if (intro == null && help == null) c.begin() }
     LaunchedEffect(Unit) { if (bonus > 0) c.toast("+3 bonus moves to help you!", Offset(400f, 300f), Palette.green, big = true) }
 
     // 3D layer: on top of the game; the boss peeks over the board; hidden behind cards and dialogs.
@@ -83,7 +87,7 @@ fun GameScreen(
         if (Fx.ok) { kotlinx.coroutines.delay(500); c.fxLayout(); c.fxBoss() }
     }
     DisposableEffect(Unit) { onDispose { Fx.call("clear") } }
-    val covered = paused || more || intro != null || c.showLose || c.mysteryCards != null || c.buyAsk != null || c.letterPick != null
+    val covered = paused || more || intro != null || help != null || c.showLose || c.mysteryCards != null || c.buyAsk != null || c.letterPick != null
     LaunchedEffect(covered) { Fx.call("bossHold", Fx.obj("on" to covered)) }
 
     // Back button in a level opens the pause menu (Resume, Restart, Level Map, Home).
@@ -121,7 +125,9 @@ fun GameScreen(
                         TikoStrip(c.stripText, highlight = c.tutorial != null || c.message != null)
                     }
                 }
-                RightPanel(c, Modifier.width(rightW).fillMaxHeight(), onMore = { more = true })
+                // Level 1 has no boosters yet: no panel.
+                if (panelBoosters(c).isEmpty()) Spacer(Modifier.width(rightW))
+                else RightPanel(c, Modifier.width(rightW).fillMaxHeight().onGloballyPositioned { c.panelAnchor = it.positionInRoot() + Offset(it.size.width / 2f, it.size.height / 2f) }, onMore = { more = true })
             }
             ParticleLayer(c.particles)
             Overlays(c)
@@ -136,7 +142,9 @@ fun GameScreen(
             )
             if (c.showLose) LoseDialog(c, activity, onRetry = { c.giveUp(); onRestart() }, onMap = { c.giveUp(); onMap() })
             if (paused) PauseDialog(progress, c, activity, onResume = { paused = false }, onRestart = onRestart, onMap = onMap, onHome = onTown)
-            intro?.let { card -> IntroCard(card, onGo = { intro = null; c.begin() }) }
+            if (c.bigWin) BigWin(c, sounds, onDone = { onAutoTown(c.coinsThisLevel, c.winStars) })
+            if (intro != null) IntroCard(intro, onGo = { intros.removeAt(0); if (intros.isEmpty() && help == null) c.begin() })
+            else help?.let { b -> BoosterHelpCard(b, onTry = { help = null; c.begin() }) }
         }
     }
 }
@@ -231,7 +239,8 @@ private fun LeftPanel(c: GameController, modifier: Modifier, onPause: () -> Unit
             )
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            PowerMeter(c.progress.meter)
+            // The Power Meter shows up at Level 5.
+            if (level.number >= GameController.METER_LEVEL) PowerMeter(c.progress.meter)
             Spacer(Modifier.weight(1f))
             val shownCoins by animateIntAsState(c.progress.coins, tween(600), label = "coins")
             Row(
@@ -355,7 +364,9 @@ fun RoundButton(text: String, size: Dp, label: String? = null, onClick: () -> Un
 fun BoosterButton(b: Booster, c: GameController, size: Dp = 50.dp, showName: Boolean = false, onUsed: () -> Unit = {}) {
     val anim = rememberInfiniteTransition(label = "bb")
     val pulse by anim.animateFloat(1f, 1.15f, infiniteRepeatable(tween(450), RepeatMode.Reverse), label = "p")
-    val spotlight = c.tutorial?.booster == b || c.nudge == b
+    val spotlight = c.tutorial?.booster == b || c.nudge == b || c.glowBooster == b
+    // The booster tutorial: a hand taps this button.
+    val handHere = c.tutorial?.booster == b && c.armed == null && c.tutorial?.dismissible == false
     val isArmed = c.armed == b
     val count = c.progress.count(b)
     val free = c.progress.hasFreeUse(b)
@@ -389,6 +400,10 @@ fun BoosterButton(b: Booster, c: GameController, size: Dp = 50.dp, showName: Boo
             count > 0 -> "$count"
             else -> "🪙${Rewards.price(b, c.progress.unlocked)}"
         }
+        if (handHere) {
+            val tap by anim.animateFloat(0f, 1f, infiniteRepeatable(tween(550), RepeatMode.Reverse), label = "hand")
+            Text("👆", Modifier.align(Alignment.BottomCenter).offset(y = (22 + 8 * tap).dp), fontSize = 30.sp)
+        }
         Text(
             badge,
             Modifier.align(Alignment.BottomEnd).offset(6.dp, 4.dp)
@@ -405,24 +420,30 @@ fun BoosterButton(b: Booster, c: GameController, size: Dp = 50.dp, showName: Boo
 
 data class IntroInfo(val title: String, val emoji: String, val text: String, val feature: Feature? = null)
 
-fun introFor(level: Level, progress: Progress): IntroInfo? {
+/** The cards shown before a level, once each: how to play, new goals, the Power Meter at Level 5. */
+fun introsFor(level: Level, progress: Progress): List<IntroInfo> {
     val key = "intro_level_${level.number}"
-    if (progress.seen(key)) return null
+    if (progress.seen(key)) return emptyList()
     progress.markSeen(key)
-    return when {
-        level.number == 1 -> IntroInfo("How to play", "🔤", "Swap two neighbouring tiles to spell a word. Words count left to right, right to left, up or down. Only words made with the tile you moved count, so think before you swap!")
-        level.number == 2 -> IntroInfo("Long words give moves", "📏", "3 and 4 letter words are fine, but 5-letter words give +1 move and 6+ letters give +2 moves. Plan bigger words to go further!")
-        level.number == 3 -> {
+    val out = ArrayList<IntroInfo>()
+    when (level.number) {
+        1 -> out += IntroInfo("How to play", "🔤", "Swap two neighbouring tiles to spell a word. Words count left to right, right to left, up or down. Only words made with the tile you moved count, so think before you swap!")
+        2 -> out += IntroInfo("Long words give moves", "📏", "3 and 4 letter words are fine, but 5-letter words give +1 move and 6+ letters give +2 moves. Plan bigger words to go further!")
+        GameController.METER_LEVEL -> {
             progress.primeMeter(Game.METER_SIZE - 1)
-            IntroInfo(
+            out += IntroInfo(
                 "Power Meter", "⚡",
                 "👈 The Power Meter is on the left.\n1. Every word charges it.\n2. When it's full, pick a FREE mystery booster!\n3. Leftover power is saved for the next level.\nIt's almost full now. Make one word!",
             )
         }
-        level.feature != null -> IntroInfo(level.feature!!.title, featureEmoji(level.feature!!), level.feature!!.text, level.feature)
-        else -> null
     }
+    level.feature?.let { out += IntroInfo(it.title, featureEmoji(it), it.text, it) }
+    return out
 }
+
+/** The new booster this level teaches, if the player hasn't had its free try yet. */
+fun helpFor(level: Level, progress: Progress): Booster? =
+    level.introBoosters.firstOrNull()?.takeIf { !progress.seen("intro_b_${it.name}") }
 
 fun featureEmoji(f: Feature): String = when (f) {
     Feature.GOLD -> "🟨"
@@ -501,6 +522,63 @@ private fun FeatureDemo(f: Feature) {
             Feature.ICE -> Text("🧊 ➡ 💧", fontSize = 26.sp)
             Feature.CHAINS -> Text("⛓️ ➡ 🔓", fontSize = 26.sp)
             else -> {}
+        }
+    }
+}
+
+/** New booster: what it does, a 3D demo on a tiny board, then "Try it!" (a hand then shows where to tap). */
+@Composable
+fun BoosterHelpCard(b: Booster, onTry: () -> Unit) {
+    val demo3d = Fx.ok && b in GameController.GUIDED
+    DisposableEffect(Unit) { onDispose { Fx.call("demoClear") } }
+    DimBox(0.6f) {
+        Column(Modifier.width(470.dp).arcadePanel().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Tiko(Modifier.size(52.dp))
+                Column(Modifier.padding(start = 8.dp)) {
+                    ArcadeText("NEW BOOSTER!", 15.sp, Palette.cyan)
+                    ArcadeText("${b.title}", 26.sp, Palette.gold)
+                }
+                Spacer(Modifier.width(10.dp))
+                val icon = Fx.icons[b.name]
+                if (icon != null) androidx.compose.foundation.Image(icon, b.title, Modifier.size(64.dp)) else Text(b.emoji, fontSize = 44.sp)
+            }
+            Text(b.description + ".", color = Color.White, fontSize = 15.sp, textAlign = TextAlign.Center, lineHeight = 19.sp)
+            if (demo3d) {
+                // The 3D layer plays the demo over this box, again and again.
+                var sent by remember { mutableStateOf(false) }
+                Box(Modifier.padding(vertical = 6.dp).size(300.dp, 110.dp).background(Color(0x33000000), RoundedCornerShape(14.dp)).onGloballyPositioned { co ->
+                    if (!sent) {
+                        sent = true
+                        val p = co.positionInRoot()
+                        Fx.call("demo", Fx.obj("k" to b.name, "x" to Fx.dp(p.x), "y" to Fx.dp(p.y), "w" to Fx.dp(co.size.width.toFloat()), "h" to Fx.dp(co.size.height.toFloat())))
+                    }
+                })
+            } else Spacer(Modifier.height(8.dp))
+            Text("Your first one is FREE!", color = Palette.green, fontSize = 14.sp, fontWeight = Heavy)
+            Spacer(Modifier.height(8.dp))
+            ArcadeButton("Try it! 👆", onClick = onTry)
+        }
+    }
+}
+
+/** Levels 1-3: no win window. A big 3D "WORDNOID!" with Tiko's voice, then off to the town. */
+@Composable
+private fun BigWin(c: GameController, sounds: SoundFx, onDone: () -> Unit) {
+    LaunchedEffect(Unit) {
+        sounds.play("fanfare")
+        sounds.play("wordnoid")
+        if (Fx.ok) {
+            Fx.call("bigWin", Fx.obj("text" to "WORDNOID!"))
+            Fx.await("bigWinDone", 6000)
+        } else kotlinx.coroutines.delay(2600)
+        onDone()
+    }
+    Box(Modifier.fillMaxSize().clickable(remember { MutableInteractionSource() }, null) {}, contentAlignment = Alignment.Center) {
+        if (!Fx.ok) {
+            val pop = remember { Animatable(0.2f) }
+            LaunchedEffect(Unit) { pop.animateTo(1f, spring(dampingRatio = 0.35f)) }
+            ArcadeText("WORDNOID!", 72.sp, Palette.gold, modifier = Modifier.scale(pop.value))
         }
     }
 }

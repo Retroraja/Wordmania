@@ -103,6 +103,12 @@ class GameController(
     var mysteryCards by mutableStateOf<List<Booster>?>(null); private set
     var buyAsk by mutableStateOf<Booster?>(null); private set
     var showWin by mutableStateOf(false); private set
+    /** Levels 1-3, first win: a big 3D "WORDNOID!" and straight to the town (no win window). */
+    var bigWin by mutableStateOf(false); private set
+    /** A booster that just arrived from a mystery card glows on the panel for a moment. */
+    var glowBooster by mutableStateOf<Booster?>(null); private set
+    /** Where the booster panel is (mystery cards fly there). */
+    var panelAnchor = Offset.Zero
     var showLose by mutableStateOf(false); private set
     var winStars by mutableIntStateOf(0); private set
     var winBooster by mutableStateOf<Booster?>(null); private set
@@ -133,7 +139,6 @@ class GameController(
     private var keys = 0
     private var dryMoves = 0
     private var meterFills = 0
-    private var tutorialStep = 0
     private var idleJob: Job? = null
     private val random = Random(level.seed)
 
@@ -195,7 +200,8 @@ class GameController(
         }
         val b = level.introBoosters.firstOrNull()
         if (b != null && progress.hasFreeUse(b)) {
-            tutorial = Tutorial("NEW BOOSTER! ${b.emoji} ${b.title}: ${b.description}. Tap it, your first one is free!", booster = b, dismissible = true)
+            // The help card's "Try it": a hand points at the button, then at the best tile.
+            tutorial = Tutorial("Tap the glowing ${b.emoji} ${b.title} button. Your first one is free!", booster = b, dismissible = b !in GUIDED)
         }
     }
 
@@ -204,10 +210,7 @@ class GameController(
     }
 
     private fun afterWordTutorial() {
-        if (level.number == 1 && tutorialStep == 0) {
-            tutorialStep = 1
-            tutorial = Tutorial("Stuck with a hard letter? Tap the 🔨 Hammer, then tap a tile to smash it. This one is free!", booster = Booster.HAMMER)
-        } else if (tutorial?.swap != null) {
+        if (tutorial?.swap != null) {
             tutorial = null
         }
     }
@@ -521,7 +524,6 @@ class GameController(
             cancelAim()
             if (tutorial?.booster == b || tutorial?.cells?.isNotEmpty() == true) {
                 tutorial = null
-                if (level.number == 1 && tutorialStep == 1) tutorialStep = 2
             }
             when (b) {
                 Booster.UNDO -> { wobbleKey++ }
@@ -763,7 +765,8 @@ class GameController(
             progress.addBooster(prize)
             scope.launch { delay(400L + it * 500L); sounds.play("sparkle"); toast("${prize.emoji} ${prize.title}!", center(), Palette.pink, big = true) }
         }
-        if (fx0.meter > 0) {
+        // The Power Meter starts at Level 5 (before that it's hidden and doesn't charge).
+        if (fx0.meter > 0 && level.number >= METER_LEVEL) {
             meterFills += progress.addMeter(fx0.meter)
         }
         delay(120)
@@ -778,22 +781,24 @@ class GameController(
 
     private suspend fun win(r: MoveResult) {
         idleJob?.cancel()
+        val auto = level.number <= AUTO_TOWN_LEVELS && progress.bricks(level.number) == 0
         tutorial = null
         hintWords = emptyList()
         delay(400)
         sounds.play("win")
-        sounds.play("wordnoid")
+        if (!auto) sounds.play("wordnoid")
         message = if (level.boss) "You beat ${worldOf(level.number).villain}!" else "LEVEL COMPLETE!"
         if (fx3) Fx.call("confetti", Fx.obj("x" to Fx.dp(screenWidth / 2), "y" to Fx.dp(screenHeight * 0.3f), "n" to 120, "spread" to 6)) else particles.confettiRain(screenWidth)
         // Leftover moves: tiles burst into coins (1 coin each, up to 10).
         val left = game.movesLeft
-        if (left > 0 && fx3) {
-            // Goal reached: the leftover tiles burst one by one into coins that fly to the coin box.
-            wordRain = true
-            val cells = board.positions().filter { board[it].hasLetter }.shuffled(random).take(left.coerceAtMost(10))
-            Fx.call("goalBlast", Fx.obj("cells" to fxCells(cells), "cx" to Fx.dp(center().x), "cy" to Fx.dp(center().y)))
-            Fx.await("goalBlastDone", 4000)
-            wordRain = false
+        if (fx3) {
+            // Goal reached (as the approved preview): GOAL COMPLETE!, then every tile on the board bursts from the middle out;
+            // one coin flies to the coin box for each leftover move (up to 10).
+            val cells = board.positions().filter { board[it].hasLetter }
+            Fx.call("goalBlast", Fx.obj("cells" to fxCells(cells), "cx" to Fx.dp(center().x), "cy" to Fx.dp(center().y), "coins" to left.coerceAtMost(10)))
+            Fx.await("blastTiles", 600)
+            boardHidden = true
+            Fx.await("goalBlastDone", 7000)
             if (r.leftoverCoins > 0) { progress.addCoins(r.leftoverCoins); coinsThisLevel += r.leftoverCoins }
         } else if (left > 0) {
             wordRain = true
@@ -808,7 +813,7 @@ class GameController(
             wordRain = false
             if (r.leftoverCoins > 0) { progress.addCoins(r.leftoverCoins); coinsThisLevel += r.leftoverCoins }
         }
-        if (fx3) { Fx.call("fireworks", Fx.obj("n" to 5)); delay(1300) } else repeat(5) {
+        if (auto) {} else if (fx3) { Fx.call("fireworks", Fx.obj("n" to 5)); delay(1300) } else repeat(5) {
             particles.firework(Offset(screenWidth * (0.2f + random.nextFloat() * 0.6f), screenHeight * (0.15f + random.nextFloat() * 0.35f)))
             sounds.play(if (it % 2 == 0) "bang" else "crackle")
             delay(260)
@@ -823,7 +828,7 @@ class GameController(
         if (winStars == 3) Daily.report(progress, Daily.Kind.THREE_BRICKS)
         if (winStars == 3 && random.nextDouble() < 0.25) winBooster = Rewards.randomBooster(level.number, random).also { progress.addBooster(it) }
         delay(300)
-        showWin = true
+        if (auto) bigWin = true else showWin = true
     }
 
     /** Watched a video on the win screen: double the win coins. */
@@ -840,10 +845,13 @@ class GameController(
         sounds.play("lose")
         if (fx3) {
             // The tiles turn grey and fall off the board.
-            Fx.call("lose", Fx.obj("cells" to fxCells(board.positions().filter { board[it].hasLetter || board[it].isCrate })))
+            // As the approved preview: tiles go grey and tumble off, Tiko gets sad next to the board, "OUT OF MOVES!".
+            Fx.call("lose", Fx.obj("cells" to fxCells(board.positions().filter { board[it].hasLetter || board[it].isCrate }),
+                "tx" to Fx.dp(boardOrigin.x - cellPx * 0.9f), "ty" to Fx.dp(boardOrigin.y + board.rows * cellPx - cellPx * 0.9f), "ts" to Fx.dp(cellPx * 1.6f)))
             delay(60)
             boardHidden = true
-            Fx.await("loseDone", 3000)
+            Fx.await("loseDone", 3500)
+            Fx.call("loseHide")
         }
         showLose = true
     }
@@ -886,16 +894,31 @@ class GameController(
         if (meterFills <= 0) return
         meterFills--
         sounds.play("fanfare")
-        mysteryCards = Rewards.mysteryCards(progress.unlocked.coerceAtLeast(level.number), random)
+        // The first time (Level 5) the cards are the three boosters the player has just learned.
+        mysteryCards = if (!progress.seen("mystery_first")) { progress.markSeen("mystery_first"); listOf(Booster.HAMMER, Booster.JOKER, Booster.MAGIC_SWAP) }
+        else Rewards.mysteryCards(progress.unlocked.coerceAtLeast(level.number), random)
+        sounds.play("say:Power Meter full! Pick a card for a free booster!")
     }
 
     fun mysteryPicked(b: Booster) {
         progress.addBooster(b)
         sounds.play("sparkle")
+        lastMystery = b
     }
+
+    private var lastMystery: Booster? = null
 
     fun mysteryDone() {
         mysteryCards = null
+        // The booster lands on the panel and glows; Tiko says what it's for.
+        lastMystery?.let { b ->
+            glowBooster = b
+            val line = "It's yours! Use ${b.emoji} ${b.title} in any level when you're stuck."
+            say(line, 4500)
+            sounds.play("say:It's yours! Use it in any level when you're stuck.")
+            scope.launch { delay(3500); if (glowBooster == b) glowBooster = null }
+        }
+        lastMystery = null
         if (meterFills > 0) scope.launch { delay(300); openMystery() }
     }
 
@@ -921,7 +944,7 @@ class GameController(
     fun fxLayout() {
         if (cellPx <= 1f) return
         Fx.call("unit", Fx.obj("u" to Fx.dp(cellPx)))
-        Fx.call("anchors", Fx.obj("coins" to Fx.xy(coinAnchor), "moves" to Fx.xy(movesAnchor), "goal" to Fx.xy(goalAnchor)))
+        Fx.call("anchors", Fx.obj("coins" to Fx.xy(coinAnchor), "moves" to Fx.xy(movesAnchor), "goal" to Fx.xy(goalAnchor), "bag" to Fx.xy(panelAnchor)))
     }
 
     /** The boss in 3D, peeking over the top of the board. */
@@ -953,5 +976,11 @@ class GameController(
         const val WIN_COINS = 10
         const val BRICK_COINS = 5
         const val TREASURE_COINS = 25
+        /** The Power Meter (and mystery cards) start at this level. */
+        const val METER_LEVEL = 5
+        /** Levels 1-3 skip the win window and go straight to the town. */
+        const val AUTO_TOWN_LEVELS = 3
+        /** Boosters whose first try is guided step by step (the player must use it). */
+        val GUIDED = setOf(Booster.HAMMER, Booster.JOKER, Booster.MAGIC_SWAP)
     }
 }

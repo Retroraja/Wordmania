@@ -312,6 +312,20 @@ fun MoreBoosters(c: GameController, onClose: () -> Unit) {
 
 // ---------------------------------------------------------------- mystery cards
 
+/** Tiko explains the mystery cards: what to do, then what the prize is for. */
+@Composable
+private fun MysteryTalk(picked: Booster?) {
+    Row(Modifier.padding(top = 2.dp).background(Color(0xE6FFF4DE), RoundedCornerShape(14.dp)).border(2.dp, Palette.goldDeep, RoundedCornerShape(14.dp)).padding(horizontal = 10.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        Tiko(Modifier.size(40.dp))
+        Text(
+            if (picked == null) "Power Meter full! Pick a card for a free booster!"
+            else "You got ${picked.emoji} ${picked.title}! It's yours! Use it in any level when you're stuck.",
+            Modifier.padding(start = 8.dp).widthIn(max = 420.dp), color = Color(0xFF1B2140), fontSize = 15.sp, fontWeight = Heavy, lineHeight = 18.sp,
+        )
+    }
+}
+
 @Composable
 fun MysteryCards(cards: List<Booster>, sounds: SoundFx, onPicked: (Booster) -> Unit, onDone: () -> Unit) {
     var picked by remember { mutableStateOf(-1) }
@@ -319,7 +333,7 @@ fun MysteryCards(cards: List<Booster>, sounds: SoundFx, onPicked: (Booster) -> U
     DimBox(0.7f) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             ArcadeText("⚡ POWER METER FULL! ⚡", 26.sp, Palette.gold)
-            Text(if (picked < 0) "Pick a mystery card" else "You got ${cards[picked].emoji} ${cards[picked].title}!", color = Palette.cream, fontSize = 16.sp, fontWeight = Heavy)
+            MysteryTalk(if (picked < 0) null else cards[picked])
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                 cards.forEachIndexed { i, b ->
@@ -366,7 +380,7 @@ private fun MysteryCards3D(cards: List<Booster>, sounds: SoundFx, onPicked: (Boo
     DimBox(0.7f) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             ArcadeText("⚡ POWER METER FULL! ⚡", 26.sp, Palette.gold)
-            Text(if (picked < 0) "Pick a mystery card" else "You got ${cards[picked].emoji} ${cards[picked].title}!", color = Palette.cream, fontSize = 16.sp, fontWeight = Heavy)
+            MysteryTalk(if (picked < 0) null else cards[picked])
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                 cards.forEachIndexed { i, b ->

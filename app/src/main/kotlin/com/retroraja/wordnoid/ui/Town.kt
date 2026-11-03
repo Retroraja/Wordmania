@@ -28,6 +28,8 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.graphics.Brush
@@ -136,6 +138,9 @@ fun currentDistrict(progress: Progress): Int =
     DISTRICTS.indexOfFirst { d -> !progress.districtOpen(d.world) || progress.tasksDone(d.world) < d.tasks.size }.let { if (it < 0) DISTRICTS.size - 1 else it }
         .coerceAtMost(((progress.unlocked - 1) / 10).coerceIn(0, DISTRICTS.size - 1))
 
+/** Arriving in town straight from Levels 1-3: the level's coins and bricks fly in, then Tiko asks for a build. */
+class TownArrival(val level: Int, val coins: Int, val bricks: Int) { var played = false }
+
 @Composable
 fun TownScreen(
     ready: Boolean,
@@ -149,10 +154,19 @@ fun TownScreen(
     onDaily: () -> Unit,
     onSettings: () -> Unit,
     onQuit: () -> Unit = {},
+    arrival: TownArrival? = null,
+    onArrivalNext: (Int) -> Unit = {},
 ) {
     var tasksOpen by remember { mutableStateOf(false) }
     var fixing by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var buildingGift by remember { mutableStateOf<Int?>(null) }
+    // Levels 1-3 arrival: counters hold back what's still flying in; then a guided build; then a big Next level button.
+    var coinHold by remember(arrival) { mutableIntStateOf(if (arrival != null && !arrival.played) arrival.coins else 0) }
+    var brickHold by remember(arrival) { mutableIntStateOf(if (arrival != null && !arrival.played) arrival.bricks else 0) }
+    var guideBuild by remember { mutableStateOf(false) }
+    var showNext by remember(arrival) { mutableStateOf(arrival?.played == true) }
+    var coinAt by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    var brickAt by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
     val current = currentDistrict(progress)
     val anim = rememberInfiniteTransition(label = "town")
     val bounce by anim.animateFloat(0f, 1f, infiniteRepeatable(tween(800), RepeatMode.Reverse), label = "bounce")
@@ -167,6 +181,36 @@ fun TownScreen(
     LaunchedEffect(use3d, view, rev) { if (use3d) Fx.backdrop("town", townData(DISTRICTS[view], progress, DISTRICTS[view].world <= current)) }
     BoxWithConstraints(Modifier.fillMaxSize().then(if (use3d) Modifier else Modifier.background(Brush.verticalGradient(listOf(world.top, world.bottom))))) {
         val screenW = maxWidth
+        val screenH = maxHeight
+        LaunchedEffect(arrival) {
+            val a = arrival ?: return@LaunchedEffect
+            if (a.played) return@LaunchedEffect
+            a.played = true
+            delay(1300)
+            suspend fun count(n: Int, brick: Boolean) {
+                if (n <= 0) return
+                val to = if (brick) brickAt else coinAt
+                if (Fx.ok) Fx.call("fly", Fx.obj("x" to (screenW.value / 2).toDouble(), "y" to (screenH.value * 0.45f).toDouble(), "n" to (if (brick) n else (n / 12 + 3).coerceAtMost(8)),
+                    "brick" to brick, "to" to Fx.xy(to)))
+                delay(900)
+                val steps = if (brick) n else 10
+                for (i in 1..steps) {
+                    if (brick) brickHold = n - i else coinHold = n - n * i / steps
+                    sounds.play(if (brick) "clack" else "coin")
+                    delay(if (brick) 160 else 60)
+                }
+                if (brick) brickHold = 0 else coinHold = 0
+            }
+            count(a.coins, false)
+            delay(250)
+            count(a.bricks, true)
+            delay(500)
+            if (canBuildNow(progress, current)) {
+                guideBuild = true
+                tasksOpen = true
+                sounds.play("say:Tap Build to fix my town!")
+            } else showNext = true
+        }
         val scroll = rememberScrollState()
         val density = LocalDensity.current
         LaunchedEffect(current) { scroll.scrollTo(with(density) { (screenW * current).toPx() }.toInt()) }
@@ -194,8 +238,8 @@ fun TownScreen(
         }
         // Buttons stay fixed while the town scrolls.
         Row(Modifier.align(Alignment.TopStart).padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            CoinBadge(progress)
-            BrickBadge(progress)
+            CoinBadge(progress, Modifier.onGloballyPositioned { coinAt = it.positionInRoot() + androidx.compose.ui.geometry.Offset(it.size.width / 2f, it.size.height / 2f) }, hold = coinHold)
+            BrickBadge(progress, Modifier.onGloballyPositioned { brickAt = it.positionInRoot() + androidx.compose.ui.geometry.Offset(it.size.width / 2f, it.size.height / 2f) }, hold = brickHold)
         }
         Column(Modifier.align(Alignment.TopEnd).padding(10.dp), horizontalAlignment = Alignment.End) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -217,20 +261,20 @@ fun TownScreen(
             Box(Modifier.graphicsLayer { translationY = if (canBuild) -6f * bounce * density.density else 0f }) {
                 SideButton("🔨", "Tasks", badge = if (canBuild) "${progress.bricksToSpend}🧱" else null) { tasksOpen = true }
                 // First visit with bricks: Tiko shows where to build.
-                if (canBuild && !progress.seen("town_build_tut") && !tasksOpen && fixing == null) Text(
+                if (canBuild && arrival == null && !progress.seen("town_build_tut") && !tasksOpen && fixing == null) Text(
                     "👇", fontSize = 30.sp, modifier = Modifier.align(Alignment.TopCenter).offset(y = (-38).dp - (8 * bounce).dp),
                 )
             }
             SideButton("🗺️", "Level Map", onClick = onMap)
             SideButton("📖", "Wordbook", onClick = onWordbook)
         }
-        Box(Modifier.align(Alignment.BottomEnd).padding(14.dp)) {
+        if (arrival == null) Box(Modifier.align(Alignment.BottomEnd).padding(14.dp)) {
             ArcadeButton(
                 if (ready) "▶ PLAY Level $nextLevel" else "Loading…", enabled = ready, textSize = 26.sp,
                 modifier = Modifier.scale(1f + 0.04f * bounce),
             ) { sounds.play("pop"); onPlay() }
         }
-        if (canBuildNow(progress, current) && !progress.seen("town_build_tut") && !tasksOpen && fixing == null) Row(
+        if (canBuildNow(progress, current) && arrival == null && !progress.seen("town_build_tut") && !tasksOpen && fixing == null) Row(
             Modifier.align(Alignment.BottomStart).padding(start = 10.dp, bottom = 96.dp).width(330.dp).arcadePanel().padding(10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -251,10 +295,23 @@ fun TownScreen(
                 ArcadeButton("Let's go!") { progress.markSeen("welcome_build3"); welcomeBack = false }
             }
         }
-        if (tasksOpen) TasksDialog(DISTRICTS[current], progress, sounds, onClose = { tasksOpen = false }, onDo = { i -> tasksOpen = false; view = current; fixing = current to i })
+        if (tasksOpen) TasksDialog(
+            DISTRICTS[current], progress, sounds, guide = guideBuild,
+            onClose = { tasksOpen = false; if (guideBuild) { guideBuild = false; showNext = true } },
+            onDo = { i -> tasksOpen = false; guideBuild = false; view = current; fixing = current to i },
+        )
         fixing?.let { (d, i) ->
-            if (use3d) FixScene3D(DISTRICTS[d], i, sounds, onDone = { fixing = null; rev++; progress.markSeen("town_build_tut") })
-            else FixScene(DISTRICTS[d], i, sounds, onDone = { fixing = null; progress.markSeen("town_build_tut") })
+            val done: () -> Unit = { fixing = null; progress.markSeen("town_build_tut"); if (arrival != null) showNext = true }
+            if (use3d) FixScene3D(DISTRICTS[d], i, sounds, onDone = { rev++; done() })
+            else FixScene(DISTRICTS[d], i, sounds, onDone = done)
+        }
+        // After the guided build: one big button on to the next level.
+        if (arrival != null && showNext && fixing == null && !tasksOpen) Column(
+            Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp), horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            ArcadeButton(
+                "Next level ▶", textSize = 34.sp, modifier = Modifier.scale(1f + 0.06f * bounce),
+            ) { sounds.play("pop"); onArrivalNext(arrival.level + 1) }
         }
         buildingGift?.let { w ->
             DimBox {
@@ -421,7 +478,11 @@ private fun DrawScope.drawBuilding(base: Offset, bw: Float, bh: Float, color0: C
 }
 
 @Composable
-private fun TasksDialog(d: District, progress: Progress, sounds: SoundFx, onClose: () -> Unit, onDo: (Int) -> Unit) {
+private fun TasksDialog(d: District, progress: Progress, sounds: SoundFx, guide: Boolean = false, onClose: () -> Unit, onDo: (Int) -> Unit) {
+    // Guided (Levels 1-3): a hand taps the first Build button the player can afford.
+    val handTask = if (!guide) -1 else d.tasks.indices.firstOrNull { !progress.taskDone(d.world, it) && d.tasks[it].cost <= progress.bricksToSpend } ?: -1
+    val anim = rememberInfiniteTransition(label = "tasks")
+    val tap by anim.animateFloat(0f, 1f, infiniteRepeatable(tween(550), RepeatMode.Reverse), label = "tap")
     DimBox {
         Column(Modifier.width(560.dp).fillMaxHeight(0.92f).arcadePanel().padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -429,7 +490,10 @@ private fun TasksDialog(d: District, progress: Progress, sounds: SoundFx, onClos
                 Spacer(Modifier.weight(1f))
                 BrickBadge(progress)
             }
-            Text("Win levels to earn Letter Bricks 🧱, then fix up the town!", color = Color.White, fontSize = 12.sp)
+            if (guide) Row(verticalAlignment = Alignment.CenterVertically) {
+                Tiko(Modifier.size(40.dp))
+                Text("You have Letter Bricks! Tap Build to fix my town!", color = Palette.gold, fontSize = 15.sp, fontWeight = Heavy, modifier = Modifier.padding(start = 6.dp))
+            } else Text("Win levels to earn Letter Bricks 🧱, then fix up the town!", color = Color.White, fontSize = 12.sp)
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 d.tasks.forEachIndexed { i, t ->
                     val done = progress.taskDone(d.world, i)
@@ -439,13 +503,16 @@ private fun TasksDialog(d: District, progress: Progress, sounds: SoundFx, onClos
                             Text(t.title, color = Color.White, fontSize = 15.sp, fontWeight = Heavy)
                             Text("Reward: 🪙${t.coins}" + (t.booster?.let { " + ${it.emoji}" } ?: ""), color = Palette.gold, fontSize = 12.sp)
                         }
-                        if (!done) ArcadeButton("Build", enabled = progress.bricksToSpend >= t.cost, textSize = 14.sp) {
-                            if (progress.doTask(d.world, i, t.cost)) {
-                                progress.addCoins(t.coins)
-                                t.booster?.let { progress.addBooster(it) }
-                                sounds.play("thunk")
-                                onDo(i)
+                        if (!done) Box {
+                            ArcadeButton("Build", enabled = progress.bricksToSpend >= t.cost, textSize = 14.sp, modifier = if (i == handTask) Modifier.scale(1f + 0.08f * tap) else Modifier) {
+                                if (progress.doTask(d.world, i, t.cost)) {
+                                    progress.addCoins(t.coins)
+                                    t.booster?.let { progress.addBooster(it) }
+                                    sounds.play("thunk")
+                                    onDo(i)
+                                }
                             }
+                            if (i == handTask) Text("👆", Modifier.align(Alignment.BottomCenter).offset(y = (26 + 8 * tap).dp), fontSize = 28.sp)
                         }
                     }
                 }
@@ -500,14 +567,9 @@ private fun FixScene3D(d: District, task: Int, sounds: SoundFx, onDone: () -> Un
     val t = d.tasks[task]
     var step by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) {
-        if (t.spot < 4) {
-            Fx.act("fix", Fx.obj("spot" to t.spot))
-            Fx.await("townFixDone", 9000)
-        } else {
-            Fx.act("cheer")
-            sounds.play("fanfare")
-            delay(900)
-        }
+        // Shops (0-3) and decorations (4-7: fountain, trees, lamps, extra) are all built in 3D.
+        Fx.act("fix", Fx.obj("spot" to t.spot))
+        Fx.await("townFixDone", 10000)
         step = 1
     }
     if (step == 0) Box(Modifier.fillMaxSize().clickable(remember { MutableInteractionSource() }, null) {})

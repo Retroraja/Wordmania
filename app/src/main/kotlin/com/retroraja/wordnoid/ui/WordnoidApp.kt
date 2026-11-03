@@ -77,6 +77,8 @@ fun WordnoidApp() {
     var screen by remember { mutableStateOf<Screen>(Screen.Intro) }
     var back by remember { mutableStateOf<Screen>(Screen.Town) }
     var attempts by remember { mutableIntStateOf(0) }
+    // Levels 1-3: the player arrives in town straight from the level (coins and bricks fly in, then build).
+    var arrival by remember { mutableStateOf<TownArrival?>(null) }
 
     LaunchedEffect(screen) {
         music.play(
@@ -99,7 +101,7 @@ fun WordnoidApp() {
 
     // 3D scenes live behind only these screens; everywhere else the 3D layer is just for effects.
     LaunchedEffect(screen) {
-        if (screen != Screen.Intro && screen != Screen.FirstTime && screen != Screen.Town && screen !is Screen.Quiz) Fx.backdrop(null)
+        if (screen != Screen.Intro && screen != Screen.FirstTime && screen != Screen.Town && screen !is Screen.Quiz && screen != Screen.Map && screen != Screen.Daily && !(screen is Screen.Start && Fx.ok)) Fx.backdrop(null)
     }
 
     // Back on the home screen asks before leaving.
@@ -137,11 +139,14 @@ fun WordnoidApp() {
                 onDaily = { go(Screen.Daily) },
                 onSettings = { go(Screen.Settings) },
                 onQuit = { leaveAsk = true },
+                arrival = arrival,
+                onArrivalNext = { n -> arrival = null; screen = if (Levels.get(n) != null) Screen.Start(n) else Screen.Town },
             )
             Screen.Map -> LevelMapScreen(progress, sounds, onTown = { screen = Screen.Town }, onWorld = { screen = Screen.World(it) })
             is Screen.World, is Screen.Start -> {
                 val w = if (s is Screen.World) s.world else ((s as Screen.Start).level - 1) / 10
-                WorldScreen(
+                // In 3D the level start is its own full screen (floating tiles behind a big card).
+                if (s is Screen.World || !Fx.ok) WorldScreen(
                     w, progress, sounds,
                     onBack = { screen = Screen.Map },
                     onTown = { screen = Screen.Town },
@@ -187,16 +192,13 @@ fun WordnoidApp() {
                             val inWorld = (s.level - 1) % 10
                             val w = (s.level - 1) / 10
                             screen = when {
-                                // Levels 1-3: pop over to the town when there is something to build.
-                                s.level <= 3 && canBuildNow(progress) && !progress.seen("town_after_${s.level}") -> {
-                                    progress.markSeen("town_after_${s.level}"); Screen.Town
-                                }
                                 inWorld == 3 && progress.quizScore(w, 0) < 0 -> Screen.Quiz(w, 0)
                                 inWorld == 7 && progress.quizScore(w, 1) < 0 -> Screen.Quiz(w, 1)
                                 Levels.get(n) != null -> Screen.Start(n)
                                 else -> Screen.Town
                             }
                         },
+                        onAutoTown = { coins, bricks -> arrival = TownArrival(s.level, coins, bricks); screen = Screen.Town },
                     )
                 }
             }

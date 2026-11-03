@@ -207,6 +207,14 @@ fun BoardView(c: GameController, cell: Dp, modifier: Modifier = Modifier) {
             val y = (a.row + (b.row - a.row) * handT + 0.55f) * cellPx
             Text("👆", Modifier.offset { IntOffset(x.roundToInt(), y.roundToInt()) }, style = TextStyle(fontSize = (cell.value * 0.6f).sp))
         }
+        // Booster tutorial: a hand taps the tile to use it on (the second tile once the first is picked).
+        if (tut != null && tut.swap == null && tut.cells.isNotEmpty()) {
+            val p = if (c.aimFirst != null && tut.cells.size > 1) tut.cells[1] else tut.cells[0]
+            val tapT by anim.animateFloat(0f, 1f, infiniteRepeatable(tween(550), RepeatMode.Reverse), label = "tap")
+            val x = (p.col + 0.4f) * cellPx
+            val y = (p.row + 0.45f + 0.18f * tapT) * cellPx
+            Text("👆", Modifier.offset { IntOffset(x.roundToInt(), y.roundToInt()) }, style = TextStyle(fontSize = (cell.value * 0.6f).sp))
+        }
     }
 }
 

@@ -56,6 +56,8 @@ cat > $OUT/prefs.xml <<EOF
     <boolean name="seen_first_time" value="true" />
 $(for b in HINT HAMMER MAGIC_SWAP JOKER UNDO SHUFFLE PAINT FREE_MOVE PLUS_MOVES SPIN ROW_SLIDE COLUMN_SLIDE VOWEL_FLIP DICE SCANNER AXE LOCK DOUBLE MAGNET LETTER_RAIN TREASURE_FINDER; do echo "    <int name=\"b_$b\" value=\"3\" />"; done)
 $(for i in $(seq 1 49); do echo "    <int name=\"stars_$i\" value=\"$(( (i % 3) + 1 ))\" />"; done)
+    <boolean name="task_0_0" value="true" />
+    <boolean name="task_0_1" value="true" />
 </map>
 EOF
 adb push $OUT/prefs.xml /data/local/tmp/wordnoid_v2.xml
@@ -68,7 +70,7 @@ shot town-late
 texts
 tap_text "Let's go!"; sleep 2
 tap_text "Tasks"; sleep 2; shot tasks
-tap_text "Build"; sleep 4; shot fixing
+tap_text "Build"; sleep 4; shot fixing-fountain
 tap_text "Yay!"; sleep 2
 tap_text "Close"; sleep 1
 tap_text "Daily Gifts"; sleep 2; shot daily-rewards
@@ -93,6 +95,31 @@ adb shell input keyevent 4; sleep 3; shot back-to-world
 tap_text "Level Map"; sleep 2
 tap_text "Under the Sea"; sleep 2
 tap_text "11"; sleep 2; tap_text "▶ PLAY"; sleep 4; tap_text "Let's go!"; sleep 4; shot board-11
+
+# ---- Third run: Level 2 teaches the Hammer (help card with a 3D demo, then a hand on the button and the tile).
+adb shell am force-stop $PKG
+cat > $OUT/prefs2.xml <<EOF
+<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
+<map>
+    <int name="unlocked" value="2" />
+    <int name="stars_1" value="2" />
+    <int name="birth_year" value="1990" />
+    <boolean name="seen_first_time" value="true" />
+    <boolean name="seen_welcome_build3" value="true" />
+    <boolean name="seen_intro_level_1" value="true" />
+</map>
+EOF
+adb push $OUT/prefs2.xml /data/local/tmp/wordnoid_v2.xml
+adb shell chmod 644 /data/local/tmp/wordnoid_v2.xml
+adb shell run-as $PKG cp /data/local/tmp/wordnoid_v2.xml shared_prefs/wordnoid_v2.xml
+adb shell am start -n $PKG/.MainActivity
+sleep 22
+tap_text "▶ PLAY Level 2"; sleep 3; shot start-2
+tap_text "▶ PLAY"; sleep 4; shot intro-2
+tap_text "Let's go!"; sleep 3; shot help-hammer
+tap_text "Try it! 👆"; sleep 2; shot hand-on-button
+tap_text "Hammer"; sleep 2; shot hand-on-tile
+texts
 
 adb logcat -d > $OUT/logcat.txt
 grep -E "FATAL EXCEPTION" -A 30 $OUT/logcat.txt > $OUT/crash.txt || true

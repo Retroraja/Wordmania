@@ -35,7 +35,17 @@ fun DailyGiftsScreen(progress: Progress, sounds: SoundFx, onBack: () -> Unit, on
     var tab by remember { mutableIntStateOf(0) }
     val activity = LocalContext.current as Activity
     @Suppress("UNUSED_VARIABLE") val v = progress.version
-    LivingBackground(progress.unlocked.coerceAtMost(50)) {
+    // In 3D the gift box and the spin wheel are scenes behind this screen (as the approved preview).
+    val scene3d = Fx.ok && tab < 2
+    LaunchedEffect(tab, Fx.ok) {
+        if (!Fx.ok) return@LaunchedEffect
+        when (tab) {
+            0 -> Fx.backdrop("gift", Fx.obj("opened" to (progress.dailyGiftDay() == 0), "offsetX" to 0.0))
+            1 -> Fx.backdrop("spin", Fx.obj("slices" to org.json.JSONArray().apply { Daily.WHEEL.forEach { put(if (it.kind == Daily.SlotKind.COINS) "🪙${it.label}" else it.label) } }, "offsetX" to -2.2))
+            else -> Fx.backdrop(null)
+        }
+    }
+    val content: @Composable BoxScope.() -> Unit = {
         Column(Modifier.fillMaxSize().padding(10.dp)) {
             ScreenTop("🎁 Daily Gifts", progress, onBack)
             Row(Modifier.padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -52,6 +62,7 @@ fun DailyGiftsScreen(progress: Progress, sounds: SoundFx, onBack: () -> Unit, on
             }
         }
     }
+    if (scene3d) Box(Modifier.fillMaxSize(), content = content) else LivingBackground(progress.unlocked.coerceAtMost(50), content = content)
 }
 
 @Composable
@@ -59,7 +70,8 @@ private fun RewardsTab(progress: Progress, sounds: SoundFx, activity: Activity) 
     val day = progress.dailyGiftDay()
     var got by remember { mutableStateOf<Daily.DayReward?>(null) }
     var doubled by remember { mutableStateOf(false) }
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    val scope = rememberCoroutineScope()
+    Column(Modifier.fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
         Text("Come back every day. Missing a day doesn't reset it. Day 7 is the best!", color = Color.White, fontSize = 14.sp)
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -75,21 +87,26 @@ private fun RewardsTab(progress: Progress, sounds: SoundFx, activity: Activity) 
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text("Day ${i + 1}", fontSize = 12.sp, color = Color.White, fontWeight = Heavy)
-                    Text(if (claimed) "✅" else if (i == 6) "🧰" else "🎁", fontSize = 24.sp)
+                    Text(if (claimed) "✅" else if (i == 6) "🧰" else "🎁", fontSize = if (Fx.ok) 18.sp else 24.sp)
                     Text(g.text, fontSize = 10.sp, color = Palette.gold, fontWeight = Heavy, textAlign = TextAlign.Center, lineHeight = 12.sp)
                 }
             }
         }
-        Spacer(Modifier.height(12.dp))
+        // The 3D gift box sits in the middle of the screen.
+        if (Fx.ok) Spacer(Modifier.weight(1f)) else Spacer(Modifier.height(12.dp))
         val g = got
-        if (day > 0 && g == null) ArcadeButton("Open today's gift!") {
+        var opening by remember { mutableStateOf(false) }
+        if (day > 0 && g == null) ArcadeButton("Open today's gift!", enabled = !opening) {
             val r = Daily.CALENDAR[day - 1]
             progress.claimDaily()
             progress.addCoins(r.coins)
             r.booster?.let { progress.addBooster(it) }
             if (r.bricks > 0) progress.addBonusBricks(r.bricks)
-            sounds.play("fanfare"); sounds.play("cash")
-            got = r
+            if (Fx.ok) {
+                opening = true
+                Fx.act("open", Fx.obj("emoji" to (r.booster?.emoji ?: "🪙"), "name" to (r.booster?.title ?: "${r.coins} coins"), "text" to "You got ${r.text}!"))
+                scope.launch { Fx.await("giftOpened", 4000); sounds.play("cash"); got = r; opening = false }
+            } else { sounds.play("fanfare"); sounds.play("cash"); got = r }
         } else if (g != null) {
             Text("You got ${g.text}!", color = Palette.gold, fontSize = 20.sp, fontWeight = Heavy)
             if (!doubled) WatchButton("x2 today's gift", Ads.Spot.DOUBLE_DAILY, activity) {
@@ -114,8 +131,9 @@ private fun SpinTab(progress: Progress, sounds: SoundFx, activity: Activity) {
             sounds.play("whoosh")
             // The pointer is at the top; slot i is centred at i * 360/n.
             val target = angle.value - angle.value % 360f + 360f * 5 + (360f - (i * 360f / n)) % 360f
-            angle.animateTo(target, tween(3200, easing = FastOutSlowInEasing))
+            if (!Fx.ok) angle.animateTo(target, tween(3200, easing = FastOutSlowInEasing))
             val s = Daily.WHEEL[i]
+            if (Fx.ok) { Fx.act("spin", Fx.obj("i" to i)); Fx.await("spinDone", 7000) }
             Daily.give(progress, s)
             result = s
             spinning = false
@@ -123,7 +141,7 @@ private fun SpinTab(progress: Progress, sounds: SoundFx, activity: Activity) {
         }
     }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-        Box(Modifier.size(260.dp), contentAlignment = Alignment.Center) {
+        if (Fx.ok) Spacer(Modifier.size(300.dp)) else Box(Modifier.size(260.dp), contentAlignment = Alignment.Center) {
             Box(Modifier.size(240.dp).rotate(angle.value), contentAlignment = Alignment.Center) {
                 Canvas(Modifier.fillMaxSize()) {
                     val colors = listOf(Color(0xFFFF7EB6), Color(0xFF6FC3FF), Color(0xFFFFD84A), Color(0xFF7ED957))
