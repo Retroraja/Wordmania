@@ -147,20 +147,9 @@ for f in sorted(glob.glob('smoke-out/*.png')):
         print(s[i:i+3000])
     print('===== END IMG =====')
 PY
-# ---- Short summary at the very end of the log (easy to read with a small tail): crashes + a few key screens, small.
+# ---- Short text summary at the very end of the log (read it with a small tail).
 echo "===== SUMMARY ====="
 echo "crash lines: $(wc -l < $OUT/crash.txt)"
-head -40 $OUT/crash.txt
-python3 - <<'PY'
-import glob, base64, io
-from PIL import Image
-for f in sorted(glob.glob('smoke-out/*.png')):
-    name = f.split('/')[-1][:-4]
-    if not any(k in name for k in ('help-hammer','hand-on-tile','hand-on-button','fixing-fountain','start-2','board-50')): continue
-    im = Image.open(f).convert('RGB'); im.thumbnail((640, 640))
-    b = io.BytesIO(); im.save(b, 'JPEG', quality=45); s = base64.b64encode(b.getvalue()).decode()
-    print(f'===== SIMG {name} =====')
-    for i in range(0, len(s), 3000): print(s[i:i+3000])
-    print('===== END SIMG =====')
-PY
+head -30 $OUT/crash.txt
+grep -o 'text="[^"]*"' $OUT/ui.xml | head -25
 echo "===== END SUMMARY ====="
