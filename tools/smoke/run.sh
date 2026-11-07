@@ -57,6 +57,9 @@ cat > $OUT/prefs.xml <<EOF
     <int name="unlocked" value="50" />
     <int name="coins" value="2000" />
     <int name="meter" value="6" />
+    <int name="streak" value="2" />
+    <int name="chest" value="3" />
+    <int name="save_version" value="2" />
     <int name="birth_year" value="1990" />
     <boolean name="seen_first_time" value="true" />
 $(for b in HINT HAMMER MAGIC_SWAP JOKER UNDO SHUFFLE PAINT FREE_MOVE PLUS_MOVES SPIN ROW_SLIDE COLUMN_SLIDE VOWEL_FLIP DICE SCANNER AXE LOCK DOUBLE MAGNET LETTER_RAIN TREASURE_FINDER; do echo "    <int name=\"b_$b\" value=\"3\" />"; done)
@@ -114,6 +117,7 @@ cat > $OUT/prefs2.xml <<EOF
     <int name="birth_year" value="1990" />
     <boolean name="seen_first_time" value="true" />
     <boolean name="seen_welcome_build3" value="true" />
+    <boolean name="seen_welcome_update1" value="true" />
     <boolean name="seen_intro_level_1" value="true" />
 </map>
 EOF
@@ -141,6 +145,7 @@ cat > $OUT/prefs3.xml <<EOF
     <int name="birth_year" value="1990" />
     <boolean name="seen_first_time" value="true" />
     <boolean name="seen_welcome_build3" value="true" />
+    <boolean name="seen_welcome_update1" value="true" />
     <boolean name="seen_town_build_tut" value="true" />
     <boolean name="seen_intro_gift" value="true" />
     <boolean name="seen_intro_spin" value="true" />
