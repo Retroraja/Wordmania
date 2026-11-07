@@ -145,7 +145,8 @@ fun GameScreen(
                 onTown = { Ads.maybeInterstitial(activity, level.number) { onTown() } },
             )
             if (c.showLose) LoseDialog(c, activity, onRetry = { c.giveUp(); onRestart() }, onMap = { c.giveUp(); onMap() })
-            if (paused) PauseDialog(progress, c, activity, onResume = { paused = false }, onRestart = onRestart, onMap = onMap, onHome = onTown)
+            // Leaving a level that isn't won breaks the win streak.
+            if (paused) PauseDialog(progress, c, activity, onResume = { paused = false }, onRestart = { c.quit(); onRestart() }, onMap = { c.quit(); onMap() }, onHome = { c.quit(); onTown() })
             if (c.bigWin) BigWin(c, sounds, onDone = { if (c.autoTown) onAutoTown(c.coinsThisLevel, c.winStars) else c.bigWinDone() })
             if (intro != null) IntroCard(intro, onGo = { intros.removeAt(0); if (intros.isEmpty() && help == null) c.begin() })
             else help?.let { b -> BoosterHelpCard(b, onTry = { help = null; c.begin() }) }
@@ -473,7 +474,7 @@ fun introsFor(level: Level, progress: Progress): List<IntroInfo> {
     progress.markSeen(key)
     val out = ArrayList<IntroInfo>()
     when (level.number) {
-        1 -> out += IntroInfo("How to play", "🔤", "Swap two neighbouring tiles to spell a word. Words count left to right, right to left, up or down. Only words made with the tile you moved count, so think before you swap!")
+        1 -> out += IntroInfo("How to play", "🔤", "Swap 2 tiles next to each other to spell a word.\nWords can go across or down.")
         2 -> out += IntroInfo("Long words give moves", "📏", "3 and 4 letter words are fine, but 5-letter words give +1 move and 6+ letters give +2 moves. Plan bigger words to go further!")
         GameController.METER_LEVEL -> {
             progress.primeMeter(Game.METER_SIZE - 1)
@@ -500,7 +501,9 @@ fun featureEmoji(f: Feature): String = when (f) {
     Feature.GIFTS -> "🎀"
     Feature.THEME -> "🐾"
     Feature.LONG -> "📏"
-    Feature.DOUBLE_CRATES -> "🧰"
+    Feature.DOUBLE_CRATES -> "🔩"
+    Feature.TWIN -> "✖️"
+    Feature.MYSTERY -> "❓"
     Feature.ICE -> "🧊"
     Feature.SPELL -> "✍️"
     Feature.CHAINS -> "⛓️"
@@ -561,12 +564,35 @@ private fun FeatureDemo(f: Feature) {
                 }
                 Text("Clear the tiles on the sand", fontSize = 12.sp, color = Color.White)
             }
-            Feature.CRATES, Feature.DOUBLE_CRATES -> {
+            Feature.CRATES -> {
                 for (ch in "SUN") Tile3D(tile(ch), 30.dp, glow = if (t > 0.4f) Palette.gold else null)
-                Text(if (t < 0.6f) "🎁" else "✨🪙", fontSize = 24.sp)
+                if (t < 0.6f) Tile3D(com.retroraja.wordnoid.core.Tile(9, '#', kind = com.retroraja.wordnoid.core.TileKind.CRATE, hp = 1), 30.dp) else Text("✨🪙", fontSize = 24.sp)
             }
-            Feature.ICE -> Text("🧊 ➡ 💧", fontSize = 26.sp)
-            Feature.CHAINS -> Text("⛓️ ➡ 🔓", fontSize = 26.sp)
+            Feature.DOUBLE_CRATES -> {
+                // Word 1 snaps the iron bands, word 2 breaks the crate.
+                for (ch in "SUN") Tile3D(tile(ch), 30.dp, glow = if (t in 0.25f..0.4f || t in 0.65f..0.8f) Palette.gold else null)
+                if (t < 0.8f) Tile3D(com.retroraja.wordnoid.core.Tile(9, '#', kind = com.retroraja.wordnoid.core.TileKind.CRATE, hp = if (t < 0.4f) 2 else 1, iron = true), 34.dp)
+                else Text("✨🪙", fontSize = 24.sp)
+                Text(if (t < 0.4f) "2 hits" else if (t < 0.8f) "1 left!" else "Broken!", fontSize = 13.sp, color = Color.White, fontWeight = Heavy)
+            }
+            Feature.ICE -> {
+                Tile3D(com.retroraja.wordnoid.core.Tile(9, 'E', kind = com.retroraja.wordnoid.core.TileKind.ICE, hp = 2), 34.dp, Modifier.graphicsLayer { translationX = if (t < 0.5f) 0f else 40f * ((t - 0.5f) * 2f).coerceAtMost(1f) })
+                Text(if (t < 0.5f) "  swap = -2 moves" else "  ➡ 💧", fontSize = 14.sp, color = Color.White, fontWeight = Heavy)
+            }
+            Feature.CHAINS -> {
+                if (t < 0.6f) Tile3D(com.retroraja.wordnoid.core.Tile(9, 'R', kind = com.retroraja.wordnoid.core.TileKind.CHAIN), 34.dp) else Tile3D(tile('R'), 34.dp, glow = Palette.gold)
+                Text(if (t < 0.6f) " ⛓️" else " 🔓", fontSize = 24.sp)
+            }
+            Feature.TWIN -> {
+                Tile3D(tile('S'), 30.dp, glow = if (t > 0.4f) Palette.gold else null)
+                Tile3D(com.retroraja.wordnoid.core.Tile(9, 'U', kind = com.retroraja.wordnoid.core.TileKind.TWIN), 30.dp, glow = if (t > 0.4f) Palette.gold else null)
+                Tile3D(tile('N'), 30.dp, glow = if (t > 0.4f) Palette.gold else null)
+                Text(if (t > 0.5f) "  = 2 words!" else "", fontSize = 14.sp, color = Color.White, fontWeight = Heavy)
+            }
+            Feature.MYSTERY -> {
+                for (ch in "CAT") Tile3D(tile(ch), 30.dp, glow = if (t > 0.3f) Palette.gold else null)
+                Tile3D(if (t < 0.55f) com.retroraja.wordnoid.core.Tile(9, 'S', kind = com.retroraja.wordnoid.core.TileKind.MYSTERY) else tile('S'), 30.dp)
+            }
             else -> {}
         }
     }

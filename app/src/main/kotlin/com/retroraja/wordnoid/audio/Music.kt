@@ -29,10 +29,12 @@ class Music {
     private var current: Piece? = null
     private var wanted: Piece? = null
     private var fadeJob: Job? = null
+    /** True while the app is in the background (home button, screen off, an ad): nothing may start playing. */
+    @Volatile private var paused = false
     var enabled = true
         set(value) {
             field = value
-            if (!value) stopNow() else wanted?.let { w -> current = null; play(w) }
+            if (!value) stopNow() else if (!paused) wanted?.let { w -> current = null; play(w) }
         }
 
     init {
@@ -42,14 +44,14 @@ class Music {
                 val data = compose(p)
                 val t = runCatching { makeTrack(data) }.getOrNull() ?: continue
                 synchronized(tracks) { tracks[p] = t }
-                if (wanted == p && current != p) launch(Dispatchers.Main) { play(p) }
+                if (wanted == p && current != p && !paused) launch(Dispatchers.Main) { play(p) }
             }
         }
     }
 
     fun play(piece: Piece) {
         wanted = piece
-        if (!enabled || current == piece) return
+        if (!enabled || paused || current == piece) return
         val next = synchronized(tracks) { tracks[piece] } ?: return
         val old = current?.let { synchronized(tracks) { tracks[it] } }
         current = piece
@@ -64,12 +66,21 @@ class Music {
                 next.play()
             }
             for (i in 0..10) { runCatching { next.setVolume(VOLUME * i / 10f) }; delay(60) }
+            // Went to the background during the fade: make sure it is silent.
+            if (paused) stopNow()
         }
     }
 
-    fun pauseAll() { stopNow() }
+    /** The app went to the background: stop everything, and nothing starts again until [resume]. */
+    fun pauseAll() { paused = true; stopNow() }
 
-    fun resume() { wanted?.let { current = null; play(it) } }
+    /** Back in the app: the wanted piece starts once (no double music: every other track is paused first). */
+    fun resume() {
+        paused = false
+        val w = wanted ?: return
+        stopNow()
+        play(w)
+    }
 
     private fun stopNow() {
         fadeJob?.cancel()

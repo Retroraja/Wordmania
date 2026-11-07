@@ -162,9 +162,9 @@ fun TownScreen(
     var tasksOpen by remember { mutableStateOf(false) }
     val townScope = rememberCoroutineScope()
     val dailyIntro = when {
-        progress.unlocked >= 7 && !progress.seen("intro_challenges") -> DailyIntro("intro_challenges", 2, "New! Daily Challenges: 3 small jobs a day for coins. Tap here!")
-        progress.unlocked >= 5 && !progress.seen("intro_spin") -> DailyIntro("intro_spin", 1, "New! Spin the prize wheel. Your first spin is ready now. Tap here!")
-        progress.unlocked >= 3 && !progress.seen("intro_gift") -> DailyIntro("intro_gift", 0, "New! Daily Gifts: a free present every day. Open your first one now!")
+        progress.unlocked >= 7 && !progress.seen("intro_challenges") -> DailyIntro("intro_challenges", 2, "New! Daily Challenges.\nThree small jobs every day.\nFinish them for coins.\nTap the gift button.")
+        progress.unlocked >= 5 && !progress.seen("intro_spin") -> DailyIntro("intro_spin", 1, "New! The prize wheel.\nYou get one free spin every day.\nTap the gift button to spin.")
+        progress.unlocked >= 3 && !progress.seen("intro_gift") -> DailyIntro("intro_gift", 0, "New! Daily Gifts.\nA free present every day.\nTap the gift button to open it.")
         else -> null
     }
     var fixing by remember { mutableStateOf<Pair<Int, Int>?>(null) }
@@ -264,13 +264,17 @@ fun TownScreen(
             val dailyReady = progress.dailyGiftDay() > 0 || (progress.unlocked >= 5 && progress.freeSpinReady)
             // Daily features open one by one; Tiko shows each the first time (Gift after L2, Spin after L4, Challenges after L6).
             if (progress.unlocked >= 3) Box {
+                // Guide: a glowing ring pulses around the button, and a big hand beside it points at it.
+                if (dailyIntro != null && arrival == null && fixing == null && !tasksOpen) Box(
+                    Modifier.matchParentSize().scale(1f + 0.18f * bounce).alpha(1f - 0.5f * bounce).border(4.dp, Palette.gold, RoundedCornerShape(18.dp)),
+                )
                 SideButton("🎁", "Daily Gifts", badge = if (dailyReady) "!" else null, onClick = {
                     val tab = dailyIntro?.tab ?: 0
                     dailyIntro?.let { progress.markSeen(it.key) }
                     onDaily(tab)
                 })
                 if (dailyIntro != null && arrival == null && fixing == null && !tasksOpen) Text(
-                    "👈", fontSize = 34.sp, modifier = Modifier.align(Alignment.CenterEnd).offset(x = (44 + 8 * bounce).dp),
+                    "👈", fontSize = 64.sp, modifier = Modifier.align(Alignment.CenterEnd).offset(x = (80 + 10 * bounce).dp),
                 )
             }
             SideButton("🛒", "Shop", onClick = onShop)
@@ -288,7 +292,10 @@ fun TownScreen(
             SideButton("🗺️", "Level Map", onClick = onMap)
             SideButton("📖", "Wordbook", onClick = onWordbook)
         }
-        if (arrival == null) Box(Modifier.align(Alignment.BottomEnd).padding(14.dp)) {
+        if (arrival == null) Column(Modifier.align(Alignment.BottomEnd).padding(14.dp), horizontalAlignment = Alignment.End) {
+            // The level chest (one slot per win) sits just above the PLAY button.
+            ChestSlots(progress.chest, Modifier.background(Color(0x99142060), RoundedCornerShape(12.dp)).padding(horizontal = 8.dp, vertical = 3.dp), small = true)
+            Spacer(Modifier.height(6.dp))
             ArcadeButton(
                 if (ready) "▶ PLAY Level $nextLevel" else "Loading…", enabled = ready, textSize = 26.sp,
                 modifier = Modifier.scale(1f + 0.04f * bounce),
@@ -302,27 +309,31 @@ fun TownScreen(
             Text("You won Letter Bricks 🧱! Tap Tasks, then Build to fix my town!", color = Color.White, fontSize = 14.sp, fontWeight = Heavy, modifier = Modifier.padding(start = 8.dp))
         }
         dailyIntro?.let { di ->
+            val fade = remember(di.key) { Animatable(0f) }
+            LaunchedEffect(di.key) { fade.animateTo(1f, tween(500)) }
+            // Right of the big hand, so the hand never covers the card or the buttons.
             if (arrival == null && fixing == null && !tasksOpen) Row(
-                Modifier.align(Alignment.CenterStart).padding(start = 140.dp).width(320.dp).arcadePanel().padding(10.dp),
+                Modifier.align(Alignment.CenterStart).padding(start = 178.dp).width(320.dp).alpha(fade.value).arcadePanel().padding(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Tiko(Modifier.size(48.dp))
-                Text(di.tip, color = Color.White, fontSize = 15.sp, fontWeight = Heavy, modifier = Modifier.padding(start = 8.dp))
+                Text(di.tip, color = Color.White, fontSize = 15.sp, fontWeight = Heavy, lineHeight = 19.sp, modifier = Modifier.padding(start = 8.dp))
             }
-            LaunchedEffect(di.key) { kotlinx.coroutines.delay(600); sounds.play("say:${di.tip}") }
+            // The tip card shows first, then Tiko reads it in a clear, calm voice (same words as the card).
+            LaunchedEffect(di.key) { kotlinx.coroutines.delay(900); sounds.play("calm:${di.tip.replace("\n", " ")}") }
         }
         // Players coming from an older build: what's new (their levels, coins and town are kept).
-        var welcomeBack by remember { mutableStateOf(progress.unlocked > 1 && !progress.seen("welcome_build3")) }
+        var welcomeBack by remember { mutableStateOf(progress.unlocked > 1 && !progress.seen("welcome_update1")) }
         if (welcomeBack) DimBox {
             Column(Modifier.width(440.dp).arcadePanel().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Tiko(Modifier.size(56.dp))
                 ArcadeText("Welcome back!", 24.sp, Palette.gold)
                 Text(
-                    "Your levels, coins and town are all saved. New in this update:\n🏙️ A 3D town to rebuild\n😈 Bosses peek over the board\n🔒 The new Lock booster\n🗣️ Voice cheers (turn off in settings)",
+                    "Your levels, coins and town are all saved. New in this update:\n🔥 Win streaks give free boosters\n🧰 A level chest every 5 wins\n🌈 Power tiles, x2 tiles and ? tiles\n🧊 Ice can move now (costs 2 moves)\n🔩 Iron Crates  💧 Vowel Rain",
                     color = Color.White, fontSize = 14.sp, textAlign = TextAlign.Center, lineHeight = 19.sp,
                 )
                 Spacer(Modifier.height(8.dp))
-                ArcadeButton("Let's go!") { progress.markSeen("welcome_build3"); welcomeBack = false }
+                ArcadeButton("Let's go!") { progress.markSeen("welcome_build3"); progress.markSeen("welcome_update1"); welcomeBack = false }
             }
         }
         if (tasksOpen) TasksDialog(

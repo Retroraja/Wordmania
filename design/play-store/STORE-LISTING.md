@@ -30,6 +30,8 @@ FEATURES
 
 Easy to learn and hard to put down. Train your brain one word at a time!
 
+© 2026 RetroRaja Games
+
 **Graphics** (in this folder):
 - App icon: icon-512.png
 - Feature graphic: feature-graphic-1024x500.png
@@ -38,7 +40,7 @@ Easy to learn and hard to put down. Train your brain one word at a time!
 **Category:** Game → Word
 **Tags:** Word, Puzzle, Casual
 **Contact email:** your developer email
-**Privacy policy URL:** https://github.com/Retroraja/Wordmania/blob/claude/first-playable/docs/privacy.md
+**Privacy policy URL:** https://retroraja.in/wordnoid-word-game/#privacy
 
 ## App content forms (Dashboard → "Set up your app")
 - **Privacy policy:** the URL above

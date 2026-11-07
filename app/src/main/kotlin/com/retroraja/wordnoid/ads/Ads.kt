@@ -53,7 +53,7 @@ object Ads {
     /** The 13 rewarded spots, with how many times a day each may be used. */
     enum class Spot(val perDay: Int) {
         CONTINUE(5), EXTRA_SPIN(1), SKIP_CHALLENGE(1), DOUBLE_WIN_COINS(5), EXTRA_BRICK(3), FREE_HAMMER(3), STUCK_HINT(5),
-        DOUBLE_DAILY(1), SECOND_CRATE(3), QUIZ_RETRY(3), GIFT_BALLOON(2), FREE_COINS(5), BOSS_REMATCH(3),
+        DOUBLE_DAILY(1), SECOND_CRATE(3), QUIZ_RETRY(3), GIFT_BALLOON(2), FREE_COINS(5), BOSS_REMATCH(3), KEEP_STREAK(1),
     }
 
     private var started = false
@@ -88,6 +88,11 @@ object Ads {
         }
     }
 
+    /** The game is landscape only. Some video ads turn the phone to portrait, so landscape is set again as soon as any ad closes. */
+    private fun landscape(activity: Activity) {
+        runCatching { activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE }
+    }
+
     fun online(context: Context): Boolean {
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return false
@@ -118,11 +123,13 @@ object Ads {
         var earned = false
         ad.fullScreenContentCallback = object : FullScreenContentCallback() {
             override fun onAdDismissedFullScreenContent() {
+                landscape(activity)
                 rewarded = null; rewardedReady = false
                 loadRewarded(activity)
                 if (earned) onReward() else onFail("Watch to the end to get the reward")
             }
             override fun onAdFailedToShowFullScreenContent(e: com.google.android.gms.ads.AdError) {
+                landscape(activity)
                 rewarded = null; rewardedReady = false
                 loadRewarded(activity)
                 onFail("No video right now, try again soon")
@@ -148,8 +155,10 @@ object Ads {
         if (progress.noAds || level < 15 || progress.levelsSinceAd < 3 || ad == null || progress.adsToday >= Progress.DAILY_AD_CAP) { then(); return }
         progress.resetLevelsSinceAd()
         ad.fullScreenContentCallback = object : FullScreenContentCallback() {
-            override fun onAdDismissedFullScreenContent() { interstitial = null; loadInterstitial(activity); then() }
-            override fun onAdFailedToShowFullScreenContent(e: com.google.android.gms.ads.AdError) { interstitial = null; loadInterstitial(activity); then() }
+            override fun onAdDismissedFullScreenContent() {
+                landscape(activity); interstitial = null; loadInterstitial(activity); then() }
+            override fun onAdFailedToShowFullScreenContent(e: com.google.android.gms.ads.AdError) {
+                landscape(activity); interstitial = null; loadInterstitial(activity); then() }
         }
         progress.adWatched()
         ad.show(activity)
@@ -171,7 +180,8 @@ object Ads {
             progress.appOpenAdsToday < 3 && ad != null && progress.adsToday < Progress.DAILY_AD_CAP
         ) {
             ad.fullScreenContentCallback = object : FullScreenContentCallback() {
-                override fun onAdDismissedFullScreenContent() { appOpen = null; loadAppOpen(activity) }
+                override fun onAdDismissedFullScreenContent() {
+                landscape(activity); appOpen = null; loadAppOpen(activity) }
             }
             progress.appOpenAdShown()
             progress.adWatched()

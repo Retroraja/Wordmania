@@ -38,15 +38,22 @@ object WordFinder {
      * Words that go through at least one of [changed]. This is how the game scores a move:
      * only words made with the tile(s) the player moved or changed count.
      */
-    fun wordsThrough(board: Board, changed: Collection<Pos>, dict: Dictionary): List<FoundWord> {
+    fun wordsThrough(board: Board, changed: Collection<Pos>, dict: Dictionary, rank: Rank? = null): List<FoundWord> {
         val must = changed.toSet()
         val out = ArrayList<FoundWord>()
-        for (line in linesThrough(board, changed)) out += findInLine(board, line, dict, must)
+        for (line in linesThrough(board, changed)) out += findInLine(board, line, dict, must, rank)
         // A word can be found twice only if it is the same cells; keep one.
         return out.distinctBy { it.cells.toSet() }
     }
 
-    private class Candidate(val start: Int, val len: Int, val word: String, val reversed: Boolean, val hasMust: Boolean)
+    private class Candidate(val start: Int, val len: Int, val word: String, val reversed: Boolean, val hasMust: Boolean, val rank: Int)
+
+    /**
+     * Word priority: when one line could make more than one word, higher ranks win first
+     * (theme word, then a word with a gold tile, then a word that helps the goal), then longer words.
+     * Gets the word (uppercase) and its cells.
+     */
+    fun interface Rank { fun of(word: String, cells: List<Pos>): Int }
 
     /** Resolves a pattern (lowercase, '*' = any letter, at most 2) to a word, or null. */
     fun resolve(pattern: String, dict: Dictionary): String? {
@@ -64,7 +71,7 @@ object WordFinder {
         return null
     }
 
-    fun findInLine(board: Board, line: List<Pos>, dict: Dictionary, must: Set<Pos>?): List<FoundWord> {
+    fun findInLine(board: Board, line: List<Pos>, dict: Dictionary, must: Set<Pos>?, rank: Rank? = null): List<FoundWord> {
         val n = line.size
         if (n < Dictionary.MIN_LENGTH) return emptyList()
         val letters = CharArray(n) { val t = board[line[it]]; if (t.hasLetter && !t.locked) t.letter.lowercaseChar() else '#' }
@@ -83,11 +90,12 @@ object WordFinder {
                 val f = resolve(forward, dict)
                 val b = if (f == null) resolve(forward.reversed(), dict) else null
                 val word = f ?: b ?: continue
-                candidates += Candidate(start, len, word, f == null, true)
+                val r = rank?.of(word.uppercase(), line.subList(start, start + len)) ?: 0
+                candidates += Candidate(start, len, word, f == null, true, r)
             }
         }
         if (candidates.isEmpty()) return emptyList()
-        candidates.sortWith(compareByDescending<Candidate> { it.len }.thenBy { it.start })
+        candidates.sortWith(compareByDescending<Candidate> { it.rank }.thenByDescending { it.len }.thenBy { it.start })
         val used = BooleanArray(n)
         val out = ArrayList<FoundWord>()
         for (c in candidates) {

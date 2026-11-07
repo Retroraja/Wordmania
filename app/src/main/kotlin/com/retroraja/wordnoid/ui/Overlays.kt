@@ -446,6 +446,11 @@ fun WinDialog(c: GameController, activity: Activity, onNext: () -> Unit, onTown:
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             ArcadeText(if (c.level.boss) "BOSS DEFEATED!" else "LEVEL ${c.level.number} COMPLETE!", 34.sp, Palette.gold)
+            // Win streak and level chest (one slot per win).
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                StreakBadge(c.progress.streak, c.level.number + 1)
+                ChestSlots(if (c.chestPrize != null) Progress.CHEST_SLOTS else c.progress.chest, popSlot = c.chestSlot)
+            }
             // W-I-N bricks: the earned ones drop in, in colour.
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Bottom) {
                 "WIN".forEachIndexed { i, ch ->
@@ -479,12 +484,15 @@ fun WinDialog(c: GameController, activity: Activity, onNext: () -> Unit, onTown:
                 ) }
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                ArcadeButton("🏠 Town", color = Palette.slate, textSize = 20.sp, onClick = { sounds.play("pop"); onTown() })
+                @Suppress("UNUSED_VARIABLE") val v = c.progress.version
+                if (canBuildNow(c.progress)) BuildReadyButton { sounds.play("pop"); onTown() }
+                else ArcadeButton("🏠 Town", color = Palette.slate, textSize = 20.sp, onClick = { sounds.play("pop"); onTown() })
                 if (!doubled) WatchButton("▶ Watch ad: x2 coins", Ads.Spot.DOUBLE_WIN_COINS, activity) { c.doubleWinCoins(); doubled = true }
                 if (!last) ArcadeButton("Next ▶", textSize = 26.sp, modifier = Modifier.scale(glow), onClick = { sounds.play("pop"); onNext() })
             }
         }
         Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp)) { Ads.Banner(Modifier.width(320.dp)) }
+        c.chestPrize?.let { p -> ChestOpenOverlay(p, sounds) { c.chestCollected() } }
     }
 }
 
@@ -516,6 +524,13 @@ fun LoseDialog(c: GameController, activity: Activity, onRetry: () -> Unit, onMap
             }
             val left = c.level.targets.filter { it.left(c.stats) > 0 }.joinToString("\n") { "${it.icon} ${it.left(c.stats)} more: ${it.text}" }
             Text("So close! Still needed:\n$left", color = Color.White, fontSize = 14.sp, textAlign = TextAlign.Center, lineHeight = 18.sp)
+            if (c.progress.streak > 0 && !c.streakKept) {
+                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("🔥 Don't lose your ${c.progress.streak}-win streak!", color = Color(0xFFFFB74D), fontSize = 14.sp, fontWeight = Heavy)
+                    if (c.progress.streakSaveReady) WatchButton("Keep streak", Ads.Spot.KEEP_STREAK, activity) { c.keepStreak() }
+                }
+            } else if (c.streakKept) Text("🔥 Streak kept!", color = Color(0xFFFFB74D), fontSize = 14.sp, fontWeight = Heavy)
             Spacer(Modifier.height(6.dp))
             if (c.level.boss) {
                 // Boss levels: one simple choice, +5 moves (coins or a video) or try again.

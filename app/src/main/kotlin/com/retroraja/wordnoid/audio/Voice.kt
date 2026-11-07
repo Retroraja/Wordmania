@@ -24,8 +24,16 @@ class Voice(context: Context) {
 
     fun say(text: String) {
         if (!enabled || !ready) return
-        runCatching { tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, text) }
+        runCatching { tts.setPitch(1.45f); tts.setSpeechRate(0.95f); tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, text) }
     }
+
+    /** Guide voice (daily features): normal pitch, a bit slower, so every word is clear. */
+    fun sayCalm(text: String) {
+        if (!enabled || !ready) return
+        runCatching { tts.setPitch(1.0f); tts.setSpeechRate(0.9f); tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, text) }
+    }
+
+    fun stop() { runCatching { tts.stop() } }
 
     fun release() { runCatching { tts.stop(); tts.shutdown() } }
 

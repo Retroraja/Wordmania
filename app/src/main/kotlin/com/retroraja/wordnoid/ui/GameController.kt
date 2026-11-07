@@ -146,6 +146,10 @@ class GameController(
     var screenHeight = 600f
 
     private var keys = 0
+    /** Words on back-to-back swaps: 2 = COMBO x2, and so on. */
+    var combo by mutableIntStateOf(0); private set
+    /** Set by a swap that continues a combo; the word celebration shows it once. */
+    private var comboShow = 0
     private var dryMoves = 0
     private var meterFills = 0
     private var idleJob: Job? = null
@@ -161,7 +165,7 @@ class GameController(
 
     /** The text in Tiko's strip right now. */
     val stripText: String
-        get() = tutorial?.text ?: message ?: (if (hintWords.isNotEmpty()) "💡 Try: " + hintWords.joinToString(", ") else lockText() ?: tikoSay)
+        get() = tutorial?.text ?: message ?: (if (hintWords.isNotEmpty()) "💡 Swap the glowing tiles to spell ${hintWords.first()}!" + (if (hintWords.size > 1) " Or try: " + hintWords.drop(1).joinToString(", ") else "") else lockText() ?: tikoSay)
 
     /** Locked letters on the board right now. */
     val lockedCells: List<Pos> get() = board.positions().filter { board[it].locked }
@@ -187,24 +191,30 @@ class GameController(
                 delay(250)
                 applyStartBooster(b)
             }
+            // Win streak: free boosters used right at the start (never stored).
+            for (b in streakBoosters(progress.streak, level.number)) {
+                delay(250)
+                applyStartBooster(b, streak = true)
+            }
             startTutorial()
             armIdleHint()
         }
     }
 
-    private suspend fun applyStartBooster(b: Booster) {
+    private suspend fun applyStartBooster(b: Booster, streak: Boolean = false) {
         val r = when (b) {
-            Booster.JOKER -> game.suggestTarget(Booster.JOKER)?.let { game.useBooster(b, it) }
+            Booster.JOKER, Booster.HAMMER -> game.suggestTarget(b)?.let { game.useBooster(b, it) }
+            Booster.MAGIC_SWAP -> game.suggestMagicSwap()?.let { (x, y) -> game.useBooster(b, x, y) }
             else -> game.useBooster(b)
         } ?: return
-        toast("${b.emoji} ${b.title}!", center(), Palette.gold, big = true)
+        toast(if (streak) "🔥 Streak: ${b.emoji} ${b.title}!" else "${b.emoji} ${b.title}!", center(), Palette.gold, big = true)
         sounds.play("sparkle")
         playResult(r, b)
     }
 
     private fun startTutorial() {
         if (level.number == 1 && level.tutorialSwap != null) {
-            tutorial = Tutorial("Swipe or tap these two glowing tiles to swap them and spell a word!", swap = level.tutorialSwap)
+            tutorial = Tutorial("Swap these 2 glowing tiles! 👆", swap = level.tutorialSwap)
             return
         }
         val b = level.introBoosters.firstOrNull()
@@ -242,10 +252,10 @@ class GameController(
             return
         }
         when {
-            s == null -> { if (board[p].movable) { selected = p; sounds.play("tick") } else notMovable(p) }
+            s == null -> { if (board[p].swappable) { selected = p; sounds.play("tick"); if (board[p].isIce) iceTip() } else notMovable(p) }
             s == p -> selected = null
             s.isNeighbour(p) -> { selected = null; trySwap(s, p) }
-            else -> selected = if (board[p].movable) p else null
+            else -> selected = if (board[p].swappable) p else null
         }
     }
 
@@ -296,7 +306,8 @@ class GameController(
         val t = board[p]
         val text = when {
             t.isCrate -> "Make a word right next to the box to break it!"
-            t.isIce -> "Frozen! Use this letter in a word to melt it."
+            t.isIce -> "Ice costs 2 moves to swap. Use it in a word to melt it."
+            t.isMystery -> "A hidden letter! Make a word right beside it to show the letter."
             t.isChain -> "Chained! Make a word next to it to snap the chain."
             t.isBuddy -> "That's a Tiko friend! Use the letters under it in words so it drops to the bottom."
             else -> null
@@ -305,8 +316,17 @@ class GameController(
         sounds.play("nope")
     }
 
+    /** Picking an ice tile: a short reminder that it costs 2 moves (shown until the player has swapped ice once). */
+    private fun iceTip() { if (!progress.seen("ice_swapped")) say("🧊 Ice costs 2 moves to swap. Use it in a word to melt it!", 2600) }
+
     private fun trySwap(a: Pos, b: Pos) {
-        if (!game.canSwap(a, b)) { sounds.play("nope"); return }
+        if (!game.canSwap(a, b)) {
+            sounds.play("nope")
+            if (board.contains(a) && board.contains(b) && a.isNeighbour(b) && board[a].swappable && board[b].swappable && game.swapCost(a, b) > movesLeft)
+                say("Not enough moves to swap ice (it costs ${game.swapCost(a, b)}).", 2000)
+            else if (board.contains(b) && !board[b].swappable) notMovable(b)
+            return
+        }
         // Guided steps can't be skipped: first do what Tiko asks.
         val t = tutorial
         if (t != null && !t.dismissible) {
@@ -318,20 +338,28 @@ class GameController(
             }
         }
         hint = null
+        autoHint = false
         hintWords = emptyList()
         scan = emptySet()
         nudge = null
         busy = true
+        val cost = game.swapCost(a, b)
         scope.launch {
             sounds.play("swap")
+            if (cost >= 2) {
+                progress.markSeen("ice_swapped")
+                toast("-$cost moves 🧊", movesAnchor, Palette.cyan, big = true)
+                sounds.play("crack")
+            }
             val r = game.swap(a, b)
             board = r.changedBoard
             delay(200)
             if (r.effects.words.isEmpty()) {
                 sounds.play("clack")
                 dryMoves++
+                combo = 0
                 if (dryMoves >= 3) suggestBooster()
-            } else dryMoves = 0
+            } else { dryMoves = 0; combo++; if (combo >= 2) comboShow = combo }
             playResult(r, null)
         }
     }
@@ -344,13 +372,18 @@ class GameController(
         say("Stuck? Try ${pick.emoji} ${pick.title}!", 2600)
     }
 
+    /** True while the hint on the board is the soft auto hint (it goes away as soon as the player touches the board). */
+    var autoHint by mutableStateOf(false); private set
+
+    /** Auto hint: after a few seconds with no move, two tiles that make a word glow softly. 5 s in Levels 1-10, 12 s later on. */
     private fun armIdleHint() {
         idleJob?.cancel()
-        if (level.number > 5) return
+        if (autoHint) { hint = null; autoHint = false }
         idleJob = scope.launch {
-            delay(10_000)
-            if (!busy && status == GameStatus.PLAYING && armed == null && hint == null) {
+            delay(if (level.number <= 10) 5_000 else 12_000)
+            if (!busy && status == GameStatus.PLAYING && armed == null && hint == null && tutorial == null && mysteryCards == null) {
                 hint = game.hint()
+                autoHint = hint != null
             }
         }
     }
@@ -360,6 +393,7 @@ class GameController(
         val words = game.hintWords(3)
         if (words.isEmpty()) return
         hint = words.first().first
+        autoHint = false
         hintWords = words.map { it.second }
         sounds.play("ding")
     }
@@ -420,9 +454,10 @@ class GameController(
         if (progress.spend(price)) {
             progress.addBooster(b)
             sounds.play("cash")
-            toast("+1 ${b.emoji}", center(), Palette.gold, big = true)
-            // Buying from an empty slot uses it straight away.
-            boosterTapped(b)
+            // The bought booster lands on the panel with its count and glows; the player taps it to use it.
+            glowBooster = b
+            say("+1 ${b.emoji} ${b.title}! Tap it to use it.", 2600)
+            scope.launch { delay(2600); if (glowBooster == b) glowBooster = null }
         } else {
             sounds.play("nope")
             say("Not enough coins. Win levels and open boxes to earn more!")
@@ -450,7 +485,6 @@ class GameController(
                 if (b == Booster.LOCK && t.locked) { sounds.play("nope"); say("That letter is already locked. Pick another one."); return }
                 when (b) {
                     Booster.PAINT -> letterPick = LetterPick(b, p, ('A'..'Z').toList())
-                    Booster.VOWEL_FLIP -> letterPick = LetterPick(b, p, listOf('A', 'E', 'I', 'O', 'U'))
                     Booster.DICE -> { sounds.play("rain"); letterPick = LetterPick(b, p, game.diceOptions(p)) }
                     else -> apply(b, p)
                 }
@@ -472,6 +506,7 @@ class GameController(
                 if (words.isEmpty()) { sounds.play("nope"); return }
                 consume(b)
                 hint = words.first().first
+                autoHint = false
                 hintWords = words.map { it.second }
                 fx = BoosterFx(b, words.first().first.toList(), ++keys)
                 sounds.play("ding")
@@ -504,8 +539,12 @@ class GameController(
         busy = true
         val before = board
         scope.launch {
+            // Rain boosters: work out where the letters land first, so the drops fall on those tiles.
+            val rain = b == Booster.LETTER_RAIN || b == Booster.VOWEL_FLIP
+            val pre = if (rain) game.useBooster(b, a, second, letter) else null
             val cells = listOfNotNull(a, second) + when (b) {
                 Booster.SPIN -> a?.let { listOf(Pos(it.row, it.col + 1), Pos(it.row + 1, it.col), Pos(it.row + 1, it.col + 1)) } ?: emptyList()
+                Booster.LETTER_RAIN, Booster.VOWEL_FLIP -> pre?.changedBoard?.let { nb -> nb.positions().filter { nb[it].letter != before[it].letter } } ?: emptyList()
                 else -> emptyList()
             }
             if (fx3) Fx.call("booster", fxBoard(Fx.obj("k" to b.name, "cells" to fxCells(cells))).also { o -> a?.let { Fx.at(cellCenter(it), o) } })
@@ -513,7 +552,7 @@ class GameController(
             sounds.play(boosterSound(b))
             haptics.tap()
             delay(boosterLead(b))
-            val r = game.useBooster(b, a, second, letter)
+            val r = if (rain) pre else game.useBooster(b, a, second, letter)
             if (r == null) {
                 sounds.play("nope")
                 say(
@@ -537,8 +576,8 @@ class GameController(
             when (b) {
                 Booster.UNDO -> { wobbleKey++ }
                 Booster.SHUFFLE -> { flipping.addAll(board.tiles().map { it.id }) }
-                Booster.JOKER, Booster.PAINT, Booster.VOWEL_FLIP, Booster.DICE, Booster.LOCK -> a?.let { flipping.add(before[it].id) }
-                Booster.LETTER_RAIN -> flipping.addAll(r.changedBoard.positions().filter { r.changedBoard[it].letter != before[it].letter }.map { before[it].id })
+                Booster.JOKER, Booster.PAINT, Booster.DICE, Booster.LOCK -> a?.let { flipping.add(before[it].id) }
+                Booster.LETTER_RAIN, Booster.VOWEL_FLIP -> flipping.addAll(r.changedBoard.positions().filter { r.changedBoard[it].letter != before[it].letter }.map { before[it].id })
                 Booster.TREASURE_FINDER -> for (i in r.chestsFound) treasureFound(i)
                 else -> {}
             }
@@ -564,13 +603,13 @@ class GameController(
         Booster.HAMMER -> "thunk"
         Booster.AXE -> "chop"
         Booster.MAGIC_SWAP, Booster.JOKER -> "sparkle"
-        Booster.PAINT, Booster.VOWEL_FLIP, Booster.DICE -> "flip"
+        Booster.PAINT, Booster.DICE -> "flip"
         Booster.UNDO -> "rewind"
         Booster.SHUFFLE, Booster.SPIN, Booster.ROW_SLIDE, Booster.COLUMN_SLIDE -> "whoosh"
         Booster.FREE_MOVE, Booster.PLUS_MOVES, Booster.DOUBLE -> "fanfare"
         Booster.LOCK -> "lock"
         Booster.MAGNET -> "hum"
-        Booster.LETTER_RAIN -> "rain"
+        Booster.LETTER_RAIN, Booster.VOWEL_FLIP -> "rain"
         Booster.HINT -> "ding"
         Booster.SCANNER -> "whoosh"
         Booster.TREASURE_FINDER -> "sparkle"
@@ -580,7 +619,7 @@ class GameController(
         Booster.HAMMER, Booster.AXE -> 380
         Booster.MAGNET -> 450
         Booster.LOCK -> 300
-        Booster.LETTER_RAIN -> 500
+        Booster.LETTER_RAIN, Booster.VOWEL_FLIP -> 500
         else -> 200
     }
 
@@ -707,21 +746,43 @@ class GameController(
                 if (isNew) add("New word! +${Progress.NEW_WORD_COINS} 🪙")
                 if (w.word in fx0.themeWords) add("${level.themeName()} word!")
                 if (fx0.doubled) add("Double power!")
+                if (w.cells.any { it in fx0.twins }) add("x2 tile: counts twice!")
+                if (w.cells.any { it in fx0.powerFired }) add("⚡ Power blast!")
                 if (fx0.bonusWord && w.word == level.bonusWord) add("Bonus word! 🎁")
             }
-            banner = WordBanner(w.word, if (fx0.words.size >= 2 && wi == 1) "DOUBLE!" else praise(w.length), lines, ++keys, isNew)
+            val comboNow = if (wi == 0) comboShow else 0
+            val praiseText = when {
+                comboNow >= 2 -> "COMBO x$comboNow!"
+                fx0.words.size >= 2 && wi == 1 -> "DOUBLE!"
+                else -> praise(w.length)
+            }
+            val lines2 = if (comboNow >= 2) lines + "Combo +${COMBO_COINS * comboNow} 🪙" else lines
+            if (comboNow >= 2) {
+                progress.addCoins(COMBO_COINS * comboNow); coinsThisLevel += COMBO_COINS * comboNow
+                shakeKey++; haptics.big(); sounds.play("fanfare"); sounds.play("coin")
+            }
+            banner = WordBanner(w.word, praiseText, lines2, ++keys, isNew)
             if (fx3) {
                 val mid = cellCenter(cellsInOrder[cellsInOrder.size / 2])
                 val first = cellCenter(cellsInOrder.first()); val last = cellCenter(cellsInOrder.last())
                 Fx.call("word", Fx.obj("cells" to fxCells(cellsInOrder, b0), "cx" to Fx.dp((first.x + last.x) / 2), "cy" to Fx.dp((first.y + last.y) / 2),
-                    "text" to (if (fx0.words.size >= 2 && wi == 1) "DOUBLE!" else praise(w.length)), "green" to isNew))
-                if (level.boss) Fx.call("bossHit", Fx.at(mid, Fx.obj("hp" to (1f - liveProgress).toDouble())))
+                    "text" to praiseText, "green" to isNew))
+                // The fall itself is always played by win() (also when a booster or crate finishes the level), so a hit never knocks him out.
+                if (level.boss) Fx.call("bossHit", Fx.at(mid, Fx.obj("hp" to (1f - liveProgress).toDouble().coerceAtLeast(0.03))))
             }
             haptics.word()
             if (w.length >= 5) { shakeKey++; haptics.big(); sounds.play("fanfare"); sounds.play("say:" + praise(w.length).lowercase().trimEnd('!')) }
             // Words stay on screen long enough to read (about 1.5 seconds).
             delay(if (fx0.words.size > 1) 1100 else 1500)
         }
+        comboShow = 0
+        // Power tiles: a new one glows where the long word's moved tile was; a used one blasts its row (and column).
+        for (p in fx0.powerFired) {
+            if (fx3) Fx.call("power", fxBoard(Fx.at(cellCenter(p), Fx.obj("row" to p.row, "col" to p.col, "cross" to (b0[p].hp >= 2)))))
+            else particles.firework(cellCenter(p))
+            sounds.play("bang"); shakeKey++; haptics.big()
+        }
+        for (p in fx0.revealed) { if (fx3) Fx.call("reveal", Fx.at(cellCenter(p))) else particles.sparkle(cellCenter(p), Palette.cyan, 14); sounds.play("sparkle") }
         // 2. Burst!
         val cleared = fx0.cleared
         for (p in cleared) {
@@ -736,6 +797,12 @@ class GameController(
         for (h in fx0.crateHits) {
             if (!fx3) particles.splinters(cellCenter(h.pos))
             sounds.play("crack")
+            if (!h.broken) {
+                // Iron Crate, first hit: the bands snap off (it is a plain crate now, 1 hit left).
+                if (fx3) Fx.call("ironSnap", Fx.at(cellCenter(h.pos), Fx.obj("cell" to Fx.dp(cellPx)))) else particles.shards(cellCenter(h.pos))
+                toast("🔩 1 hit left!", cellCenter(h.pos), Palette.gold)
+                haptics.tap()
+            }
             if (h.broken) Daily.report(progress, Daily.Kind.CRATES)
             h.prize?.let { prize ->
                 val text = when (prize.kind) {
@@ -781,6 +848,10 @@ class GameController(
         delay(120)
         // 4. Tiles fall in.
         board = r.boardAfter
+        if (fx0.powerMade.isNotEmpty()) {
+            sounds.play("sparkle")
+            if (!progress.seen("power_tip")) { progress.markSeen("power_tip"); say("🌈 A Power tile! Use it in a new word to blast its whole row!", 3600) }
+        }
         popping.clear()
         glowing.clear()
         sync()
@@ -794,6 +865,18 @@ class GameController(
         tutorial = null
         hintWords = emptyList()
         delay(400)
+        // Boss levels: the villain's full fall is shown first ("You beat ...!"), and only then the goal blast.
+        if (level.boss) {
+            message = "You beat ${worldOf(level.number).villain}!"
+            sounds.play("fanfare")
+            if (fx3) {
+                Fx.call("bossHold", Fx.obj("on" to false))
+                Fx.call("bossDefeat")
+                Fx.await("bossGone", 2600)
+                delay(700)
+                Fx.call("bossHide")
+            } else delay(1200)
+        }
         sounds.play("win")
         message = if (level.boss) "You beat ${worldOf(level.number).villain}!" else "LEVEL COMPLETE!"
         if (fx3) Fx.call("confetti", Fx.obj("x" to Fx.dp(screenWidth / 2), "y" to Fx.dp(screenHeight * 0.3f), "n" to 120, "spread" to 6)) else particles.confettiRain(screenWidth)
@@ -827,6 +910,15 @@ class GameController(
             delay(260)
         }
         message = null
+        progress.streakWin()
+        chestSlot = progress.chest
+        if (progress.chestWin()) {
+            chestSlot = Progress.CHEST_SLOTS - 1
+            val boosters = List(2) { Rewards.randomBooster(level.number, random) }
+            boosters.forEach { progress.addBooster(it) }
+            progress.addCoins(CHEST_COINS)
+            chestPrize = ChestPrize(CHEST_COINS, boosters)
+        }
         winStars = game.stars()
         winCoins = WIN_COINS + winStars * BRICK_COINS
         progress.addCoins(winCoins)
@@ -896,7 +988,21 @@ class GameController(
 
     fun giveUp() {
         if (status == GameStatus.LOST) progress.levelLost(level.number)
+        if (status != GameStatus.WON && !streakKept) progress.streakLost()
     }
+
+    /** Leaving a level that isn't won (map, home, restart) counts as a loss for the streak. */
+    fun quit() { if (status != GameStatus.WON && !streakKept) progress.streakLost() }
+
+    /** Lose screen: a video keeps the streak (once a day). The player still has to win or try again. */
+    var streakKept by mutableStateOf(false); private set
+    fun keepStreak() { progress.useStreakSave(); streakKept = true }
+
+    /** The level chest slot that filled with this win (for the pop on the win card), or -1. */
+    var chestSlot by mutableIntStateOf(-1); private set
+    /** Set when this win filled the chest: it opens full screen. */
+    var chestPrize by mutableStateOf<ChestPrize?>(null); private set
+    fun chestCollected() { chestPrize = null }
 
     // ---------------------------------------------------------------- Power Meter mystery cards
 
@@ -907,7 +1013,11 @@ class GameController(
         // The first time (Level 5) the cards are the three boosters the player has just learned.
         mysteryCards = if (!progress.seen("mystery_first")) { progress.markSeen("mystery_first"); listOf(Booster.HAMMER, Booster.JOKER, Booster.MAGIC_SWAP) }
         else Rewards.mysteryCards(progress.unlocked.coerceAtLeast(level.number), random)
-        sounds.play("say:Power Meter full! Pick a card for a free booster!")
+        if (!progress.seen("meter_voice")) {
+            progress.markSeen("meter_voice")
+            sounds.play("say:Power Meter full! Pick a card for a free booster!")
+        } else if (!meterSaid) sounds.play("say:Pick a card!")
+        meterSaid = true
     }
 
     fun mysteryPicked(b: Booster) {
@@ -917,6 +1027,7 @@ class GameController(
     }
 
     private var lastMystery: Booster? = null
+    private var meterSaid = false
 
     fun mysteryDone() {
         mysteryCards = null
@@ -925,7 +1036,7 @@ class GameController(
             glowBooster = b
             val line = "It's yours! Use ${b.emoji} ${b.title} in any level when you're stuck."
             say(line, 4500)
-            sounds.play("say:It's yours! Use it in any level when you're stuck.")
+            if (!progress.seen("mystery_voice")) { progress.markSeen("mystery_voice"); sounds.play("say:It's yours! Use it in any level when you're stuck.") }
             scope.launch { delay(3500); if (glowBooster == b) glowBooster = null }
         }
         lastMystery = null
@@ -961,7 +1072,7 @@ class GameController(
     fun fxBoss() {
         if (!level.boss || cellPx <= 1f) return
         Fx.call("bossShow", Fx.obj("x" to Fx.dp(boardOrigin.x), "y" to Fx.dp(boardOrigin.y) - 8.0, "w" to Fx.dp(board.cols * cellPx),
-            "hp" to (1f - goalProgress).toDouble(), "name" to worldOf(level.number).villain.uppercase()))
+            "hp" to (1f - goalProgress).toDouble(), "name" to worldOf(level.number).villain.uppercase(), "kind" to level.world))
     }
 
     /** Goal progress straight from the game (before the screen catches up). */
@@ -984,6 +1095,8 @@ class GameController(
 
     companion object {
         const val WIN_COINS = 10
+        const val COMBO_COINS = 5
+        const val CHEST_COINS = 100
         const val BRICK_COINS = 5
         const val TREASURE_COINS = 25
         /** The Power Meter (and mystery cards) start at this level. */

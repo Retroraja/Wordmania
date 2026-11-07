@@ -103,6 +103,10 @@ fun LevelStartCard(level: Level, progress: Progress, sounds: SoundFx, onPlay: (L
             }
             if (level.boss) Text("${world.villainEmoji} BOSS: ${world.villain} · ${world.bossTitle}", color = Color(0xFFFFCDD2), fontSize = 14.sp, fontWeight = Heavy)
             Text("${level.moves} moves", color = Palette.cream, fontSize = 13.sp)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                StreakBadge(progress.streak, level.number)
+                ChestSlots(progress.chest, small = true)
+            }
             Spacer(Modifier.height(6.dp))
             for (o in level.targets) Row(
                 Modifier.padding(vertical = 2.dp).softCard().padding(horizontal = 10.dp, vertical = 4.dp),
@@ -379,6 +383,12 @@ private fun LevelStartBig(level: Level, progress: Progress, sounds: SoundFx, onP
             Row(verticalAlignment = Alignment.CenterVertically) {
                 ArcadeText("LEVEL ", 46.sp, Color.White)
                 ArcadeText("${level.number}", 46.sp, Palette.gold)
+                Spacer(Modifier.width(12.dp))
+                // Win streak (free boosters at the start) and the level chest.
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    StreakBadge(progress.streak, level.number)
+                    ChestSlots(progress.chest, small = true)
+                }
                 Spacer(Modifier.weight(1f))
                 if (level.boss) Text("${world.villainEmoji} BOSS: ${world.villain}", color = Color(0xFFFFCDD2), fontSize = 16.sp, fontWeight = Heavy, modifier = Modifier.padding(end = 8.dp))
                 Text(

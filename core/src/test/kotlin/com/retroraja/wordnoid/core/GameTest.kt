@@ -78,7 +78,9 @@ class GameTest {
         val paint = g.useBooster(Booster.PAINT, Pos(3, 0), letter = 'A')
         assertNotNull(paint)
         assertNotNull(g.useBooster(Booster.SHUFFLE))
-        assertNull(g.useBooster(Booster.VOWEL_FLIP, Pos(0, 0), letter = 'B'), "vowel flip needs a vowel")
+        val rain = g.useBooster(Booster.VOWEL_FLIP)
+        assertNotNull(rain, "vowel rain works with no tile picked")
+        assertTrue(rain.effects.words.isEmpty(), "rain never makes a word by itself")
     }
 
     @Test fun lockedLetterMakesNoWordUntilUnlocked() {
@@ -196,5 +198,42 @@ class GameTest {
         assertEquals(0, r.effects.coins)
         assertEquals(0, r.effects.bonusMoves)
         assertEquals(1, level.movesForWord(5)); assertEquals(2, level.movesForWord(6)); assertEquals(0, level.movesForWord(4))
+    }
+
+    @Test fun iceSwapCostsTwoMovesAndMeltsInAWord() {
+        // C A T with the A frozen at (0,2): swap A (ice) left with T to... instead freeze T and spell CAT.
+        val g = Game(level.copy(start = listOf("CTAQJ", "QJQZQ", "JZQJZ", "QJZQJ"), marks = listOf("..i..", ".....", ".....", "....."), targets = listOf(Objective.Ice(1))), dict)
+        assertEquals(2, g.swapCost(Pos(0, 1), Pos(0, 2)))
+        val r = g.swap(Pos(0, 1), Pos(0, 2))
+        assertEquals("CAT", r.effects.words.first().word)
+        assertEquals(1, r.effects.iceMelted.size)
+        assertEquals(8, g.movesLeft)
+    }
+
+    @Test fun ironCratesAreTheirOwnGoal() {
+        // An iron crate (%) under the T: two words next to it break it.
+        val g = Game(level.copy(start = listOf("CTAQJ", "Q%QZQ", "JZQJZ", "QJZQJ"), targets = listOf(Objective.IronCrates(1), Objective.Words(5))), dict)
+        val r = g.swap(Pos(0, 1), Pos(0, 2))
+        assertEquals(1, r.effects.crateHits.size)
+        assertTrue(!r.effects.crateHits.first().broken, "first hit only snaps the bands")
+        assertEquals(0, g.stats.ironCrates)
+        assertEquals(0, g.stats.crates)
+    }
+
+    @Test fun themeWordWinsOverLongerWord() {
+        // Swapping makes FIGS; the fruit theme word FIG must count instead.
+        val lv = level.copy(cols = 6, start = listOf("FGISQJ", "QJQZQJ", "JZQJZQ", "QJZQJZ"), targets = listOf(Objective.Theme("Fruits", 1)))
+        val g = Game(lv, dict)
+        val r = g.swap(Pos(0, 1), Pos(0, 2))
+        assertEquals("FIG", r.effects.words.first().word)
+    }
+
+    @Test fun longWordLeavesAPowerTileThatClearsItsRow() {
+        val lv = level.copy(number = 20, cols = 6, start = listOf("PLNAET", "QJQZQJ", "JZQJZQ", "QJZQJZ"), targets = listOf(Objective.Words(9)))
+        val g = Game(lv, dict)
+        val r = g.swap(Pos(0, 2), Pos(0, 3))
+        assertEquals("PLANET", r.effects.words.first().word)
+        assertEquals(1, r.effects.powerMade.size)
+        assertTrue(g.board.tiles().count { it.isPower } == 1)
     }
 }

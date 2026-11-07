@@ -4,7 +4,7 @@ The game accepts only **everyday words**, so players have to think to make words
 
 | File | What it is | Size |
 |---|---|---|
-| `app/src/main/assets/play_words.txt` | **The words the game accepts.** About 33,000 everyday words: the most common 3 and 4 letter words, and common 5 to 10 letter words. American, British, Canadian and Australian spellings. | ~300 KB |
+| `app/src/main/assets/play_words.txt` | **The words the game accepts.** About 18,500 everyday words (Update 1): hand-picked 3-letter words, and 4 to 10 letter words from SCOWL sizes 10-35 that people really use (wordfreq Zipf 3.0+). American, British, Canadian and Australian spellings. | ~300 KB |
 | `tools/wordlist/all_words.txt` | Every English word (about 283,000). Reference only, not in the app. | ~2.4 MB |
 | `tools/wordlist/common_words.txt` | A wider common list (about 50,000). Reference only. | ~420 KB |
 

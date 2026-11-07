@@ -37,7 +37,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.delay
 import java.time.LocalDate
 
-const val PRIVACY_URL = "https://github.com/Retroraja/Wordmania/blob/claude/first-playable/docs/privacy.md"
+const val PRIVACY_URL = "https://retroraja.in/wordnoid-word-game/#privacy"
 
 @Composable
 fun SettingsScreen(progress: Progress, sounds: SoundFx, onBack: () -> Unit, onHowToPlay: () -> Unit) {
@@ -64,6 +64,7 @@ fun SettingsScreen(progress: Progress, sounds: SoundFx, onBack: () -> Unit, onHo
                         com.google.android.ump.UserMessagingPlatform.showPrivacyOptionsForm(activity) {}
                     }
                     Text("Wordnoid by RetroRaja Games · version ${context.packageManager.getPackageInfo(context.packageName, 0).versionName}", color = Palette.cream, fontSize = 11.sp)
+                    Text(COPYRIGHT, color = Palette.cream.copy(alpha = 0.8f), fontSize = 11.sp)
                 }
             }
         }
@@ -100,7 +101,7 @@ fun StudioIntro(sounds: SoundFx, onDone: () -> Unit) {
         }
     }
     when (mode) {
-        1 -> Box(Modifier.fillMaxSize().clickable { finish() })
+        1 -> Box(Modifier.fillMaxSize().clickable { finish() }) { Copyright(Modifier.align(Alignment.BottomCenter)) }
         0 -> Box(Modifier.fillMaxSize().background(Color(0xFF0B1440)))
         else -> FlatIntro(sounds) { finish() }
     }
@@ -136,7 +137,16 @@ private fun FlatIntro(sounds: SoundFx, finish: () -> Unit) {
             }
             Text("Word Match with Fun Boosters", color = Palette.gold, fontSize = 20.sp, fontWeight = Heavy, modifier = Modifier.padding(top = 8.dp))
         }
+        Copyright(Modifier.align(Alignment.BottomCenter))
     }
+}
+
+const val COPYRIGHT = "© 2026 RetroRaja Games"
+
+/** Small copyright line at the bottom edge of the title screen (below everything else, so it never covers a button). */
+@Composable
+fun Copyright(modifier: Modifier = Modifier) {
+    Text(COPYRIGHT, color = Color.White.copy(alpha = 0.75f), fontSize = 11.sp, modifier = modifier.padding(bottom = 6.dp))
 }
 
 /**

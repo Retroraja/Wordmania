@@ -16,6 +16,7 @@ object Solver {
         var guard = 0
         while (game.status == GameStatus.PLAYING && guard++ < 400) {
             val (a, b) = chooseSwap(game, dict, skill, rng)
+            if (!game.canSwap(a, b)) break
             game.swap(a, b)
         }
         return Result(game.status == GameStatus.WON, game.movesLeft, game.found.size, game.movesUsed)
@@ -31,7 +32,8 @@ object Solver {
 
     fun chooseSwap(game: Game, dict: Dictionary, skill: Double, rng: Rng): Pair<Pos, Pos> {
         val board = game.board
-        val pairs = board.swappablePairs()
+        // Only swaps the player can pay for (an ice swap costs 2 moves).
+        val pairs = board.swappablePairs().filter { (a, b) -> game.canSwap(a, b) }.ifEmpty { board.swappablePairs() }
         if (rng.nextDouble() >= skill) return pairs[rng.nextInt(pairs.size)]
         val scored = pairs.map { it to game.previewGain(it.first, it.second) }.filter { it.second > 0 }
         if (skill >= 1.0) {

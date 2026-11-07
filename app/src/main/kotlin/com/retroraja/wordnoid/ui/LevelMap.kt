@@ -37,7 +37,7 @@ fun LevelMapScreen(
     LivingBackground(progress.unlocked.coerceAtMost(50)) {
         Column(Modifier.fillMaxSize().padding(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                ArcadeButton("🏠 Town", color = Palette.slate, textSize = 16.sp, onClick = onTown)
+                TownButton(progress, onClick = onTown)
                 Spacer(Modifier.width(12.dp))
                 ArcadeText("Level Map", 28.sp, Color.White)
                 Spacer(Modifier.weight(1f))
@@ -254,7 +254,7 @@ private fun LevelMap3D(progress: Progress, sounds: SoundFx, onTown: () -> Unit, 
         }
         Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
             if (zoom != null) ArcadeButton("◀ Islands", color = Palette.slate, textSize = 16.sp) { sounds.play("whoosh"); zoom = null }
-            else ArcadeButton("🏠 Town", color = Palette.slate, textSize = 16.sp, onClick = onTown)
+            else TownButton(progress, onClick = onTown)
             Spacer(Modifier.width(12.dp))
             ArcadeText(zoom?.let { "${WORLDS[it].emoji} ${WORLDS[it].name}" } ?: "Level Map", 28.sp, Color.White)
         }

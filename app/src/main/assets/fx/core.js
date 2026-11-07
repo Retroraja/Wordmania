@@ -147,8 +147,11 @@ const raysTex=ctex(256,256,x=>{x.translate(128,128);for(let i=0;i<16;i++){x.rota
   x.globalCompositeOperation='destination-in';const g=x.createRadialGradient(0,0,10,0,0,128);g.addColorStop(0,'#fff');g.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=g;x.fillRect(-128,-128,256,256)});
 function rays(size,col=0xffffff){const m=new THREE.Mesh(new THREE.PlaneGeometry(size,size),new THREE.MeshBasicMaterial({map:raysTex,color:col,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));return m}
 function recolor(g,fromHex,to){const m=std(to,.32);g.traverse(o=>{if(o.isMesh&&o.material.color&&o.material.color.getHex()===fromHex)o.material=m})}
-function makeBoss(){const g=new THREE.Group(),bod=new THREE.Group();g.add(bod);
-  const skin=new THREE.MeshStandardMaterial({color:'#8a4dff',roughness:.45}),belly=std('#c9adff',.6),white=std('#ffffff',.25),black=std('#15102a',.3),horn=std('#ffb020',.35,.1),dark=std('#3a1478',.5);
+/** The board boss. kind = the land (0 Professor Scramble, 1 Captain Inkbeard, 2 Bonkers the Baboon, 3 Grumble Cloud, 4 Word Eater):
+ *  same rig (body, eyes, mouth, arms, hands) so every boss has the same hit / attack / fall moves, but each land's own look. */
+const BOSS_SKIN=['#8a4dff','#e04f6a','#8a5a3a','#7d8494','#8e3bc4'],BOSS_BELLY=['#c9adff','#ff9aa8','#f2c9a0','#c3c8d4','#b56be0'];
+function makeBoss(kind){kind=(kind|0)%5;const g=new THREE.Group(),bod=new THREE.Group();g.add(bod);
+  const skin=new THREE.MeshStandardMaterial({color:BOSS_SKIN[kind],roughness:kind===3?.95:kind===4?.18:.45}),belly=std(BOSS_BELLY[kind],.6),white=std('#ffffff',.25),black=std('#15102a',.3),horn=std('#ffb020',.35,.1),dark=std('#3a1478',.5);
   const body=new THREE.Mesh(new THREE.SphereGeometry(1.7,40,30),skin);body.scale.set(1.15,1.05,.8);body.position.y=1.9;bod.add(body);
   const bl=new THREE.Mesh(new THREE.SphereGeometry(1.1,30,20),belly);bl.scale.set(1,.8,.45);bl.position.set(0,1.0,.95);bod.add(bl);
   const eyes=[],pupils=[],xs=[];
@@ -157,12 +160,32 @@ function makeBoss(){const g=new THREE.Group(),bod=new THREE.Group();g.add(bod);
     const hl=new THREE.Mesh(new THREE.SphereGeometry(.07,8,6),white);hl.position.set(.08,.1,.18);p.add(hl);
     const xg=new THREE.Group();for(const r of[1,-1]){const b=new THREE.Mesh(new THREE.BoxGeometry(.5,.1,.06),black);b.rotation.z=r*Math.PI/4;xg.add(b)}xg.position.set(s*.62,2.55,1.38);xg.visible=false;bod.add(xg);xs.push(xg);
     const br=new THREE.Mesh(new THREE.BoxGeometry(.62,.16,.16),dark);br.position.set(s*.6,3.12,1.0);br.rotation.z=s*.4;bod.add(br);
-    const hn=new THREE.Mesh(new THREE.ConeGeometry(.26,.8,16),horn);hn.position.set(s*1.05,3.55,0);hn.rotation.z=-s*.45;bod.add(hn)}
+    if(kind===0){const hn=new THREE.Mesh(new THREE.ConeGeometry(.26,.8,16),horn);hn.position.set(s*1.05,3.55,0);hn.rotation.z=-s*.45;bod.add(hn)}}
   const mouth=new THREE.Group();mouth.position.set(0,1.72,1.3);mouth.rotation.x=-.25;bod.add(mouth);
   const mo=new THREE.Mesh(new THREE.CircleGeometry(.62,32,Math.PI,Math.PI),std('#3a0a2a',.8));mo.scale.y=.75;mouth.add(mo);
   const tongue=new THREE.Mesh(new THREE.CircleGeometry(.3,20,Math.PI,Math.PI),std('#ff6f8f',.6));tongue.position.set(.1,-.3,.01);tongue.scale.y=.6;mouth.add(tongue);
   for(const s of[-1,1]){const t=new THREE.Mesh(new THREE.ConeGeometry(.12,.26,4),white);t.rotation.z=Math.PI;t.position.set(s*.28,-.12,.02);mouth.add(t)}
-  for(let i=0;i<5;i++){const sp=new THREE.Mesh(new THREE.ConeGeometry(.16,.5,10),skin);sp.position.set((i-2)*.32,3.75-Math.abs(i-2)*.12,-.2);sp.rotation.z=-(i-2)*.25;bod.add(sp)}
+  if(kind===0)for(let i=0;i<5;i++){const sp=new THREE.Mesh(new THREE.ConeGeometry(.16,.5,10),skin);sp.position.set((i-2)*.32,3.75-Math.abs(i-2)*.12,-.2);sp.rotation.z=-(i-2)*.25;bod.add(sp)}
+  if(kind===1){// Captain Inkbeard: pirate hat with a gold band and skull, an eye patch, pink spots.
+    const hm=std('#1b1b2a',.5);const hat=new THREE.Mesh(new THREE.CylinderGeometry(.95,1.2,.9,24),hm);hat.position.y=3.95;bod.add(hat);
+    const brim=new THREE.Mesh(new THREE.CylinderGeometry(1.9,1.9,.1,30),hm);brim.scale.z=.55;brim.position.y=3.55;bod.add(brim);
+    const band=new THREE.Mesh(new THREE.CylinderGeometry(1.05,1.12,.16,24),std('#ffc93c',.3,.4));band.position.y=3.72;bod.add(band);
+    const skull=new THREE.Mesh(new THREE.CircleGeometry(.26,20),new THREE.MeshBasicMaterial({color:'#ffffff'}));skull.position.set(0,4.0,1.12);bod.add(skull);
+    const patch=new THREE.Mesh(new THREE.CylinderGeometry(.46,.46,.1,20),black);patch.rotation.x=Math.PI/2;patch.position.set(-.62,2.55,1.42);bod.add(patch);
+    const strap=new THREE.Mesh(new THREE.TorusGeometry(1.75,.05,8,40),black);strap.position.y=2.75;strap.rotation.set(Math.PI/2-.25,0,.35);bod.add(strap);
+    for(let i=0;i<7;i++){const sp=new THREE.Mesh(new THREE.SphereGeometry(.2,12,10),belly);const a=i*.9;sp.position.set(Math.cos(a)*1.55,2.6+Math.sin(i*2)*.5,Math.sin(a)*.6+.5);sp.scale.z=.4;bod.add(sp)}}
+  if(kind===2){// Bonkers the Baboon: brown fur, a light face, big ears and a red headband.
+    const face=std('#f2c9a0',.6);const fp=new THREE.Mesh(new THREE.SphereGeometry(.95,24,18),face);fp.scale.set(1.35,.8,.45);fp.position.set(0,2.3,.95);bod.add(fp);
+    for(const s of[-1,1]){const ear=new THREE.Mesh(new THREE.SphereGeometry(.42,16,12),face);ear.scale.z=.45;ear.position.set(s*1.85,2.7,.1);bod.add(ear)}
+    const hb=new THREE.Mesh(new THREE.TorusGeometry(1.55,.13,10,36),std('#e5333d',.5));hb.position.y=3.25;hb.rotation.x=Math.PI/2-.2;bod.add(hb);
+    const knot=new THREE.Mesh(new THREE.SphereGeometry(.2,10,8),std('#e5333d',.5));knot.position.set(-1.2,3.3,-.9);bod.add(knot)}
+  if(kind===3){// Grumble Cloud: a grey storm cloud with angry brows and lightning.
+    for(const[x,y,z,r]of[[-1.6,3.2,-.3,.9],[0,3.7,-.4,1.05],[1.6,3.2,-.3,.9],[-2.1,1.9,-.2,.8],[2.1,1.9,-.2,.8]]){const b=new THREE.Mesh(new THREE.SphereGeometry(r,24,18),skin);b.position.set(x,y,z);bod.add(b)}
+    const bolt=std('#ffd23c',.3,.2);for(const s of[-1,1]){const l=new THREE.Mesh(new THREE.ConeGeometry(.22,1.1,4),bolt);l.position.set(s*1.4,.1,.6);l.rotation.z=s*.5+Math.PI;bod.add(l)}}
+  if(kind===4){// Word Eater: glossy purple blob, eyes on stalks, a huge toothy mouth.
+    for(const s of[-1,1]){const st=new THREE.Mesh(new THREE.CylinderGeometry(.1,.14,1,10),skin);st.position.set(s*.9,3.9,.4);st.rotation.z=-s*.25;bod.add(st);
+      const e=new THREE.Mesh(new THREE.SphereGeometry(.36,18,14),white);e.position.set(s*1.05,4.45,.55);bod.add(e);const p=new THREE.Mesh(new THREE.SphereGeometry(.16,12,10),black);p.position.set(s*1.05,4.42,.88);bod.add(p)}
+    for(let i=0;i<8;i++){const sp=new THREE.Mesh(new THREE.SphereGeometry(.18+(i%3)*.06,12,10),belly);const a=i*.8;sp.position.set(Math.cos(a)*1.6,2.4+Math.sin(i*1.7)*.9,Math.sin(a)*.5+.6);sp.scale.z=.4;bod.add(sp)}}
   const sh=[-1,1].map(s=>v3(s*1.8,1.55,.1));
   const segGeo=new THREE.CylinderGeometry(.27,.27,1,16);const joint=new THREE.SphereGeometry(.3,16,12);
   const arms=sh.map(()=>{const up=new THREE.Mesh(segGeo,skin),lo=new THREE.Mesh(segGeo,skin),j1=new THREE.Mesh(joint,skin),j2=new THREE.Mesh(joint,skin);return{up,lo,j1,j2}});
@@ -170,5 +193,6 @@ function makeBoss(){const g=new THREE.Group(),bod=new THREE.Group();g.add(bod);
     for(let i=0;i<3;i++){const f=new THREE.Mesh(new THREE.CylinderGeometry(.11,.11,.4,10),skin);f.position.set((i-1)*.26,-.28,.32);f.rotation.x=.5;h.add(f);
       const nail=new THREE.Mesh(new THREE.ConeGeometry(.07,.14,8),white);nail.position.set((i-1)*.26,-.52,.42);nail.rotation.x=Math.PI;h.add(nail)}return h});
   rich(g);hands.forEach(rich);arms.forEach(a=>Object.values(a).forEach(m=>m.castShadow=true));
-  return{g,bod,eyes,pupils,xs,mouth,hands,arms,sh,skin}}
+  if(kind===4)mouth.scale.set(1.5,1.3,1);
+  return{g,bod,eyes,pupils,xs,mouth,hands,arms,sh,skin,skinHex:BOSS_SKIN[kind].slice(1)}}
 function placeSeg(m,a,b){const d=b.clone().sub(a),L=d.length();m.position.copy(a).add(b).multiplyScalar(.5);m.scale.set(1,L,1);m.quaternion.setFromUnitVectors(v3(0,1,0),d.normalize())}

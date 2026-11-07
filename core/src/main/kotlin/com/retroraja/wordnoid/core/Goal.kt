@@ -5,6 +5,7 @@ data class Stats(
     val words: List<FoundWord> = emptyList(),
     val gold: Int = 0,
     val crates: Int = 0,
+    val ironCrates: Int = 0,
     val ice: Int = 0,
     val chains: Int = 0,
     val letters: Map<Char, Int> = emptyMap(),
@@ -12,6 +13,8 @@ data class Stats(
     val rescued: Int = 0,
     val balloons: Int = 0,
     val treasures: Int = 0,
+    val twins: Int = 0,
+    val mysteries: Int = 0,
 ) {
     fun letter(c: Char): Int = letters[c] ?: 0
 }
@@ -55,6 +58,13 @@ sealed class Objective {
         override val label get() = "Crates"
         override val icon get() = "📦"
         override val text get() = "Break $count crates (make a word next to them)"
+    }
+
+    data class IronCrates(override val count: Int) : Objective() {
+        override fun progress(s: Stats) = s.ironCrates
+        override val label get() = "Iron Crates"
+        override val icon get() = "🔩"
+        override val text get() = "Break $count iron crates (2 hits each: make words next to them)"
     }
 
     data class Ice(override val count: Int) : Objective() {
@@ -107,6 +117,20 @@ sealed class Objective {
         override val text get() = "Pop $count balloons (make a word next to them)"
     }
 
+    data class Twins(override val count: Int) : Objective() {
+        override fun progress(s: Stats) = s.twins
+        override val label get() = "x2 tiles"
+        override val icon get() = "✖️"
+        override val text get() = "Use $count x2 tiles in words (each word counts twice)"
+    }
+
+    data class Mystery(override val count: Int) : Objective() {
+        override fun progress(s: Stats) = s.mysteries
+        override val label get() = "Mystery tiles"
+        override val icon get() = "❓"
+        override val text get() = "Reveal $count mystery tiles (make a word beside them)"
+    }
+
     data class Treasure(override val count: Int) : Objective() {
         override fun progress(s: Stats) = s.treasures
         override val label get() = "Treasure"
@@ -118,20 +142,22 @@ sealed class Objective {
 /** Something new a level teaches (shown on its intro card). */
 enum class Feature(val title: String, val text: String) {
     GOLD("Gold tiles", "Use gold-framed letters in your words to collect them."),
-    CRATES("Wooden crates", "Make a word right next to a crate to smash it. Every crate hides a prize!"),
+    CRATES("Wooden crates", "Make a word right beside a crate (above, below, left or right) to smash it. Every crate hides a prize!"),
     LETTERS("Collect letters", "Use the shown letter in your words. Every time it's in a word, it counts."),
     BONUS_WORD("Bonus word", "Spell the bonus word to win a mystery card. It's optional, so go for it if you can!"),
     PRE_BOOSTERS("Start boosters", "Before a level, you can start with a booster. Try +3 moves, free this time!"),
     GIFTS("Gift tiles", "Tiles with a ribbon sometimes fall in. Use one in a word to get a free booster."),
     THEME("Theme words", "Find words from the theme. Theme words give double coins!"),
     LONG("Long words", "Make words with 4 or more letters. Long words give extra moves too."),
-    DOUBLE_CRATES("Strong crates", "These crates need two hits. The first hit cracks them."),
-    ICE("Ice tiles", "Frozen letters can't be moved, but you can use them in a word to melt them."),
+    DOUBLE_CRATES("Iron Crates", "Iron Crates need 2 hits. The first word next to one snaps its iron bands, the second breaks it."),
+    ICE("Ice tiles", "Ice tiles cost 2 moves to swap. Use them in a word to melt them."),
     SPELL("Spell the word", "Spell the target word anywhere on the board, in any direction."),
     CHAINS("Chains", "Chained tiles can't be moved. Make a word next to them (or with them) to snap the chain."),
     BOSS("Boss level", "The villain fights back! Every few moves it freezes a tile or drops a crate. Each word you make hits it."),
     RESCUE("Tiko friends", "Little Tiko friends are stuck! Use the letters under them in words so they drop down. When they reach the bottom, they're free."),
     BALLOONS("Balloons", "Make a word right next to a balloon (above, below or beside) to pop it."),
+    TWIN("x2 tiles", "A word that uses a x2 tile counts twice for your goals. Look for the shiny x2 badge!"),
+    MYSTERY("Mystery tiles", "A ? tile hides a letter. Make a word right beside it to reveal the letter, then use it!"),
     TREASURE("Hidden treasure", "A treasure chest is hidden under the sandy tiles. Use those tiles in words to dig it out. Treasure Finder digs it out at once!"),
 }
 

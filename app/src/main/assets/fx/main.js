@@ -122,6 +122,23 @@ function chainBreak(o){const wp=P(o.x,o.y,.33),g=new THREE.Group(),m=new THREE.M
   g.position.copy(wp);add(g);tween(.3,(e,k)=>{m.emissive.setRGB(.9*e,.45*e,.1*e);g.rotation.z=Math.sin(k*45)*.05},{ease:E.lin,done:()=>{
     g.children.slice().forEach(l=>{const p=wpos(l);const q=l.getWorldQuaternion(new THREE.Quaternion());g.remove(l);l.position.copy(p);l.quaternion.copy(q);
       addPart(l,ov.scene,{v:v3(rnd(8),rnd(6)+2,2+Math.random()*2),av:v3(rnd(16),rnd(16),rnd(16)),g:11,life:1.2,shrink:true})});rm(g);flash(wp,2.5,0xffd8a0)}})}
+/** Iron Crate, first hit: the two iron bands snap off and fly away, a crack shows, the crate shakes (Update 1). */
+function ironSnap(o){const wp=P(o.x,o.y,.35),m=new THREE.MeshStandardMaterial({color:'#5b6475',metalness:.75,roughness:.3,emissive:'#331a00'});
+  for(const d of[-1,1]){const b=new THREE.Mesh(geo.band||(geo.band=new THREE.BoxGeometry(.95,.14,.08)),m);b.position.copy(wp).add(v3(0,d*.24,0));add(b);
+    tween(.12,(e,k)=>{b.rotation.z=Math.sin(k*30)*.06},{ease:E.lin,done:()=>{rm(b);b.rotation.z=0;
+      addPart(b,ov.scene,{v:v3(d*(3+Math.random()*3),2+Math.random()*3,2+Math.random()*2),av:v3(rnd(10),rnd(10),rnd(14)),g:11,life:1.1,shrink:true})}})}
+  for(let i=0;i<6;i++){const bo=new THREE.Mesh(geo.bolt||(geo.bolt=new THREE.SphereGeometry(.06,8,6)),m);bo.position.copy(wp).add(v3(rnd(.8),rnd(.6),.1));addPart(bo,ov.scene,{v:v3(rnd(6),2+Math.random()*4,2),g:12,life:.9,shrink:true})}
+  iceCrack(o);flash(wp,2.6,0xffc070);starsAt(wp,6,0xffe0a0,.7)}
+/** A power tile fires: a bright beam sweeps its row (and its column for a 6+ letter power tile). */
+function powerBlast(o){const wp=P(o.x,o.y,.6),cell=(o.cell||U)/U,bw=(o.bw||U*8)/U,bh=(o.bh||U*5)/U;
+  const beam=(w,h,horiz)=>{const g=new THREE.Mesh(new THREE.PlaneGeometry(horiz?w:cell*.9,horiz?cell*.9:h),new THREE.MeshBasicMaterial({color:'#fff4b0',transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false}));
+    if(horiz)g.position.set(P(o.bx+o.bw/2,0).x,wp.y,.6);else g.position.set(wp.x,P(0,o.by+o.bh/2).y,.6);g.scale.set(horiz?.05:1,horiz?1:.05,1);add(g);
+    tween(.28,e=>{g.material.opacity=e;g.scale.set(horiz?Math.max(.05,e):1,horiz?1:Math.max(.05,e),1)},{ease:E.outCubic,done:()=>tween(.45,e=>g.material.opacity=1-e,{done:()=>rm(g)})})};
+  beam(bw,bh,true);if(o.cross)beam(bw,bh,false);
+  const rb=['#ff4d6d','#ffb020','#ffe14a','#4cd964','#3fa9ff','#b66bff'];for(let i=0;i<24;i++){const s2=sprite(starTex,new THREE.Color(rb[i%6]).getHex(),.35);s2.position.copy(wp);addPart(s2,ov.scene,{v:v3(rnd(10),rnd(7),2+Math.random()*2),drag:1.5,life:.9,fade:true})}
+  flash(wp,5,0xffffff)}
+/** A mystery tile shows its letter: a puff of sparkles. */
+function reveal(o){const wp=P(o.x,o.y,.5);starsAt(wp,10,0x9fe8ff,.9);flash(wp,2.8,0xbff4ff)}
 function goldBurst(o){const wp=P(o.x,o.y,.3);const sh=new THREE.Mesh(new THREE.PlaneGeometry(.25,1.4),new THREE.MeshBasicMaterial({color:'#ffffff',transparent:true,opacity:.8,blending:THREE.AdditiveBlending,depthWrite:false}));
   sh.rotation.z=.6;sh.position.copy(wp);add(sh);tween(.35,e=>sh.position.x=wp.x-.6+1.2*e,{ease:E.inOut,done:()=>rm(sh)});
   wait(.4,()=>{chunks(wp,'#ffcf3a',16,1.2,{metal:.6,rough:.2,emissive:'#5a3d00'});starsAt(wp,12,0xffd84a,1.2);flash(wp,3.5,0xffe080);coinBurstTo(wp,o.n||2)})}
@@ -242,7 +259,7 @@ function booster(o){const k=o.k,tp=o.x!=null?P(o.x,o.y,.6):P(o.bx+o.bw/2,o.by+o.
     tween(.8,(e,k2)=>{ring.rotation.z=-k2*4;ring.material.opacity=Math.sin(k2*Math.PI)},{ease:E.inOut,done:()=>rm(ring)});break}
   case'TREASURE_FINDER':{const m=new THREE.Mesh(new THREE.PlaneGeometry(2.6,1.7),new THREE.MeshBasicMaterial({map:mapTex(),side:THREE.DoubleSide,transparent:true}));m.position.copy(mid);m.scale.set(.02,1,1);add(m);
     tween(.45,e=>m.scale.x=Math.max(.02,e),{ease:E.outBack});wait(1.0,()=>tween(.3,e=>{m.scale.setScalar(Math.max(.01,1-e));m.position.lerp(tp,e)},{done:()=>rm(m)}));break}
-  case'VOWEL_FLIP':{cellsW.concat(cellsW.length?[]:[tp]).forEach(p=>{starsAt(p,10,0xffd84a);flash(p,2.4)});break}
+
   case'SCANNER':{const g=mkScanner();const a=P(o.bx,o.by+o.bh*.3,1),b=P(o.bx+o.bw,o.by+o.bh*.7,1);popIn(g,a,1.2);tween(1.4,(e,k2)=>{g.position.lerpVectors(a,b,e);g.position.y+=Math.sin(k2*Math.PI*2)*.8},{delay:.3,ease:E.inOut,done:()=>popOut(g)});break}
   case'LOCK':{const g=mkLock();g.position.copy(tp).add(v3(0,3,.2));add(g);tween(.55,e=>g.position.y=tp.y+3*(1-e),{ease:E.outBounce,done:()=>{flash(tp,2.2,0xffe080);starsAt(tp,8,0xffd84a);
     const ring=new THREE.Mesh(new THREE.TorusGeometry(.6,.05,8,40),new THREE.MeshBasicMaterial({color:'#ffd84a',transparent:true}));ring.position.copy(tp);add(ring);tween(.5,e=>{ring.scale.setScalar(1+e*.6);ring.material.opacity=1-e},{done:()=>rm(ring)});
@@ -250,8 +267,8 @@ function booster(o){const k=o.k,tp=o.x!=null?P(o.x,o.y,.6):P(o.bx+o.bw/2,o.by+o.
   case'UNLOCK':{const g=mkLock();g.position.copy(tp).add(v3(.38,.38,.2));g.scale.setScalar(.5);add(g);const sh=g.userData.shackle;tween(.3,e=>{g.scale.setScalar(.5+.6*e);g.position.copy(tp).add(v3(.38*(1-e),.38*(1-e)+e*.6,.4))},{ease:E.outBack,done:()=>{
     tween(.25,e=>{sh.position.y=.25+.18*e;sh.rotation.y=e*1.2},{done:()=>{starsAt(tp,10,0xffd84a);flash(tp,2.4,0xffe080);tween(.4,e=>{g.position.y+=.05;g.scale.setScalar(1.1*(1-e)+.01)},{delay:.2,done:()=>rm(g)})}})}});break}
   case'DOUBLE':{const s=mkDouble();s.position.copy(mid);s.scale.setScalar(.01);add(s);tween(.55,(e,k2)=>{s.scale.setScalar(Math.max(.01,e*1.6));s.rotation.y=(1-k2)*Math.PI*2},{ease:E.outBack});wait(1.1,()=>popOut(s));break}
-  case'LETTER_RAIN':{const cl=mkCloud();cl.scale.setScalar(1.6);const y=top.y+.3;cl.position.set(top.x-o.bw/U,y,1);add(cl);tween(.5,e=>cl.position.x=top.x-o.bw/U*(1-e),{ease:E.outCubic});
-    cellsW.forEach((p,i)=>wait(.5+i*.15,()=>{const d=new THREE.Mesh(new THREE.SphereGeometry(.1,10,8),std('#3fa9ff',.3));d.scale.y=1.6;d.position.set(p.x,y,1);add(d);tween(.35,e=>d.position.y=y+(p.y-y)*e,{ease:E.inQuad,done:()=>{rm(d);flash(p,2,0x9be7ff);starsAt(p,5,0x9be7ff)}})}));
+  case'VOWEL_FLIP':case'LETTER_RAIN':{const vr=k==='VOWEL_FLIP',dc=vr?'#ff6fa8':'#3fa9ff',fc=vr?0xffb3d9:0x9be7ff;const cl=mkCloud();cl.scale.setScalar(1.6);const y=top.y+.3;cl.position.set(top.x-o.bw/U,y,1);add(cl);tween(.5,e=>cl.position.x=top.x-o.bw/U*(1-e),{ease:E.outCubic});
+    cellsW.forEach((p,i)=>wait(.5+i*.15,()=>{const d=new THREE.Mesh(new THREE.SphereGeometry(.1,10,8),std(dc,.3));d.scale.y=1.6;d.position.set(p.x,y,1);add(d);tween(.35,e=>d.position.y=y+(p.y-y)*e,{ease:E.inQuad,done:()=>{rm(d);flash(p,2,fc);starsAt(p,5,fc)}})}));
     wait(1.6,()=>tween(.45,e=>cl.position.x=top.x+o.bw/U*1.2*e,{ease:E.inCubic,done:()=>rm(cl)}));break}
   }}
 
@@ -358,17 +375,17 @@ function cardsClear(){if(cardSet){cardSet.list.forEach(rm);rm(cardSet.rays)}card
 
 /* ---------- boss: Scramble sits behind the board's top edge ---------- */
 let boss=null;
-function bossShow(o){bossHide();const BS=makeBoss();const sc=(o.w/U)/8.2;const topY=P(0,o.y).y,cx=P(o.x+o.w/2,0).x;
+function bossShow(o){bossHide();const BS=makeBoss(o.kind|0);const sc=(o.w/U)/8.2;const topY=P(0,o.y).y,cx=P(o.x+o.w/2,0).x;
   // Clip the body at the board's top edge as seen from the camera, so he is always behind the board.
   const cp=ov.cam.position;const n=v3(0,cp.z,topY-cp.y).normalize();const plane=new THREE.Plane(n,-n.y*topY);
-  BS.g.traverse(m=>{if(m.isMesh){m.material=m.material.clone();m.material.clippingPlanes=[plane]}});BS.skin=null;BS.g.traverse(m=>{if(m.isMesh&&m.material.color&&m.material.color.getHexString()==='8a4dff'&&!BS.skin)BS.skin=m.material});
+  BS.g.traverse(m=>{if(m.isMesh){m.material=m.material.clone();m.material.clippingPlanes=[plane]}});BS.skin=null;BS.g.traverse(m=>{if(m.isMesh&&m.material.color&&m.material.color.getHexString()===BS.skinHex&&!BS.skin)BS.skin=m.material});
   const root=v3(cx,topY-1.15*sc,-2.7*sc);BS.g.scale.setScalar(sc);BS.g.position.copy(root);add(BS.g);
-  const skin=new THREE.MeshStandardMaterial({color:'#8a4dff',roughness:.45});BS.arms.forEach(a=>Object.values(a).forEach(m=>{m.material=skin;add(m)}));
+  const skin=new THREE.MeshStandardMaterial({color:'#'+BS.skinHex,roughness:.45});BS.arms.forEach(a=>Object.values(a).forEach(m=>{m.material=skin;add(m)}));
   BS.hands.forEach((h,i)=>{const s=i?1:-1;h.scale.setScalar(sc);h.userData.grip=v3(cx+s*(o.w/U)*.36,topY+.18*sc,-.05);h.position.copy(h.userData.grip);h.rotation.set(0,0,-s*.15);add(h)});
   const bar=new THREE.Group();const bg=new THREE.Mesh(new THREE.PlaneGeometry(2.6,.34),new THREE.MeshBasicMaterial({color:'#1b1440'}));bar.add(bg);
   const fill=new THREE.Mesh(new THREE.PlaneGeometry(2.46,.22),new THREE.MeshBasicMaterial({color:'#ff4d6d'}));fill.position.z=.01;bar.add(fill);
   const nm=textMesh(o.name||'SCRAMBLE',{h:.48,colors:['#ffe0f0','#ff8fd0','#c2187a'],stroke:'#3a0030'});nm.position.set(0,.45,.02);bar.add(nm);
-  bar.position.set(cx+(o.w/U)*.5+1.4*sc*1.2,topY+2.2*sc,-.5);bar.scale.setScalar(Math.max(.6,sc*1.3));add(bar);
+  bar.position.set(cx+(o.w/U)*.5+1.4*sc*1.2,topY+1.25*sc,-.5);bar.scale.setScalar(Math.max(.6,sc*1.3));add(bar);
   boss={BS,sc,topY,cx,root,bar,fill,hp:o.hp==null?1:o.hp,state:'idle',stT:T,armT:null,rel:0,grin:0,dizzy:[]};setHp(boss.hp,true)}
 function setHp(v,now){const b=boss;if(!b)return;const a=b.hp;b.hp=v;const f=b.fill;if(now){f.scale.x=Math.max(.001,v);f.position.x=-(1-v)*1.23;return}
   tween(.5,e=>{const x=a+(v-a)*e;f.scale.x=Math.max(.001,x);f.position.x=-(1-x)*1.23},{ease:E.outCubic})}
@@ -700,8 +717,10 @@ SCENES.map=function(w,o){const scene=w.scene,cam=w.cam;document.body.style.backg
   for(let i=0;i<5;i++){const g=new THREE.Group();g.position.set(i*7.5,i%2?.6:0,0);const lockd=i>=open;const t=new THREE.Mesh(new THREE.CylinderGeometry(2.8,2.6,.5,40),std(lockd?'#b8bcc8':tops[i],.7));t.receiveShadow=true;t.castShadow=true;g.add(t);
     const rk=new THREE.Mesh(new THREE.ConeGeometry(2.6,2.8,40),std('#8a6a4a',.9));rk.rotation.x=Math.PI;rk.position.y=-1.65;g.add(rk);const n0=g.children.length;deco(i,g);const dec=g.children.slice(n0);const nm=textMesh((lockd?'🔒 ':'')+names[i],{h:.6});nm.position.set(0,3.2,0);g.add(nm);g.userData.hide=dec.concat([nm]);scene.add(rich(g));g.userData.ph=i;isl.push(g)}
   /* Each island's levels: 10 stepping stones on a winding path, 2 quiz chests, the boss castle; Tiko on the next level. */
-  const PATH=[[-2.1,1.3],[-1.35,1.65],[-.55,1.55],[.15,1.15],[.95,1.05],[1.75,.85],[1.85,.05],[1.1,-.25],[.3,-.35],[-.75,-.6]];
-  const QPOS=[[.45,1.75],[1.25,-.75]];
+  // Update 1: about 1.5x more space between stones, on a gentle S path; the quiz chests sit beside the path
+  // (at the turns, after the 4th and 8th stones), never in front of or behind a stone.
+  const PATH=[[-1.95,1.55],[-.85,1.85],[.35,1.85],[1.5,1.45],[2.15,.45],[1.2,-.2],[0,.15],[-1.2,-.2],[-1.75,-1.25],[-.45,-1.75]];
+  const QPOS=[[2.25,1.2],[-2.35,.35]];
   function castle(col){const g=new THREE.Group();const wall=std('#d9d4e6',.7),roof=std(col,.4);
     const keep=new THREE.Mesh(new THREE.BoxGeometry(.9,.9,.7),wall);keep.position.y=.45;g.add(keep);
     for(const[x,z]of[[-.5,-.3],[.5,-.3],[-.5,.3],[.5,.3]]){const t=new THREE.Mesh(new THREE.CylinderGeometry(.17,.19,1.2,12),wall);t.position.set(x,.6,z);g.add(t);const c=new THREE.Mesh(new THREE.ConeGeometry(.24,.42,12),roof);c.position.set(x,1.4,z);g.add(c)}
@@ -715,7 +734,7 @@ SCENES.map=function(w,o){const scene=w.scene,cam=w.cam;document.body.style.backg
       const m=new THREE.Mesh(new THREE.CylinderGeometry(.27,.3,.16,24),std(s0===1?'#ffc93c':s0===2?'#36d878':'#b8bcc8',.45,s0===1?.35:0));m.position.set(x,.08,z);m.castShadow=true;m.receiveShadow=true;g.add(m);stones.push(m)});
     // little path dots between stones
     for(let k=0;k<9;k++){const[a1,b1]=PATH[k],[a2,b2]=PATH[k+1];for(const f of[.33,.66]){const dot=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,.04,8),std('#ffffff',.6));dot.position.set(a1+(a2-a1)*f,.03,b1+(b2-b1)*f);g.add(dot)}}
-    const chests=QPOS.map(([x,z],q)=>{const c=fitTool('CHEST',.55);c.position.set(x,.3,z);c.rotation.y=-.3;g.add(c);c.userData.q=qs[q]|0;if(!(qs[q]|0))c.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.color.multiplyScalar(.55)}});return c});
+    const chests=QPOS.map(([x,z],q)=>{const c=fitTool('CHEST',.45);c.position.set(x,.3,z);c.rotation.y=-.3;g.add(c);c.userData.q=qs[q]|0;if(!(qs[q]|0))c.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.color.multiplyScalar(.55)}});return c});
     lv[i].stones=stones;lv[i].chests=chests;lv[i].next=st.indexOf(2);return lv[i]}
   let cw=clamp(o.world||0,0,4);const home=cw;buildLevels(home,o.home||{levels:Array.from({length:10},(_,k)=>k<(o.level|0)?1:k===(o.level|0)?2:0)});
   const tiko=makeTiko();tiko.scale.setScalar(.42);scene.add(tiko);let camX=cw*7.5,hop=0,zoom=-1,zk=0,sentAt=-1;
@@ -728,7 +747,7 @@ SCENES.map=function(w,o){const scene=w.scene,cam=w.cam;document.body.style.backg
       const sp=tikoSpot();if(sp){tiko.visible=true;const p=wpos(sp);tiko.position.copy(p).add(v3(0,(sp.isMesh?.09:1.2)+Math.abs(Math.sin(t*2.4))*.12,0))}else tiko.visible=false;
       zk+=((zoom>=0?1:0)-zk)*Math.min(1,dt*2.2);camX+=(cw*7.5-camX)*Math.min(1,dt*2.2);
       const far=clamp(fitDist(cam,13,7,W,H*.8),9,20),near=clamp(fitDist(cam,7.4,6,W,H*.8),5,13);const iy=zoom>=0?isl[zoom].position.y:0;
-      cam.position.set(camX+.5*(1-zk),5.2+(near*.62+iy-5.2)*zk,far+(near*.62-far)*zk);cam.lookAt(camX+.5*(1-zk),.2+(iy+.2)*zk,zk*.35);tiko.rotation.y=Math.sin(t*.8)*.3;
+      cam.position.set(camX+.5*(1-zk),5.2+(near*.8+iy-5.2)*zk,far+(near*.52-far)*zk);cam.lookAt(camX+.5*(1-zk),.2+(iy+.2)*zk,zk*.35);tiko.rotation.y=Math.sin(t*.8)*.3;
       if(sentAt>0&&T>sentAt&&zoom>=0){sentAt=-1;const L=lv[zoom];emit('mapSpots',{stones:L.stones.map(proj),chests:L.chests.map(proj)})}}}};
 
 /* ====================================================================== API for Kotlin */
@@ -741,7 +760,7 @@ window.FX={
   act:wrap(o=>act(o.name,o.data)),
   clear:wrap(()=>{panelHide();loseTiko=null;demoTok++;demoObjs=[];bigObjs=[];ov.tweens.length=0;ov.parts.forEach(p=>rm(p.obj));ov.parts.length=0;bossHide();cardsClear();winClear();shopHide();ov.scene.children.slice(OV_KEEP).forEach(rm)}),
   word:wrap(word),popup:wrap(popup),coins:wrap(coinsFx),burst:wrap(burst),goalBlast:wrap(goalBlast),
-  crate:wrap(crateBreak),iceCrack:wrap(iceCrack),ice:wrap(iceBreak),chain:wrap(chainBreak),gold:wrap(goldBurst),balloon:wrap(balloonPop),chest:wrap(chestOpen),friend:wrap(friendHop),
+  crate:wrap(crateBreak),ironSnap:wrap(ironSnap),power:wrap(powerBlast),reveal:wrap(reveal),iceCrack:wrap(iceCrack),ice:wrap(iceBreak),chain:wrap(chainBreak),gold:wrap(goldBurst),balloon:wrap(balloonPop),chest:wrap(chestOpen),friend:wrap(friendHop),
   booster:wrap(booster),win:wrap(win),winClear:wrap(winClear),lose:wrap(lose),loseHide:wrap(loseHide),confetti:wrap(confetti),fireworks:wrap(fireworks),
   cards:wrap(cards),cardPick:wrap(cardPick),cardsClear:wrap(cardsClear),
   bossShow:wrap(bossShow),bossHold:wrap(o=>{bossHeld=!!o.on}),bossHit:wrap(bossHit),bossAttack:wrap(bossAttack),bossDefeat:wrap(bossDefeat),bossHide:wrap(bossHide),

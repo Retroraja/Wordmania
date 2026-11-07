@@ -154,7 +154,8 @@ fun BoardView(c: GameController, cell: Dp, modifier: Modifier = Modifier) {
                     tile.id in c.glowing -> Palette.gold
                     isSelected -> Palette.green
                     inTut -> Color.White.copy(alpha = 0.4f + 0.6f * pulse)
-                    inHint -> Palette.cyan
+                    // Hint: the two tiles pulse gold (the soft auto hint glows gently).
+                    inHint -> Palette.gold.copy(alpha = if (c.autoHint) 0.25f + 0.35f * pulse else 0.5f + 0.5f * pulse)
                     tile.id in c.themeGlow -> Palette.gold.copy(alpha = 0.5f + 0.5f * pulse)
                     inScan -> Palette.cyan.copy(alpha = 0.4f + 0.6f * pulse)
                     else -> null
@@ -170,7 +171,7 @@ fun BoardView(c: GameController, cell: Dp, modifier: Modifier = Modifier) {
                             translationY = -cellPx * 0.18f * lift - cellPx * 0.06f * sel
                             rotationX = if (lifted) flip.value else 0f
                             rotationY = if (!lifted && flipping) flip.value else 0f
-                            rotationZ = if (inHint) wiggle else 0f
+                            rotationZ = if (inHint && !c.autoHint) wiggle else 0f
                             cameraDistance = 10f * density.density
                             shadowElevation = 0f
                         },
@@ -199,6 +200,24 @@ fun BoardView(c: GameController, cell: Dp, modifier: Modifier = Modifier) {
                 ) {
                     Text("🔓 Unlock", color = Color(0xFF5A3300), fontFamily = ArcadeFont, style = TextStyle(fontSize = (cell.value * 0.3f).sp))
                 }
+            }
+        }
+        // Hint: an arrow between the two tiles to swap.
+        c.hint?.let { (a, b) ->
+            if (board.contains(a) && board.contains(b) && tut?.swap == null) {
+                val horiz = a.row == b.row
+                val x = ((a.col + b.col) / 2f + 0.5f) * cellPx
+                val y = ((a.row + b.row) / 2f + 0.5f) * cellPx
+                val bob = 1f + 0.15f * pulse
+                val sz = cellPx * 0.5f
+                Box(
+                    Modifier.offset { IntOffset((x - sz / 2).roundToInt(), (y - sz / 2).roundToInt()) }
+                        .size(with(density) { sz.toDp() })
+                        .graphicsLayer { scaleX = bob; scaleY = bob; alpha = if (c.autoHint) 0.75f else 1f }
+                        .background(Brush.verticalGradient(listOf(Color(0xFFFFE27A), Palette.goldDeep)), androidx.compose.foundation.shape.CircleShape)
+                        .border(2.dp, Color.White, androidx.compose.foundation.shape.CircleShape),
+                    contentAlignment = androidx.compose.ui.Alignment.Center,
+                ) { Text(if (horiz) "⇆" else "⇅", color = Color(0xFF5A3300), style = TextStyle(fontSize = (cell.value * 0.3f).sp)) }
             }
         }
         // Tutorial hand moving between the two tiles to swap.

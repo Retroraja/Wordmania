@@ -17,8 +17,12 @@ data class Pos(val row: Int, val col: Int) {
  * GIFT: a letter tile with a ribbon. Gives a booster when used in a word.
  * BALLOON: a letter tile with a balloon tied on. Pops (and becomes NORMAL) when a word is made next to it or with it.
  * BUDDY: a little Tiko friend with no letter. Falls when tiles below it clear, and escapes at the bottom row.
+ * POWER: a rainbow letter left by a 5+ letter word. Used in a new word it bursts and clears its row
+ *   ([Tile.hp] 2: its row and column). It never fires on its own.
+ * TWIN: a letter with a "x2" badge. A word that uses it counts twice for the goals.
+ * MYSTERY: a "?" tile hiding a letter. Can't be moved or used until a word is made right beside it, which shows the letter.
  */
-enum class TileKind { NORMAL, GOLD, CRATE, ICE, CHAIN, JOKER, GIFT, BALLOON, BUDDY }
+enum class TileKind { NORMAL, GOLD, CRATE, ICE, CHAIN, JOKER, GIFT, BALLOON, BUDDY, POWER, TWIN, MYSTERY }
 
 enum class PrizeKind { COINS, MOVES, BOOSTER }
 
@@ -30,6 +34,7 @@ data class Prize(val kind: PrizeKind, val amount: Int)
  * [id] stays the same while the tile moves around, so the screen can animate it.
  * [dropFrom] is how many rows above the board a brand-new tile falls from (0 for tiles already on the board).
  * [locked] tiles (Lock booster) can't be part of any word until the player unlocks them.
+ * [iron]: an Iron Crate (needs 2 hits). It stays an Iron Crate for the goal after its bands snap off.
  */
 data class Tile(
     val id: Long,
@@ -39,6 +44,7 @@ data class Tile(
     val hp: Int = 0,
     val prize: Prize? = null,
     val locked: Boolean = false,
+    val iron: Boolean = false,
 ) {
     val isCrate: Boolean get() = kind == TileKind.CRATE
     val isJoker: Boolean get() = kind == TileKind.JOKER
@@ -48,12 +54,19 @@ data class Tile(
     val isGift: Boolean get() = kind == TileKind.GIFT
     val isBalloon: Boolean get() = kind == TileKind.BALLOON
     val isBuddy: Boolean get() = kind == TileKind.BUDDY
+    val isPower: Boolean get() = kind == TileKind.POWER
+    val isIronCrate: Boolean get() = isCrate && iron
+    val isTwin: Boolean get() = kind == TileKind.TWIN
+    val isMystery: Boolean get() = kind == TileKind.MYSTERY
 
     /** Can the player swap this tile? */
-    val movable: Boolean get() = kind != TileKind.CRATE && kind != TileKind.ICE && kind != TileKind.CHAIN && kind != TileKind.BUDDY
+    val movable: Boolean get() = kind != TileKind.CRATE && kind != TileKind.ICE && kind != TileKind.CHAIN && kind != TileKind.BUDDY && kind != TileKind.MYSTERY
+
+    /** Can the player swap this tile by hand? Ice can be swapped too ("slow ice": the swap costs [ICE_SWAP_COST] moves). */
+    val swappable: Boolean get() = movable || kind == TileKind.ICE
 
     /** Can this tile be part of a word? */
-    val hasLetter: Boolean get() = kind != TileKind.CRATE && kind != TileKind.BUDDY
+    val hasLetter: Boolean get() = kind != TileKind.CRATE && kind != TileKind.BUDDY && kind != TileKind.MYSTERY
 }
 
 const val CRATE_CHAR = '#'
@@ -63,6 +76,12 @@ const val BUDDY_CHAR = '@'
 
 /** Ice needs two Hammer hits (the first cracks it). A word melts it at once. */
 const val ICE_HP = 2
+
+/** A swap that moves an ice tile costs this many moves. */
+const val ICE_SWAP_COST = 2
+
+/** At most this many power tiles on the board at once. */
+const val MAX_POWER_TILES = 2
 
 /** Hands out unique tile ids. */
 class IdCounter(private var next: Long = 1) {
@@ -116,8 +135,11 @@ class Board(val cols: Int, val rows: Int, private val cells: List<Tile>) {
         return out
     }
 
-    /** Neighbouring pairs the player may swap (both tiles movable). */
-    fun swappablePairs(): List<Pair<Pos, Pos>> = neighbourPairs().filter { (a, b) -> this[a].movable && this[b].movable }
+    /** Neighbouring pairs the player may swap (both tiles swappable; ice counts, at a higher cost). */
+    fun swappablePairs(): List<Pair<Pos, Pos>> = neighbourPairs().filter { (a, b) -> this[a].swappable && this[b].swappable }
+
+    /** Moves a swap of [a] and [b] costs: 1, or [ICE_SWAP_COST] if an ice tile moves. */
+    fun swapCost(a: Pos, b: Pos): Int = if (this[a].isIce || this[b].isIce) ICE_SWAP_COST else 1
 
     /** Letters row by row. Crates are '#' (or '%' with 2 hits left), jokers '*'. */
     fun rowStrings(): List<String> =
@@ -142,7 +164,7 @@ class Board(val cols: Int, val rows: Int, private val cells: List<Tile>) {
 
         fun tileFor(ch: Char, mark: Char, ids: IdCounter): Tile = when (ch) {
             CRATE_CHAR -> Tile(ids.next(), CRATE_CHAR, kind = TileKind.CRATE, hp = 1)
-            CRATE2_CHAR -> Tile(ids.next(), CRATE_CHAR, kind = TileKind.CRATE, hp = 2)
+            CRATE2_CHAR -> Tile(ids.next(), CRATE_CHAR, kind = TileKind.CRATE, hp = 2, iron = true)
             JOKER_CHAR -> Tile(ids.next(), JOKER_CHAR, kind = TileKind.JOKER)
             BUDDY_CHAR -> Tile(ids.next(), BUDDY_CHAR, kind = TileKind.BUDDY)
             else -> Tile(
@@ -153,14 +175,17 @@ class Board(val cols: Int, val rows: Int, private val cells: List<Tile>) {
                     'c' -> TileKind.CHAIN
                     'p' -> TileKind.GIFT
                     'b' -> TileKind.BALLOON
+                    'w' -> TileKind.POWER
+                    'x' -> TileKind.TWIN
+                    'm' -> TileKind.MYSTERY
                     else -> TileKind.NORMAL
                 },
-                hp = if (mark == 'i') ICE_HP else 0,
+                hp = if (mark == 'i') ICE_HP else if (mark == 'w') 1 else 0,
             )
         }
 
         fun code(t: Tile): Char = when {
-            t.isCrate -> if (t.hp >= 2) CRATE2_CHAR else CRATE_CHAR
+            t.isCrate -> if (t.iron) CRATE2_CHAR else CRATE_CHAR
             t.isBuddy -> BUDDY_CHAR
             else -> t.letter
         }
@@ -171,6 +196,9 @@ class Board(val cols: Int, val rows: Int, private val cells: List<Tile>) {
             TileKind.CHAIN -> 'c'
             TileKind.GIFT -> 'p'
             TileKind.BALLOON -> 'b'
+            TileKind.POWER -> 'w'
+            TileKind.TWIN -> 'x'
+            TileKind.MYSTERY -> 'm'
             else -> '.'
         }
     }

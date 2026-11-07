@@ -76,6 +76,8 @@ dependencies {
     // Ads (test ids until the AdMob account exists) and the consent form.
     implementation("com.google.android.gms:play-services-ads:23.6.0")
     implementation("com.google.android.ump:user-messaging-platform:3.1.0")
+    // The ads/consent libraries pull in the old androidx.fragment 1.1.0 (Play Console warning): use a current one.
+    implementation("androidx.fragment:fragment-ktx:1.8.5")
     // "Rate us" in-app review.
     implementation("com.google.android.play:review-ktx:2.0.2")
     // Friendly daily reminders.

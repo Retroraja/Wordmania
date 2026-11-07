@@ -29,6 +29,9 @@ data class Recipe(
     val balloons: Int = 0,
     /** Treasure chests (2 sand cells each, near the bottom). */
     val chests: Int = 0,
+    /** x2 tiles and mystery tiles (new in Update 1). */
+    val twins: Int = 0,
+    val mysteries: Int = 0,
     val feature: Feature? = null,
     val boss: Boolean = false,
     val bonus: Boolean = false,
@@ -41,7 +44,7 @@ data class Recipe(
 )
 
 /** What was placed on a board, so targets can count it. */
-data class Placed(val crates: Int, val ice: Int, val chains: Int, val gold: Int, val buddies: Int = 0, val balloons: Int = 0, val chests: Int = 0)
+data class Placed(val crates: Int, val ice: Int, val chains: Int, val gold: Int, val buddies: Int = 0, val balloons: Int = 0, val chests: Int = 0, val ironCrates: Int = 0, val twins: Int = 0, val mysteries: Int = 0)
 
 private fun words(n: Int): (Placed) -> List<Objective> = { listOf(Objective.Words(n)) }
 
@@ -60,11 +63,15 @@ val SPELL = 0.2..0.55
 
 private fun G(p: Placed) = Objective.Gold(p.gold)
 private fun C(p: Placed) = Objective.Crates(p.crates)
+/** Iron Crates (2 hits) are their own goal. */
+private fun IC(p: Placed) = Objective.IronCrates(p.ironCrates)
 private fun I(p: Placed) = Objective.Ice(p.ice)
 private fun CH(p: Placed) = Objective.Chains(p.chains)
 private fun R(p: Placed) = Objective.Rescue(p.buddies)
 private fun B(p: Placed) = Objective.Balloons(p.balloons)
 private fun T(p: Placed) = Objective.Treasure(p.chests)
+private fun TW(p: Placed) = Objective.Twins(p.twins)
+private fun M(p: Placed) = Objective.Mystery(p.mysteries)
 
 /**
  * 50 levels in 5 worlds of 10. A boss closes every world. A theme level comes every 4 or 5 levels.
@@ -75,7 +82,7 @@ val RECIPES: List<Recipe> = listOf(
     Recipe(1, 6, 4, words(3), casual = TUTORIAL, tutorial = true),
     Recipe(2, 6, 4, words(4), casual = TUTORIAL, tutorial = true),
     Recipe(3, 7, 4, words(4), casual = TUTORIAL, tutorial = true),
-    Recipe(4, 7, 5, { p -> listOf(G(p)) }, gold = 3, feature = Feature.GOLD, casual = EASY),
+    Recipe(4, 7, 5, { p -> listOf(G(p)) }, gold = 3, feature = Feature.GOLD, casual = TUTORIAL, tutorial = true),
     Recipe(5, 7, 5, { listOf(Objective.Theme("Animals", 2), Objective.Words(4)) }, feature = Feature.THEME, casual = EASY),
     Recipe(6, 7, 5, { p -> listOf(C(p)) }, crates = 4, feature = Feature.CRATES, casual = GENTLE),
     Recipe(7, 7, 5, { p -> listOf(C(p), Objective.Words(5)) }, crates = 4, feature = Feature.BONUS_WORD, bonus = true, casual = GENTLE),
@@ -84,7 +91,7 @@ val RECIPES: List<Recipe> = listOf(
     Recipe(10, 8, 5, { p -> listOf(C(p), G(p)) }, crates = 4, gold = 3, feature = Feature.BOSS, boss = true, giftRate = 0.04, bonus = true, casual = BOSS),
     // World 2: Under the Sea
     Recipe(11, 7, 5, { listOf(Objective.LongWords(3)) }, feature = Feature.LONG, giftRate = 0.04, bonus = true, casual = GENTLE),
-    Recipe(12, 7, 5, { p -> listOf(C(p)) }, crates = 3, strongCrates = 2, feature = Feature.DOUBLE_CRATES, giftRate = 0.04, bonus = true, casual = GENTLE),
+    Recipe(12, 7, 5, { p -> listOf(C(p), IC(p)) }, crates = 3, strongCrates = 2, feature = Feature.DOUBLE_CRATES, giftRate = 0.04, bonus = true, casual = GENTLE),
     Recipe(13, 8, 5, { p -> listOf(Objective.Letter('A', 6), G(p)) }, gold = 3, giftRate = 0.04, bonus = true, casual = GENTLE),
     Recipe(14, 8, 5, { listOf(Objective.Theme("Fruits", 1), Objective.Words(5)) }, giftRate = 0.04, bonus = true, casual = GENTLE),
     Recipe(15, 8, 5, { p -> listOf(I(p)) }, ice = 5, feature = Feature.ICE, giftRate = 0.04, bonus = true, casual = MEDIUM),
@@ -92,12 +99,12 @@ val RECIPES: List<Recipe> = listOf(
     Recipe(17, 8, 5, { listOf(Objective.Spell("RAIN"), Objective.Words(4)) }, plant = "RAIN", feature = Feature.SPELL, giftRate = 0.04, bonus = true, casual = SPELL),
     Recipe(18, 8, 5, { p -> listOf(Objective.Theme("Colours", 2), I(p)) }, ice = 4, giftRate = 0.04, bonus = true, casual = HARD),
     Recipe(19, 8, 5, { listOf(Objective.Letter('S', 6), Objective.LongWords(2)) }, giftRate = 0.04, bonus = true, casual = HARD),
-    Recipe(20, 8, 6, { p -> listOf(I(p), C(p), G(p)) }, ice = 4, crates = 3, strongCrates = 2, gold = 3, feature = Feature.BOSS, boss = true, giftRate = 0.04, bonus = true, casual = BOSS),
+    Recipe(20, 8, 6, { p -> listOf(I(p), C(p), IC(p), G(p)) }, ice = 4, crates = 3, strongCrates = 2, gold = 3, feature = Feature.BOSS, boss = true, giftRate = 0.04, bonus = true, casual = BOSS),
     // World 3: Fruit Jungle
     Recipe(21, 8, 5, { p -> listOf(CH(p)) }, chains = 5, feature = Feature.CHAINS, giftRate = 0.04, bonus = true, casual = MEDIUM),
     Recipe(22, 7, 5, words(8), giftRate = 0.04, bonus = true, casual = BREATHER),
     Recipe(23, 8, 5, { p -> listOf(Objective.Theme("Body", 2), CH(p)) }, chains = 4, giftRate = 0.04, bonus = true, casual = HARD),
-    Recipe(24, 8, 5, { p -> listOf(C(p), Objective.Letter('R', 5)) }, crates = 3, strongCrates = 3, giftRate = 0.04, bonus = true, casual = HARD),
+    Recipe(24, 8, 5, { p -> listOf(C(p), IC(p), Objective.Letter('R', 5)) }, crates = 3, strongCrates = 3, giftRate = 0.04, bonus = true, casual = HARD),
     Recipe(25, 8, 5, { p -> listOf(I(p), Objective.LongWords(3)) }, ice = 5, giftRate = 0.04, bonus = true, casual = HARD),
     Recipe(26, 8, 5, { p -> listOf(R(p), C(p)) }, buddies = 2, crates = 3, feature = Feature.RESCUE, giftRate = 0.04, bonus = true, casual = MEDIUM),
     Recipe(27, 8, 5, { p -> listOf(Objective.Theme("Home", 2), R(p)) }, buddies = 2, giftRate = 0.04, bonus = true, casual = HARD),
@@ -109,10 +116,10 @@ val RECIPES: List<Recipe> = listOf(
     Recipe(32, 8, 5, { p -> listOf(T(p), G(p)) }, chests = 1, gold = 3, feature = Feature.TREASURE, giftRate = 0.04, bonus = true, casual = MEDIUM),
     Recipe(33, 8, 5, { p -> listOf(R(p), I(p), Objective.Letter('O', 4)) }, buddies = 2, ice = 4, giftRate = 0.04, bonus = true, casual = HARD),
     Recipe(34, 8, 5, { p -> listOf(Objective.Spell("GOLD"), T(p)) }, plant = "GOLD", chests = 1, giftRate = 0.04, bonus = true, casual = SPELL),
-    Recipe(35, 8, 5, { p -> listOf(Objective.Theme("Family", 1), B(p), C(p)) }, balloons = 4, crates = 3, giftRate = 0.04, bonus = true, casual = HARD),
+    Recipe(35, 8, 5, { p -> listOf(Objective.Theme("Family", 1), B(p), TW(p)) }, balloons = 4, twins = 3, feature = Feature.TWIN, giftRate = 0.04, bonus = true, casual = MEDIUM),
     Recipe(36, 8, 5, { p -> listOf(T(p), CH(p), R(p)) }, chests = 2, chains = 3, buddies = 2, giftRate = 0.04, bonus = true, casual = HARD),
     Recipe(37, 8, 5, { p -> listOf(B(p), Objective.LongWords(3)) }, balloons = 5, giftRate = 0.04, bonus = true, casual = HARD),
-    Recipe(38, 8, 5, { p -> listOf(R(p), C(p)) }, buddies = 3, crates = 2, strongCrates = 3, giftRate = 0.04, bonus = true, casual = HARD),
+    Recipe(38, 8, 5, { p -> listOf(R(p), C(p), IC(p)) }, buddies = 3, crates = 2, strongCrates = 3, giftRate = 0.04, bonus = true, casual = HARD),
     Recipe(39, 8, 5, { p -> listOf(Objective.Theme("Numbers", 1), T(p)) }, chests = 2, giftRate = 0.04, bonus = true, casual = HARD),
     Recipe(40, 8, 6, { p -> listOf(T(p), B(p), I(p)) }, chests = 2, balloons = 4, ice = 4, feature = Feature.BOSS, boss = true, giftRate = 0.04, bonus = true, casual = BOSS),
     // World 5: Sunny Galaxy
@@ -120,12 +127,12 @@ val RECIPES: List<Recipe> = listOf(
     Recipe(42, 8, 5, { p -> listOf(B(p), Objective.Spell("TREE")) }, balloons = 4, plant = "TREE", giftRate = 0.04, bonus = true, casual = SPELL),
     Recipe(43, 8, 5, { p -> listOf(Objective.Theme("Names", 2), T(p)) }, chests = 2, giftRate = 0.04, bonus = true, casual = HARD),
     Recipe(44, 8, 5, { p -> listOf(R(p), B(p), C(p)) }, buddies = 2, balloons = 4, crates = 3, giftRate = 0.04, bonus = true, casual = HARD),
-    Recipe(45, 8, 5, { p -> listOf(T(p), I(p), Objective.Letter('L', 4)) }, chests = 2, ice = 4, giftRate = 0.04, bonus = true, casual = HARD),
+    Recipe(45, 8, 5, { p -> listOf(T(p), M(p), Objective.Letter('L', 4)) }, chests = 2, mysteries = 4, feature = Feature.MYSTERY, giftRate = 0.04, bonus = true, casual = MEDIUM),
     Recipe(46, 8, 5, { p -> listOf(Objective.Theme("Food", 2), R(p)) }, buddies = 3, giftRate = 0.04, bonus = true, casual = HARD),
     Recipe(47, 8, 5, { p -> listOf(B(p), CH(p), G(p)) }, balloons = 4, chains = 3, gold = 3, giftRate = 0.04, bonus = true, casual = HARD),
     Recipe(48, 8, 5, { p -> listOf(T(p), R(p), Objective.LongWords(2)) }, chests = 2, buddies = 2, giftRate = 0.04, bonus = true, casual = HARD),
     Recipe(49, 8, 5, { p -> listOf(Objective.Theme("Fruits", 1), B(p)) }, balloons = 5, giftRate = 0.04, bonus = true, casual = HARD),
-    Recipe(50, 8, 6, { p -> listOf(R(p), T(p), C(p)) }, buddies = 3, chests = 2, crates = 3, strongCrates = 2, feature = Feature.BOSS, boss = true, giftRate = 0.04, bonus = true, casual = BOSS),
+    Recipe(50, 8, 6, { p -> listOf(R(p), T(p), C(p), IC(p)) }, buddies = 3, chests = 2, crates = 3, strongCrates = 2, feature = Feature.BOSS, boss = true, giftRate = 0.04, bonus = true, casual = BOSS),
 )
 
 val BONUS_WORDS = listOf(
@@ -231,6 +238,8 @@ fun randomLayout(recipe: Recipe, rng: Rng, dict: Dictionary): Layout? {
     mark(recipe.chains, 'c')
     mark(recipe.gold, 'g')
     mark(recipe.balloons, 'b')
+    mark(recipe.twins, 'x')
+    mark(recipe.mysteries, 'm')
     // Hard letters stay rare.
     for (p in cells) if (p !in planted && grid[p.row][p.col] in "JKVWXYZ" && rng.nextDouble() < 0.6) grid[p.row][p.col] = Letters.pickConsonant(rng)
     // Repair: change letters until there are no words already on the board (so the start looks calm).
@@ -239,7 +248,7 @@ fun randomLayout(recipe: Recipe, rng: Rng, dict: Dictionary): Layout? {
         val words = WordFinder.findAll(Board.fromRows(rowsNow, IdCounter(), marks.map { String(it) }), dict)
         if (words.isEmpty()) {
             return Layout(
-                rowsNow, marks.map { String(it) }, Placed(crateTotal, recipe.ice, recipe.chains, recipe.gold, buddies, recipe.balloons, chests),
+                rowsNow, marks.map { String(it) }, Placed(recipe.crates, recipe.ice, recipe.chains, recipe.gold, buddies, recipe.balloons, chests, recipe.strongCrates, recipe.twins, recipe.mysteries),
                 if (chests > 0) sand.map { String(it) } else null,
             )
         }
@@ -283,7 +292,8 @@ fun make(recipe: Recipe, dict: Dictionary): Level {
         )
         val game = Game(level, dict)
         val wordSwaps = game.board.swappablePairs().count { (a, b) -> game.wordsForSwap(a, b).isNotEmpty() }
-        if (wordSwaps < (if (recipe.tutorial) 5 else 3)) continue
+        // Levels 1-4 are easy (tester feedback): lots of words to find from the very first move.
+        if (wordSwaps < (if (recipe.tutorial) 8 else 3)) continue
         val strong = Solver.play(level, dict, 1.0, Rng(1))
         if (!strong.won) continue
         val used = strong.movesUsed
@@ -292,7 +302,7 @@ fun make(recipe: Recipe, dict: Dictionary): Level {
         val moves: Int
         val casualRate: Double
         if (recipe.tutorial) {
-            moves = maxOf(used * 2 + 4, 10)
+            moves = maxOf(used * 2 + 6, 12)
             casualRate = Solver.winRate(level.copy(moves = moves), dict, CASUAL_SKILL, RUNS, 99)
             if (casualRate < range.start) continue
         } else {
@@ -344,6 +354,7 @@ fun targetCode(t: Objective): String = when (t) {
     is Objective.LongWords -> "Objective.LongWords(${t.count}, ${t.minLength})"
     is Objective.Gold -> "Objective.Gold(${t.count})"
     is Objective.Crates -> "Objective.Crates(${t.count})"
+    is Objective.IronCrates -> "Objective.IronCrates(${t.count})"
     is Objective.Ice -> "Objective.Ice(${t.count})"
     is Objective.Chains -> "Objective.Chains(${t.count})"
     is Objective.Letter -> "Objective.Letter('${t.letter}', ${t.count})"
@@ -352,6 +363,8 @@ fun targetCode(t: Objective): String = when (t) {
     is Objective.Rescue -> "Objective.Rescue(${t.count})"
     is Objective.Balloons -> "Objective.Balloons(${t.count})"
     is Objective.Treasure -> "Objective.Treasure(${t.count})"
+    is Objective.Twins -> "Objective.Twins(${t.count})"
+    is Objective.Mystery -> "Objective.Mystery(${t.count})"
 }
 
 fun write(levels: List<Level>) {

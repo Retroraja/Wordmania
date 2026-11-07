@@ -62,8 +62,13 @@ fun WordnoidApp() {
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
         val obs = LifecycleEventObserver { _, e ->
-            if (e == Lifecycle.Event.ON_PAUSE) { music.pauseAll(); Ads.onPause() }
-            if (e == Lifecycle.Event.ON_RESUME) { if (progress.music) music.resume(); Ads.onResume(activity) }
+            // Music stops in the background (home button, screen off, an ad) and comes back once on return.
+            if (e == Lifecycle.Event.ON_PAUSE || e == Lifecycle.Event.ON_STOP) { music.pauseAll(); sounds.voice?.stop(); if (e == Lifecycle.Event.ON_PAUSE) Ads.onPause() }
+            if (e == Lifecycle.Event.ON_RESUME) {
+                activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                music.resume()
+                Ads.onResume(activity)
+            }
         }
         lifecycle.addObserver(obs)
         onDispose { lifecycle.removeObserver(obs) }
@@ -132,6 +137,7 @@ fun WordnoidApp() {
             Screen.FirstTime -> FirstTimeScreen(progress) {
                 progress.markSeen("first_time")
                 progress.markSeen("welcome_build3")
+                progress.markSeen("welcome_update1")
                 if (Build.VERSION.SDK_INT >= 33) notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
                 // New players go straight into the Level 1 demo.
                 screen = if (progress.unlocked <= 1 && dict != null) storyOr(0, "intro", Screen.Play(1, ++attempts, emptyList())) else Screen.Town
@@ -189,7 +195,9 @@ fun WordnoidApp() {
                 onClose = { screen = if (s.world != null) Screen.World(s.world) else Screen.Daily },
                 onFinished = { right -> if (s.world == null && right >= 2) Daily.report(progress, Daily.Kind.QUIZ) },
             )
-            is Screen.Story -> StoryScreen(progress, sounds, s.land, s.part, onDone = { screen = s.then })
+            // key: a story that follows another story (boss beaten -> next land's intro) must start fresh,
+            // or its scene never loads (black screen with only Skip, Level 10 bug).
+            is Screen.Story -> key(s.land, s.part) { StoryScreen(progress, sounds, s.land, s.part, onDone = { screen = s.then }) }
             is Screen.Play -> {
                 val level = Levels.get(s.level)
                 val d = dict
@@ -200,21 +208,32 @@ fun WordnoidApp() {
                         startBoosters = s.boosters,
                         onMap = { screen = levelScreen(s.level) },
                         onTown = {
-                            screen = if (level.boss) storyOr((s.level - 1) / 10, "boss", Screen.Town) else Screen.Town
-                            if (level.boss) askReview(activity, progress)
+                            // The "boss beaten" story only after a win (not when leaving a boss level from the pause menu).
+                            val won = progress.unlocked > s.level
+                            screen = if (level.boss && won) storyOr((s.level - 1) / 10, "boss", Screen.Town) else Screen.Town
+                            if (level.boss && won) askReview(activity, progress)
                         },
                         onRestart = { screen = Screen.Start(s.level) },
                         onNext = { n ->
                             // After the 4th and 8th level of a world, it's Quiz Time.
                             val inWorld = (s.level - 1) % 10
                             val w = (s.level - 1) / 10
+                            val quiz = (inWorld == 3 && progress.quizScore(w, 0) < 0) || (inWorld == 7 && progress.quizScore(w, 1) < 0)
+                            // Gentle build gate: a town task was ready on 3 win screens in a row and the player went on each time,
+                            // so this time Tiko takes them to the town to build it (one tap), then on to the next level.
+                            val gate = !quiz && !level.boss && Levels.get(n) != null && canBuildNow(progress) && ++progress.buildSkips >= 3
+                            if (!canBuildNow(progress)) progress.buildSkips = 0
                             val to = when {
                                 inWorld == 3 && progress.quizScore(w, 0) < 0 -> Screen.Quiz(w, 0)
                                 inWorld == 7 && progress.quizScore(w, 1) < 0 -> Screen.Quiz(w, 1)
                                 Levels.get(n) != null -> startLevel(n)
                                 else -> Screen.Town
                             }
-                            screen = if (level.boss) storyOr(w, "boss", to) else to
+                            if (gate) {
+                                progress.buildSkips = 0
+                                arrival = TownArrival(s.level, 0, 0)
+                                screen = Screen.Town
+                            } else screen = if (level.boss) storyOr(w, "boss", to) else to
                         },
                         onAutoTown = { coins, bricks -> arrival = TownArrival(s.level, coins, bricks); screen = Screen.Town },
                     )

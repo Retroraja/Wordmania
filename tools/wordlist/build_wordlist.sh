@@ -47,11 +47,15 @@ done | iconv -f latin1 -t utf-8 | keep \
 # Play words: the game only accepts everyday words, so random swaps rarely make words.
 # 3-letter words: the hand-picked play_three.txt only. 4+ letters: SCOWL sizes 10 and 20 (very common).
 # Plus the theme words in play_extra.txt.
+# Update 1: players found everyday words missing, so 4+ letters now come from SCOWL sizes 10, 20 and 35,
+# keeping only words people really use (wordfreq Zipf >= 3.0; needs `pip install wordfreq`).
 for v in english american british canadian australian; do
-  cat "$FINAL"/$v-words.{10,20} 2>/dev/null || true
-done | iconv -f latin1 -t utf-8 | keep | grep -E '^.{4,}$' > "$WORK/s1020.txt"
+  cat "$FINAL"/$v-words.{10,20,35} 2>/dev/null || true
+done | iconv -f latin1 -t utf-8 | keep | grep -E '^.{4,}$' | comm -12 - "$OUT/all_words.txt" > "$WORK/s4.txt"
+python3 -c 'import sys; from wordfreq import zipf_frequency as z; [print(w) for w in sys.stdin.read().split() if z(w, "en") >= 3.0]' \
+  < "$WORK/s4.txt" > "$WORK/s4common.txt"
 grep -v '^#' "$HERE/play_blocklist.txt" | sort -u > "$WORK/playblock.txt"
-{ comm -12 "$WORK/s1020.txt" "$OUT/all_words.txt"; grep -v '^#' "$HERE/play_three.txt"; grep -v '^#' "$HERE/play_extra.txt"; } | sort -u \
+{ cat "$WORK/s4common.txt"; grep -v '^#' "$HERE/play_three.txt"; grep -v '^#' "$HERE/play_three_more.txt"; grep -v '^#' "$HERE/play_extra.txt"; } | sort -u \
   | comm -23 - "$WORK/playblock.txt" > "$ASSETS/play_words.txt"
 
 wc -l "$OUT/all_words.txt" "$OUT/common_words.txt" "$ASSETS/play_words.txt"

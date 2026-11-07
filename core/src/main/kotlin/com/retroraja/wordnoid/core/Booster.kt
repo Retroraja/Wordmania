@@ -41,23 +41,24 @@ enum class Booster(
     JOKER("Joker", "🃏", 160, 3, Aim.MOVABLE, false, "Turns a tile into a star that can be any letter"),
     MAGIC_SWAP("Magic Swap", "✨", 200, 4, Aim.TWO_TILES, true, "Swap any two tiles, even far apart"),
     HINT("Hint", "💡", 120, 11, Aim.NONE, true, "Shows 2 or 3 words you can make right now"),
-    UNDO("Undo", "↩️", 80, 13, Aim.NONE, false, "Take back your last move and get it back"),
+    UNDO("Undo", "↩️", 80, 14, Aim.NONE, false, "Take back your last move and get it back"),
     SHUFFLE("Shuffle", "🔀", 60, 16, Aim.NONE, false, "Mix up the board for free"),
     PLUS_MOVES("+3 Moves", "➕", 150, 19, Aim.NONE, true, "Three extra moves"),
     PAINT("Paintbrush", "🖌️", 180, 22, Aim.MOVABLE, false, "Change a tile to any letter", needsLetter = true),
-    FREE_MOVE("Free Move", "⏳", 120, 49, Aim.NONE, false, "Your next swap costs no move"),
+    FREE_MOVE("Free Move", "⏳", 60, 13, Aim.NONE, false, "Your next swap costs no move"),
     ROW_SLIDE("Row Slide", "↔️", 120, 28, Aim.ROW, false, "Rearranges a row's letters to spell a word"),
     COLUMN_SLIDE("Column Slide", "↕️", 120, 28, Aim.COLUMN, false, "Rearranges a column's letters to spell a word"),
     SPIN("Spin", "🌀", 100, 31, Aim.SQUARE, false, "Turns 4 tiles until they make a word"),
     TREASURE_FINDER("Treasure Finder", "🗺️", 150, 32, Aim.NONE, true, "Finds the hidden treasure and digs it out at once"),
-    VOWEL_FLIP("Vowel Flip", "🅰️", 100, 34, Aim.MOVABLE, false, "Turn a tile into the vowel you pick", needsLetter = true),
+    // Saved as VOWEL_FLIP (old name) so old saves keep their boosters.
+    VOWEL_FLIP("Vowel Rain", "💧", 100, 34, Aim.NONE, false, "Rains 4-5 vowels onto the board"),
     AXE("Axe", "🪓", 100, 37, Aim.OBSTACLE, false, "Breaks a crate, chain or ice in one chop"),
     SCANNER("Word Scanner", "🔍", 180, 41, Aim.NONE, true, "Lights up every tile that can make a word"),
     DICE("Dice", "🎲", 80, 43, Aim.MOVABLE, false, "Re-roll a tile and pick 1 of 3 new letters", needsLetter = true),
     MAGNET("Magnet", "🧲", 120, 46, Aim.GOLD, false, "Pulls one gold tile off the board for you"),
     LOCK("Lock", "🔒", 60, 25, Aim.MOVABLE, false, "Locks a letter so no word uses it. Move it anywhere, then tap it to unlock"),
-    DOUBLE("Double Points", "🌟", 80, 52, Aim.NONE, false, "Your next word fills the Power Meter twice"),
-    LETTER_RAIN("Letter Rain", "🌧️", 140, 55, Aim.NONE, false, "Rains 3 useful letters onto the board");
+    DOUBLE("Double Points", "🌟", 80, 7, Aim.NONE, false, "Your next word fills the Power Meter twice"),
+    LETTER_RAIN("Letter Rain", "🌧️", 140, 49, Aim.NONE, false, "Rains 3 useful letters (B, D, L, M, N, R, S, T) onto the board");
 
     companion object {
         fun unlockedAt(level: Int): List<Booster> = entries.filter { it.introLevel <= level }

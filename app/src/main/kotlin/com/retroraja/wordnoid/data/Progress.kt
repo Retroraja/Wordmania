@@ -37,8 +37,33 @@ class Progress(context: Context) {
     private val words: MutableSet<String> = HashSet(prefs.getStringSet("wordbook", emptySet()) ?: emptySet())
     var wordbookSize by mutableIntStateOf(words.size); private set
 
+    /** Wins in a row (Update 1). Gives free boosters at the next level start. */
+    var streak by mutableIntStateOf(prefs.getInt("streak", 0)); private set
+    /** Level chest: 0..4 slots filled (one per win). The 5th win opens it. */
+    var chest by mutableIntStateOf(prefs.getInt("chest", 0)); private set
+
     init {
         if (!prefs.contains("first_day")) prefs.edit().putLong("first_day", today()).apply()
+        upgradeSave()
+    }
+
+    /**
+     * Update 1 save upgrade (runs once). Some boosters now arrive earlier (Double Points L7, Free Move L13, Letter Rain L49).
+     * A player who is already past the new level gets that booster plus one to try. Nothing owned is ever removed.
+     * Streak and chest start at 0 (new keys).
+     */
+    private fun upgradeSave() {
+        if (prefs.getInt("save_version", 1) >= SAVE_VERSION) return
+        val e = prefs.edit()
+        val oldLevels = mapOf(Booster.FREE_MOVE to 49, Booster.DOUBLE to 52, Booster.LETTER_RAIN to 55)
+        if (prefs.contains("unlocked")) for ((b, old) in oldLevels) {
+            if (unlocked > b.introLevel && unlocked <= old) {
+                boosters[b] = count(b) + 1
+                e.putInt("b_${b.name}", count(b))
+                e.putBoolean("seen_intro_b_${b.name}", true)
+            }
+        }
+        e.putInt("save_version", SAVE_VERSION).apply()
     }
 
     private fun bump() { version++ }
@@ -70,6 +95,29 @@ class Progress(context: Context) {
     fun levelLost(level: Int) {
         prefs.edit().putInt("fails_$level", fails(level) + 1).apply()
     }
+
+    // ---------------------------------------------------------------- win streak and level chest (Update 1)
+
+    fun streakWin() { streak++; prefs.edit().putInt("streak", streak).apply(); bump() }
+    /** A loss (or quitting a level) breaks the streak. The level chest is never lost. */
+    fun streakLost() { if (streak != 0) { streak = 0; prefs.edit().putInt("streak", 0).apply(); bump() } }
+    /** Once a day a video can keep the streak after a loss. */
+    val streakSaveReady: Boolean get() = dayInt("streak_save") == 0
+    fun useStreakSave() = setDayInt("streak_save", 1)
+
+    /** Fills one chest slot. True when this win filled the 5th slot (the chest opens and starts again). */
+    fun chestWin(): Boolean {
+        val full = chest + 1 >= CHEST_SLOTS
+        chest = if (full) 0 else chest + 1
+        prefs.edit().putInt("chest", chest).apply()
+        bump()
+        return full
+    }
+
+    /** Win screens where a town task was ready but the player went on (gentle gate after 3). */
+    var buildSkips: Int
+        get() = prefs.getInt("build_skips", 0)
+        set(v) { prefs.edit().putInt("build_skips", v).apply() }
 
     // ---------------------------------------------------------------- boosters and coins
 
@@ -244,6 +292,8 @@ class Progress(context: Context) {
 
     companion object {
         const val STARTING_COINS = 200
+        const val SAVE_VERSION = 2
+        const val CHEST_SLOTS = 5
         /** Continue after running out of moves. */
         const val CONTINUE_PRICE = 300
         const val NEW_WORD_COINS = 2
