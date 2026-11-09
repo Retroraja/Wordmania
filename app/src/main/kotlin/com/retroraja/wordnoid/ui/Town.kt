@@ -46,6 +46,7 @@ import com.retroraja.wordnoid.audio.SoundFx
 import com.retroraja.wordnoid.core.Booster
 import com.retroraja.wordnoid.core.Levels
 import com.retroraja.wordnoid.data.Daily
+import com.retroraja.wordnoid.data.MiniGames
 import com.retroraja.wordnoid.data.Progress
 import com.retroraja.wordnoid.data.Rewards
 import kotlinx.coroutines.delay
