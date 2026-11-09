@@ -17,7 +17,10 @@ jobs:
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
       - name: Build APK
-        run: ./gradlew :app:assembleDebug --no-daemon && cp app/build/outputs/apk/debug/app-debug.apk Wordnoid.apk
+        run: |
+          # The Gradle download sometimes times out: try 3 times.
+          for i in 1 2 3; do ./gradlew :app:assembleDebug --no-daemon && break; sleep 40; done
+          cp app/build/outputs/apk/debug/app-debug.apk Wordnoid.apk
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
