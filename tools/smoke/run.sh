@@ -83,16 +83,24 @@ tap_text "Yay!"; sleep 2
 tap_text "Close"; sleep 1
 tap_text "Daily Gifts"; sleep 2; shot daily-rewards
 tap_text "Open today's gift!"; sleep 2; shot daily-opened
-tap_text "🎡 Spin"; sleep 1; tap_text "Free spin!"; sleep 5; shot spin
-tap_text "⭐ Challenges"; sleep 1; shot challenges
-tap_text "Play quiz"; sleep 2; shot mini-quiz
-adb shell input keyevent 4; sleep 1; adb shell input keyevent 4; sleep 2
+adb shell input keyevent 4; sleep 2
+# Update 1.1 mini games: menu, then one round of each game (back key -> "Leave?" -> Leave).
+tap_text "Mini games"; sleep 3; shot mini-menu
+for g in wheel hunt crack; do
+  tap_text "▶ FREE PLAY"; sleep 6; shot mini-$g
+  if [ $g = crack ]; then tap_text "START"; sleep 1; adb shell input swipe 1300 500 1450 500 150; sleep 2; shot mini-crack-play; fi
+  adb shell input keyevent 4; sleep 2; shot mini-$g-leave
+  tap_text "Leave"; sleep 3
+done
+shot mini-menu-after
+adb shell input keyevent 4; sleep 2
 tap_text "Shop"; sleep 2; shot shop
 adb shell input keyevent 4; sleep 2
 tap_text "Level Map"; sleep 3; shot level-map
 tap_text "Open ▶"; sleep 4; shot world-5-zoom
 texts
-tap_text "QUIZ!"; sleep 3; shot quiz
+tap_text "QUIZ!"; sleep 3; shot quiz-start-card
+tap_text "▶ Start"; sleep 2; shot quiz
 adb shell input keyevent 4; sleep 4; shot back-from-quiz
 tap_text "👾 50"; sleep 3; shot start-50
 tap_text "▶ PLAY"; sleep 4; shot intro-50
