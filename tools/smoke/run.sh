@@ -79,7 +79,7 @@ texts
 tap_text "Let's go!"; sleep 2
 tap_text "Tasks"; sleep 2; shot tasks
 tap_text "Build"; sleep 4; shot fixing-fountain
-tap_text "Yay!"; sleep 2
+for t in 1 2 3; do sleep 3; tap_text "Yay!" | grep -q tapped && break; done; sleep 2
 tap_text "Close"; sleep 1
 tap_text "Daily Gifts"; sleep 2; shot daily-rewards
 tap_text "Open today's gift!"; sleep 2; shot daily-opened
