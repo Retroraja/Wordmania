@@ -131,6 +131,8 @@ fun MiniPlayScreen(game: MiniGames.Game, progress: Progress, sounds: SoundFx, on
             val main = Handler(Looper.getMainLooper())
             WebView(ctx).apply {
                 web = this
+                // Full screen. Without this the page is laid out at the wrong height inside Compose (blank lower half on phones).
+                layoutParams = android.view.ViewGroup.LayoutParams(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT)
                 setBackgroundColor(android.graphics.Color.rgb(26, 31, 92))
                 overScrollMode = WebView.OVER_SCROLL_NEVER
                 settings.javaScriptEnabled = true

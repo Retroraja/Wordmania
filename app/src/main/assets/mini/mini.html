@@ -7,7 +7,7 @@
 @font-face{font-family:"Lilita One";src:url(../fx/LilitaOne.ttf)}
 :root{--gold:#ffc93c;--green:#2fbf4f;--green-dk:#17803a;--navy:#1b2140;--red:#ff4d5e;
   --display:"Lilita One","Arial Rounded MT Bold","Arial Black",sans-serif;--body:system-ui,sans-serif}
-html,body{margin:0;height:100%;overflow:hidden;background:#1a1f5c;color:#fff;font-family:var(--body);-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;width:100%;overflow:hidden;background:#1a1f5c;color:#fff;font-family:var(--body);-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
 #stage{position:absolute;left:50%;top:50%;width:1000px;height:562.5px;margin:-281.25px 0 0 -500px;transform-origin:50% 50%;overflow:hidden;touch-action:none}
 .screen{position:absolute;top:0;left:0;right:0;bottom:0}
 [hidden]{display:none!important}
@@ -516,7 +516,7 @@ function cbEnd(){const c=cb.coins;endCard("TIME'S UP!",`${cb.cleared} crackers b
 let raf=0;
 function frame(){const now=performance.now()/1000;tikoFrame(now);if(GAME==='crack')cbFrame(now);
   if(GAME==='hunt'&&ph.sel>=0&&!RM&&!(raf++%3))phPaint(now);requestAnimationFrame(frame)}
-function fit(){const k=Math.min(innerWidth/1000,innerHeight/562.5);$('#stage').style.transform='scale('+k+')'}
+function fit(){const W=innerWidth||document.documentElement.clientWidth,H=innerHeight||document.documentElement.clientHeight;if(!W||!H)return;const k=Math.min(W/1000,H/562.5);$('#stage').style.transform='scale('+k+')'}
 addEventListener('resize',fit);fit();
 function boot(){fit();$('#s-'+GAME).hidden=false;document.body.style.background={wheel:'#c47ddf',hunt:'#ffd3ec',crack:'#140a33'}[GAME]||'';TikoView('tk-'+GAME);
   if(GAME==='wheel'){loadWords();lwBind();lwStart()}
