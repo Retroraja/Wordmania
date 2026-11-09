@@ -90,7 +90,9 @@ for g in wheel hunt crack; do
   tap_text "▶ FREE PLAY"; sleep 6; shot mini-$g
   if [ $g = crack ]; then tap_text "START"; sleep 1; adb shell input swipe 1300 500 1450 500 150; sleep 2; shot mini-crack-play; fi
   adb shell input keyevent 4; sleep 2; shot mini-$g-leave
-  tap_text "Leave"; sleep 3
+  # "Leave" by its place on screen (the button sits in the middle of the game card), then the back key fallback.
+  adb shell input tap 1404 646; sleep 3; shot mini-$g-after-leave
+  texts | grep -q "FREE PLAY\|Back tomorrow\|Video" || { adb shell input keyevent 4; sleep 1; adb shell input keyevent 4; sleep 1; adb shell input keyevent 4; sleep 3; }
 done
 shot mini-menu-after
 adb shell input keyevent 4; sleep 2
