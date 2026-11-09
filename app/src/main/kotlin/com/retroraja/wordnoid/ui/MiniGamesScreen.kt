@@ -117,7 +117,13 @@ fun MiniPlayScreen(game: MiniGames.Game, progress: Progress, sounds: SoundFx, on
     var web by remember { mutableStateOf<WebView?>(null) }
     val done by rememberUpdatedState(onDone)
     // The back button asks first (the game shows "Leave? You keep your coins").
-    BackHandler { web?.evaluateJavascript("document.querySelector('#s-${game.id} .back').click()", null) }
+    // If the page doesn't answer (or the player keeps pressing back), the round just closes.
+    var backs by remember { mutableIntStateOf(0) }
+    BackHandler {
+        if (++backs >= 3) { done(0); return@BackHandler }
+        val w = web ?: run { done(0); return@BackHandler }
+        w.evaluateJavascript("(function(){var b=document.querySelector('#s-${game.id} .back');if(b&&!finished){b.click();return 1}return 0})()") { r -> if (r != "1") done(0) }
+    }
     DisposableEffect(Unit) { onDispose { web?.destroy() } }
     AndroidView(
         modifier = Modifier.fillMaxSize(),
