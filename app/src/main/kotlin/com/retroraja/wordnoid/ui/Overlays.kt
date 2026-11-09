@@ -518,12 +518,19 @@ fun LoseDialog(c: GameController, activity: Activity, onRetry: () -> Unit, onMap
     val glow by anim.animateFloat(0.9f, 1.08f, infiniteRepeatable(tween(500), RepeatMode.Reverse), label = "g")
     DimBox {
         Column(Modifier.width(480.dp).arcadePanel().padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            // Update 1.1: "So close! Only 2 left!" and a big +5 moves offer (a free video, or coins).
+            val need = c.level.targets.sumOf { it.left(c.stats) }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Tiko(Modifier.size(54.dp))
-                ArcadeText(" Out of moves!", 26.sp, Palette.gold)
+                ArcadeText(if (need in 1..5) " So close! Only $need left!" else " Out of moves!", 26.sp, Palette.gold)
             }
             val left = c.level.targets.filter { it.left(c.stats) > 0 }.joinToString("\n") { "${it.icon} ${it.left(c.stats)} more: ${it.text}" }
-            Text("So close! Still needed:\n$left", color = Color.White, fontSize = 14.sp, textAlign = TextAlign.Center, lineHeight = 18.sp)
+            Text("Still needed:\n$left", color = Color.White, fontSize = 14.sp, textAlign = TextAlign.Center, lineHeight = 18.sp)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "➕5 MOVES and finish it!", Modifier.scale(glow).background(Palette.green, RoundedCornerShape(10.dp)).padding(horizontal = 12.dp, vertical = 3.dp),
+                color = Color.White, fontSize = 18.sp, fontWeight = Heavy,
+            )
             if (c.progress.streak > 0 && !c.streakKept) {
                 Spacer(Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -551,11 +558,12 @@ fun LoseDialog(c: GameController, activity: Activity, onRetry: () -> Unit, onMap
                 )
                 Spacer(Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    // The free video comes first: it is the easy way on.
+                    WatchButton("+5 moves FREE", Ads.Spot.CONTINUE, activity) { c.continueForAd() }
                     ArcadeButton(
                         "+$moves moves 🪙${Progress.CONTINUE_PRICE}",
                         enabled = c.progress.coins >= Progress.CONTINUE_PRICE, textSize = 16.sp,
                     ) { c.continueForCoins() }
-                    WatchButton("+5 moves", Ads.Spot.CONTINUE, activity) { c.continueForAd() }
                 }
                 if (c.progress.coins < Progress.CONTINUE_PRICE) Text("You have 🪙${c.progress.coins}.", color = Palette.cream, fontSize = 12.sp)
                 if (c.progress.count(Booster.PLUS_MOVES) > 0) {

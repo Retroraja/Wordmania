@@ -15,6 +15,8 @@ object Solver {
         val game = Game(level, dict, bonusMoves)
         var guard = 0
         while (game.status == GameStatus.PLAYING && guard++ < 400) {
+            // No word left: the game gives a free Shuffle, which the player taps.
+            if (game.stuck) { game.useBooster(Booster.SHUFFLE); continue }
             val (a, b) = chooseSwap(game, dict, skill, rng)
             if (!game.canSwap(a, b)) break
             game.swap(a, b)

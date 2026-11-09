@@ -720,7 +720,7 @@ SCENES.map=function(w,o){const scene=w.scene,cam=w.cam;document.body.style.backg
   // Update 1: about 1.5x more space between stones, on a gentle S path; the quiz chests sit beside the path
   // (at the turns, after the 4th and 8th stones), never in front of or behind a stone.
   const PATH=[[-1.95,1.55],[-.85,1.85],[.35,1.85],[1.5,1.45],[2.15,.45],[1.2,-.2],[0,.15],[-1.2,-.2],[-1.75,-1.25],[-.45,-1.75]];
-  const QPOS=[[2.25,1.2],[-2.35,.35]];
+  const QPOS=[[2.3,-1.1],[-2.5,.45]]; // Update 1.1: well away from every stone (chest 1 used to sit over the next level stone)
   function castle(col){const g=new THREE.Group();const wall=std('#d9d4e6',.7),roof=std(col,.4);
     const keep=new THREE.Mesh(new THREE.BoxGeometry(.9,.9,.7),wall);keep.position.y=.45;g.add(keep);
     for(const[x,z]of[[-.5,-.3],[.5,-.3],[-.5,.3],[.5,.3]]){const t=new THREE.Mesh(new THREE.CylinderGeometry(.17,.19,1.2,12),wall);t.position.set(x,.6,z);g.add(t);const c=new THREE.Mesh(new THREE.ConeGeometry(.24,.42,12),roof);c.position.set(x,1.4,z);g.add(c)}

@@ -54,6 +54,8 @@ object Ads {
     enum class Spot(val perDay: Int) {
         CONTINUE(5), EXTRA_SPIN(1), SKIP_CHALLENGE(1), DOUBLE_WIN_COINS(5), EXTRA_BRICK(3), FREE_HAMMER(3), STUCK_HINT(5),
         DOUBLE_DAILY(1), SECOND_CRATE(3), QUIZ_RETRY(3), GIFT_BALLOON(2), FREE_COINS(5), BOSS_REMATCH(3), KEEP_STREAK(1),
+        /** Update 1.1 mini games: one extra play a day, a few extra pencil hints, hearts back once. */
+        MINI_PLAY(1), MINI_HINT(6), MINI_HEARTS(2),
     }
 
     private var started = false

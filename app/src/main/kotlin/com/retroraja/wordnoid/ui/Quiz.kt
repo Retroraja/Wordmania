@@ -41,6 +41,9 @@ fun QuizScreen(world: Int?, slot: Int, progress: Progress, dict: Dictionary?, so
     var reward by remember(attempt) { mutableStateOf("") }
     val activity = LocalContext.current as Activity
     val skin = world ?: (progress.unlocked - 1) / 10
+    // Update 1.1: every quiz opens with a start card (what it is, the prize, Start or Skip). Tiko explains it the first time.
+    var started by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { if (!progress.seen("quiz_intro")) { progress.markSeen("quiz_intro"); sounds.play("calm:Quiz time! Answer 3 quick word questions and win prizes.") } }
     // Floating question marks and Tiko in 3D behind the quiz (Tiko cheers or shakes his head).
     LaunchedEffect(Fx.ok) { if (Fx.ok) Fx.backdrop("quiz") }
     QuizBackground(skin) {
@@ -50,10 +53,26 @@ fun QuizScreen(world: Int?, slot: Int, progress: Progress, dict: Dictionary?, so
                 Spacer(Modifier.width(10.dp))
                 ArcadeText(if (world == null) "🎓 Mini Quiz" else "🎓 Quiz Time!", 26.sp, Color.White)
                 Spacer(Modifier.weight(1f))
-                Text(if (!finished) "Question ${index + 1} of 3" else "", color = Color.White, fontSize = 15.sp, fontWeight = Heavy)
+                Text(if (started && !finished) "Question ${index + 1} of 3" else "", color = Color.White, fontSize = 15.sp, fontWeight = Heavy)
             }
             Spacer(Modifier.height(8.dp))
-            if (!finished) {
+            if (!started) {
+                Column(Modifier.width(500.dp).arcadePanel().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Tiko(Modifier.size(70.dp))
+                    ArcadeText("QUIZ TIME!", 34.sp, Palette.gold)
+                    Text("3 quick word questions. Tap the right answer.", color = Color.White, fontSize = 16.sp, fontWeight = Heavy, textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(6.dp))
+                    if (world != null) {
+                        Text("🏆 3 right: +2 🧱 and a booster", color = Palette.gold, fontSize = 15.sp, fontWeight = Heavy)
+                        Text("⭐ 2 right: +1 🧱 and 🪙20", color = Palette.gold, fontSize = 15.sp, fontWeight = Heavy)
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        ArcadeButton("Skip", color = Palette.slate, onClick = onClose)
+                        ArcadeButton("▶ Start") { sounds.play("pop"); started = true }
+                    }
+                }
+            } else if (!finished) {
                 val q = questions[index]
                 key(attempt, index) {
                     QuestionView(q, picked, sounds) { ok, choice ->

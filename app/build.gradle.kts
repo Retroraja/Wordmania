@@ -14,7 +14,7 @@ android {
         targetSdk = 36
         // Play needs a bigger number for every upload: the CI run number (+100 so it is above all old test builds).
         versionCode = 100 + (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
-        versionName = "1.0.${System.getenv("GITHUB_RUN_NUMBER") ?: "0"}"
+        versionName = "1.1.${System.getenv("GITHUB_RUN_NUMBER") ?: "0"}" // Update 1.1
     }
 
     signingConfigs {

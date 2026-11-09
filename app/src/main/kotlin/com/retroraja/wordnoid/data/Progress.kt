@@ -53,8 +53,11 @@ class Progress(context: Context) {
      * Streak and chest start at 0 (new keys).
      */
     private fun upgradeSave() {
-        if (prefs.getInt("save_version", 1) >= SAVE_VERSION) return
+        val from = prefs.getInt("save_version", 1)
+        if (from >= SAVE_VERSION) return
         val e = prefs.edit()
+        if (from < 3) upgradeTo11(e)
+        if (from >= 2) { e.putInt("save_version", SAVE_VERSION).apply(); return }
         val oldLevels = mapOf(Booster.FREE_MOVE to 49, Booster.DOUBLE to 52, Booster.LETTER_RAIN to 55)
         if (prefs.contains("unlocked")) for ((b, old) in oldLevels) {
             if (unlocked > b.introLevel && unlocked <= old) {
@@ -66,8 +69,49 @@ class Progress(context: Context) {
         e.putInt("save_version", SAVE_VERSION).apply()
     }
 
+    /**
+     * Update 1.1 save upgrade (runs once, for every player wherever they are).
+     * The Spin wheel and Daily Challenges are gone: any of today's challenge coins that were earned but not claimed
+     * (and the bonus chest, if all 3 were done) are paid now, so nothing is lost. Levels, coins, boosters, town and
+     * streak stay as they are. The 7-day calendar keeps its day.
+     */
+    private fun upgradeTo11(e: android.content.SharedPreferences.Editor) {
+        if (!prefs.contains("unlocked")) return
+        var gift = 0
+        val list = Daily.today()
+        list.forEachIndexed { i, c -> if (challengeProgress(i) >= c.target && !challengeClaimed(i)) gift += c.coins }
+        if (list.indices.all { challengeProgress(it) >= list[it].target } && !challengeChestClaimed) { gift += Daily.CHEST_COINS; e.putInt("bricks_bonus", prefs.getInt("bricks_bonus", 0) + 1) }
+        if (gift > 0) { coins += gift; e.putInt("coins", coins); e.putInt("upgrade11_gift", gift) }
+    }
+
+    /** Coins paid by the Update 1.1 save upgrade (shown once on the welcome card), 0 if none. */
+    val upgradeGift: Int get() = prefs.getInt("upgrade11_gift", 0)
+
     private fun bump() { version++ }
     private fun today(): Long = LocalDate.now().toEpochDay()
+
+    // ---------------------------------------------------------------- Update 1.1: mini games and word ideas
+
+    /** Today's free play of a mini game was used. */
+    fun miniFreeUsed(id: String): Boolean = dayInt("mg_free_$id") == 1
+    fun useMiniFree(id: String) = setDayInt("mg_free_$id", 1)
+    /** The one extra play a day for a video (any one game). */
+    val miniAdUsed: Boolean get() = dayInt("mg_ad") == 1
+    fun useMiniAd() = setDayInt("mg_ad", 1)
+    fun miniBest(id: String): Int { @Suppress("UNUSED_VARIABLE") val v = version; return prefs.getInt("mg_best_$id", 0) }
+    fun setMiniBest(id: String, coins: Int) { if (coins > miniBest(id)) { prefs.edit().putInt("mg_best_$id", coins).apply(); bump() } }
+    fun miniGamesFreeReady(): Boolean = MiniGames.LAUNCHED.any { !miniFreeUsed(it.id) }
+    /** Extra pencil hints bought with videos today, per game. */
+    fun miniHintsUsed(id: String): Int = dayInt("mg_hint_$id")
+    fun useMiniHint(id: String) = setDayInt("mg_hint_$id", miniHintsUsed(id) + 1)
+
+    /** Word ideas sent today (3 a day per phone). */
+    val suggestionsToday: Int get() = dayInt("suggest")
+    fun suggestionSent() = setDayInt("suggest", suggestionsToday + 1)
+    /** Word ideas waiting to be sent (no internet when the player sent them). */
+    var pendingSuggestions: Set<String>
+        get() = prefs.getStringSet("suggest_queue", emptySet()) ?: emptySet()
+        set(v) { prefs.edit().putStringSet("suggest_queue", v).apply() }
 
     // ---------------------------------------------------------------- levels and bricks
 
@@ -292,7 +336,7 @@ class Progress(context: Context) {
 
     companion object {
         const val STARTING_COINS = 200
-        const val SAVE_VERSION = 2
+        const val SAVE_VERSION = 3
         const val CHEST_SLOTS = 5
         /** Continue after running out of moves. */
         const val CONTINUE_PRICE = 300

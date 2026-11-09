@@ -77,10 +77,9 @@ class ReminderWorker(context: Context, params: WorkerParameters) : CoroutineWork
         val used = prefs.getStringSet("notif_kinds_$today", emptySet()) ?: emptySet()
         val options = buildList {
             if (daysAway >= 2) add("miss" to "Tiko misses you! The town is waiting for its builder. 🏗️")
-            if (p.freeSpinReady) add("spin" to "Your free Daily Spin is ready! 🎡")
             if (p.dailyGiftDay() > 0) add("gift" to "A Daily Gift is waiting for you 🎁")
             if (p.bricksToSpend >= 3) add("bricks" to "You have ${p.bricksToSpend} Letter Bricks to build with! 🧱")
-            if (p.challengeProgress(0) == 0) add("challenge" to "3 new Daily Challenges are here! ⭐")
+            if (p.unlocked >= 6 && p.miniGamesFreeReady()) add("mini" to "Your free Mini Games are ready! 🪙")
         }.filter { it.first !in used }
         val pick = options.firstOrNull() ?: return Result.success()
         Reminders.post(ctx, pick.second)

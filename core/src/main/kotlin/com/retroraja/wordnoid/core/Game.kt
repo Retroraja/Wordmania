@@ -49,7 +49,7 @@ data class MoveResult(
     val effects: Effects,
     /** After bursting and refilling. */
     val boardAfter: Board,
-    /** Set if the board had no possible words left and was reshuffled for free. */
+    /** Always null since Update 1.1: the board is never shuffled by itself (see [stuck]). */
     val shuffled: Board?,
     val status: GameStatus,
     /** Extra points for moves left over when the level is won. */
@@ -60,6 +60,8 @@ data class MoveResult(
     /** Treasure chests dug out in this move (index into [Level.chests]). */
     val chestsFound: List<Int> = emptyList(),
     val bossAttack: BossAttack? = null,
+    /** No swap makes a word any more. Nothing moves by itself: the player gets a free Shuffle to tap. */
+    val stuck: Boolean = false,
 )
 
 /** The rules of one level being played. Has no screen code, so it can be tested and used by the level maker. */
@@ -154,9 +156,7 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
         var nb = if (freeze) b.with(p, b[p].copy(kind = TileKind.ICE, hp = ICE_HP))
         else b.with(p, b[p].copy(letter = CRATE_CHAR, kind = TileKind.CRATE, hp = 1, prize = Prize(PrizeKind.COINS, 5)))
         s = s.copy(board = nb)
-        var shuffled: Board? = r.shuffled
-        if (!hasWordMove(nb)) { nb = shuffled(nb); s = s.copy(board = nb); shuffled = nb }
-        return r.copy(boardAfter = board, shuffled = shuffled, bossAttack = BossAttack(p, freeze))
+        return r.copy(boardAfter = board, stuck = !hasWordMove(nb), bossAttack = BossAttack(p, freeze))
     }
 
     /** Locked letters on the board (Lock booster). */
@@ -364,14 +364,14 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
         for (p in fx.balloons) if (p !in fx.cleared) b = b.with(p, b[p].copy(kind = TileKind.NORMAL))
         for ((p, hp) in fx.powerMade) b = b.with(p, b[p].copy(kind = TileKind.POWER, hp = hp, locked = false))
         for (p in fx.revealed) if (p !in fx.cleared) b = b.with(p, b[p].copy(kind = TileKind.NORMAL))
-        var after = if (fx.cleared.isEmpty()) b else Refill.collapse(b, fx.cleared, s.rng, s.ids, dict, level.giftRate)
+        var after = if (fx.cleared.isEmpty()) b else smartRefill(b, fx.cleared)
         // Tiko friends that reach the bottom row escape (and the tiles above drop again).
         var rescued = 0
         while (true) {
             val out = (0 until after.cols).map { Pos(after.rows - 1, it) }.filter { after[it].isBuddy }.toSet()
             if (out.isEmpty()) break
             rescued += out.size
-            after = Refill.collapse(after, out, s.rng, s.ids, dict, level.giftRate)
+            after = smartRefill(after, out)
         }
         // Digging: every cleared sand cell is dug. A chest is found when all of its cells are dug.
         val dug = s.dug + fx.cleared.filter { it in treasureCells }
@@ -391,10 +391,36 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
         return finish(changedBoard, fx).copy(rescued = rescued, chestsFound = newChests)
     }
 
+    /**
+     * Smart refill: new letters are picked so the board keeps at least [MIN_WORD_SWAPS] swaps that make a word
+     * (new tiles never make a word by themselves). Tries a few letter sets and keeps the best one.
+     */
+    private fun smartRefill(b: Board, cleared: Set<Pos>): Board {
+        var best: Board? = null
+        var bestCount = -1
+        repeat(REFILL_TRIES) {
+            val nb = Refill.collapse(b, cleared, s.rng, s.ids, dict, level.giftRate)
+            val n = wordSwaps(nb, MIN_WORD_SWAPS)
+            if (n > bestCount) { best = nb; bestCount = n }
+            if (n >= MIN_WORD_SWAPS) return nb
+        }
+        return best!!
+    }
+
+    /** How many swaps make a word on [b] (counting stops at [cap]). */
+    fun wordSwaps(b: Board = board, cap: Int = Int.MAX_VALUE): Int {
+        var n = 0
+        for ((x, y) in b.swappablePairs()) if (wordsForSwap(b, x, y, dict).isNotEmpty()) { if (++n >= cap) return n }
+        return n
+    }
+
+    /** True when no swap makes a word: the player should tap Shuffle (given free). */
+    val stuck: Boolean get() = s.status == GameStatus.PLAYING && !hasWordMove(board)
+
     private fun finish(changedBoard: Board, fx: Effects): MoveResult {
         var leftover = 0
         var leftoverCoins = 0
-        var shuffled: Board? = null
+        var stuck = false
         val status = when {
             goalMet -> GameStatus.WON
             s.movesLeft <= 0 && s.freeMoves <= 0 -> GameStatus.LOST
@@ -407,10 +433,10 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
             s = s.copy(score = s.score + leftover, coins = s.coins + leftoverCoins)
             undo = null
         } else if (status == GameStatus.PLAYING && !hasWordMove(board)) {
-            shuffled = shuffled(board)
-            s = s.copy(board = shuffled)
+            // Never shuffled by itself (Update 1.1): the app gives a free Shuffle for the player to tap.
+            stuck = true
         }
-        return MoveResult(changedBoard, fx, board, shuffled, status, leftover, leftoverCoins)
+        return MoveResult(changedBoard, fx, board, null, status, leftover, leftoverCoins, stuck = stuck)
     }
 
     // ---------------------------------------------------------------- boosters
@@ -773,6 +799,9 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
         const val METER_SIZE = 8
         /** Power tiles start here (never in the first tutorials). */
         const val POWER_FROM_LEVEL = 4
+        /** Smart refill keeps at least this many word-making swaps on the board. */
+        const val MIN_WORD_SWAPS = 3
+        const val REFILL_TRIES = 12
 
         fun startBoard(level: Level): Board {
             val ids = IdCounter()

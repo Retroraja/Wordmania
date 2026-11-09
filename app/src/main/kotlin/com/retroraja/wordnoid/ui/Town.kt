@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -154,6 +155,7 @@ fun TownScreen(
     onWordbook: () -> Unit,
     onDaily: (Int) -> Unit,
     onSettings: () -> Unit,
+    onMiniGames: () -> Unit = {},
     onQuit: () -> Unit = {},
     arrival: TownArrival? = null,
     onArrivalNext: (Int) -> Unit = {},
@@ -162,11 +164,12 @@ fun TownScreen(
     var tasksOpen by remember { mutableStateOf(false) }
     val townScope = rememberCoroutineScope()
     val dailyIntro = when {
-        progress.unlocked >= 7 && !progress.seen("intro_challenges") -> DailyIntro("intro_challenges", 2, "New! Daily Challenges.\nThree small jobs every day.\nFinish them for coins.\nTap the gift button.")
-        progress.unlocked >= 5 && !progress.seen("intro_spin") -> DailyIntro("intro_spin", 1, "New! The prize wheel.\nYou get one free spin every day.\nTap the gift button to spin.")
         progress.unlocked >= 3 && !progress.seen("intro_gift") -> DailyIntro("intro_gift", 0, "New! Daily Gifts.\nA free present every day.\nTap the gift button to open it.")
         else -> null
     }
+    // Update 1.1: Mini Games open after Level 5. Tiko points at the button once.
+    val miniOpen = progress.unlocked >= MiniGames.UNLOCK_AFTER + 1
+    val miniIntro = miniOpen && dailyIntro == null && !progress.seen("intro_minigames")
     var fixing by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var buildingGift by remember { mutableStateOf<Int?>(null) }
     // Levels 1-3 arrival: counters hold back what's still flying in; then a guided build; then a big Next level button.
@@ -261,8 +264,8 @@ fun TownScreen(
             }
         }
         Column(Modifier.align(Alignment.CenterStart).padding(start = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            val dailyReady = progress.dailyGiftDay() > 0 || (progress.unlocked >= 5 && progress.freeSpinReady)
-            // Daily features open one by one; Tiko shows each the first time (Gift after L2, Spin after L4, Challenges after L6).
+            val dailyReady = progress.dailyGiftDay() > 0
+            // Daily Rewards open after Level 2; Tiko shows the button the first time.
             if (progress.unlocked >= 3) Box {
                 // Guide: a glowing ring pulses around the button, and a big hand beside it points at it.
                 if (dailyIntro != null && arrival == null && fixing == null && !tasksOpen) Box(
@@ -291,6 +294,31 @@ fun TownScreen(
             }
             SideButton("🗺️", "Level Map", onClick = onMap)
             SideButton("📖", "Wordbook", onClick = onWordbook)
+            if (miniOpen) Box {
+                val showGuide = miniIntro && arrival == null && fixing == null && !tasksOpen
+                if (showGuide) Box(Modifier.matchParentSize().scale(1f + 0.18f * bounce).alpha(1f - 0.5f * bounce).border(4.dp, Palette.gold, RoundedCornerShape(18.dp)))
+                // A red dot while a free play is ready.
+                SideButton("🪙", "Mini games", badge = if (MiniGames.anyFreeToday(progress)) "●" else null, onClick = {
+                    progress.markSeen("intro_minigames"); sounds.play("pop"); onMiniGames()
+                })
+                if (MiniGames.newestIsNew(progress)) Text(
+                    "NEW", Modifier.align(Alignment.TopStart).offset((-6).dp, (-8).dp).rotate(-10f)
+                        .background(Color(0xFFFF3D7F), RoundedCornerShape(8.dp)).border(1.5.dp, Color.White, RoundedCornerShape(8.dp)).padding(horizontal = 5.dp),
+                    color = Color.White, fontSize = 10.sp, fontWeight = Heavy,
+                )
+                if (showGuide) Text("👇", fontSize = 40.sp, modifier = Modifier.align(Alignment.TopCenter).offset(y = (-52).dp - (8 * bounce).dp))
+            }
+        }
+        if (miniIntro && arrival == null && fixing == null && !tasksOpen) {
+            val tip = "New! Mini Games!\nPlay 3 fun games free every day\nand win coins. Tap the coin button."
+            Row(
+                Modifier.align(Alignment.BottomStart).padding(start = 10.dp, bottom = 120.dp).width(330.dp).arcadePanel().padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Tiko(Modifier.size(48.dp))
+                Text(tip, color = Color.White, fontSize = 15.sp, fontWeight = Heavy, lineHeight = 19.sp, modifier = Modifier.padding(start = 8.dp))
+            }
+            LaunchedEffect(Unit) { delay(900); sounds.play("calm:${tip.replace("\n", " ")}") }
         }
         if (arrival == null) Column(Modifier.align(Alignment.BottomEnd).padding(14.dp), horizontalAlignment = Alignment.End) {
             // The level chest (one slot per win) sits just above the PLAY button.
@@ -323,17 +351,17 @@ fun TownScreen(
             LaunchedEffect(di.key) { kotlinx.coroutines.delay(900); sounds.play("calm:${di.tip.replace("\n", " ")}") }
         }
         // Players coming from an older build: what's new (their levels, coins and town are kept).
-        var welcomeBack by remember { mutableStateOf(progress.unlocked > 1 && !progress.seen("welcome_update1")) }
+        var welcomeBack by remember { mutableStateOf(progress.unlocked > 1 && !progress.seen("welcome_update11")) }
         if (welcomeBack) DimBox {
             Column(Modifier.width(440.dp).arcadePanel().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Tiko(Modifier.size(56.dp))
                 ArcadeText("Welcome back!", 24.sp, Palette.gold)
                 Text(
-                    "Your levels, coins and town are all saved. New in this update:\n🔥 Win streaks give free boosters\n🧰 A level chest every 5 wins\n🌈 Power tiles, x2 tiles and ? tiles\n🧊 Ice can move now (costs 2 moves)\n🔩 Iron Crates  💧 Vowel Rain",
+                    "Your levels, coins and town are all saved. New in Update 1.1:\n🪙 Mini Games: 3 fun games, free every day\n🎁 Daily Rewards: a gift calendar, day 7 is big\n🔥 Streak gifts wait on the panel: tap to use\n🔀 Stuck? Shuffle is free, you tap it\n✍️ Suggest a new word from Settings",
                     color = Color.White, fontSize = 14.sp, textAlign = TextAlign.Center, lineHeight = 19.sp,
                 )
                 Spacer(Modifier.height(8.dp))
-                ArcadeButton("Let's go!") { progress.markSeen("welcome_build3"); progress.markSeen("welcome_update1"); welcomeBack = false }
+                ArcadeButton("Let's go!") { progress.markSeen("welcome_build3"); progress.markSeen("welcome_update1"); progress.markSeen("welcome_update11"); welcomeBack = false }
             }
         }
         if (tasksOpen) TasksDialog(

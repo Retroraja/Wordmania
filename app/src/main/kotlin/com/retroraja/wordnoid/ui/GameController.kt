@@ -107,6 +107,15 @@ class GameController(
     var fx by mutableStateOf<BoosterFx?>(null); private set
     var tutorial by mutableStateOf<Tutorial?>(null); private set
     var nudge by mutableStateOf<Booster?>(null); private set
+    /**
+     * Free boosters for this level only (Update 1.1): win-streak gifts, a pre-level Joker, and a Shuffle when no word is left.
+     * They glow on the panel with a FREE badge. Nothing is ever used by itself: the player taps them.
+     */
+    val levelFree = mutableStateListOf<Booster>()
+    /** A free Shuffle was given because no word was left (once until it is used). */
+    private var stuckShuffle = false
+    /** True if the next use of [b] costs nothing (a teaching freebie or a free one for this level). */
+    fun isFree(b: Booster): Boolean = b in levelFree || progress.hasFreeUse(b)
     var mysteryCards by mutableStateOf<List<Booster>?>(null); private set
     var buyAsk by mutableStateOf<Booster?>(null); private set
     var showWin by mutableStateOf(false); private set
@@ -187,27 +196,32 @@ class GameController(
             progress.setFreeUse(b, true)
         }
         scope.launch {
+            // Pre-level boosters: ones that only add moves start working at once (they can't make a word).
+            // A tile booster (Joker) waits on the panel as FREE, for the player to tap.
             for (b in startBoosters) {
                 delay(250)
-                applyStartBooster(b)
+                if (b.aim == Aim.NONE && b !in WORD_MAKERS) applyStartBooster(b) else levelFree.add(b)
             }
-            // Win streak: free boosters used right at the start (never stored).
-            for (b in streakBoosters(progress.streak, level.number)) {
-                delay(250)
-                applyStartBooster(b, streak = true)
+            // Win streak gifts: FREE glowing buttons for this level. Never used by themselves (Update 1.1 fix).
+            val gifts = streakBoosters(progress.streak, level.number)
+            if (gifts.isNotEmpty()) {
+                levelFree.addAll(gifts)
+                glowBooster = gifts.first()
+                delay(300)
+                toast("🔥 Streak gift: ${gifts.joinToString(" ") { it.emoji }} FREE!", center(), Palette.gold, big = true)
+                sounds.play("sparkle")
+                say("🔥 Win streak gift! Your free ${gifts.joinToString(", ") { it.title }} ${if (gifts.size > 1) "are" else "is"} on the panel. Tap to use when you like.", 4200)
+                scope.launch { delay(4200); if (glowBooster in gifts) glowBooster = null }
             }
             startTutorial()
             armIdleHint()
         }
     }
 
-    private suspend fun applyStartBooster(b: Booster, streak: Boolean = false) {
-        val r = when (b) {
-            Booster.JOKER, Booster.HAMMER -> game.suggestTarget(b)?.let { game.useBooster(b, it) }
-            Booster.MAGIC_SWAP -> game.suggestMagicSwap()?.let { (x, y) -> game.useBooster(b, x, y) }
-            else -> game.useBooster(b)
-        } ?: return
-        toast(if (streak) "🔥 Streak: ${b.emoji} ${b.title}!" else "${b.emoji} ${b.title}!", center(), Palette.gold, big = true)
+    /** A pre-level booster that only adds moves (+3 Moves, Free Move). Tile boosters never run by themselves. */
+    private suspend fun applyStartBooster(b: Booster) {
+        val r = game.useBooster(b) ?: return
+        toast("${b.emoji} ${b.title}!", center(), Palette.gold, big = true)
         sounds.play("sparkle")
         playResult(r, b)
     }
@@ -364,12 +378,32 @@ class GameController(
         }
     }
 
-    private fun suggestBooster() {
-        val options = listOf(Booster.HINT, Booster.SCANNER, Booster.SHUFFLE, Booster.HAMMER, Booster.JOKER)
-            .filter { it.introLevel <= level.number && (progress.count(it) > 0 || progress.hasFreeUse(it)) }
-        val pick = options.firstOrNull() ?: return
+    /**
+     * Stuck: the best booster button glows (Update 1.1). Boosters the player has (or free ones) first,
+     * otherwise one they can buy with coins. [lowMoves]: few moves left and the goal is still far.
+     */
+    private fun suggestBooster(lowMoves: Boolean = false) {
+        if (tutorial != null || armed != null || status != GameStatus.PLAYING) return
+        val order = if (lowMoves) listOf(Booster.PLUS_MOVES, Booster.MAGIC_SWAP, Booster.JOKER, Booster.HAMMER, Booster.ROW_SLIDE, Booster.FREE_MOVE)
+        else listOf(Booster.HINT, Booster.MAGIC_SWAP, Booster.JOKER, Booster.SCANNER, Booster.HAMMER, Booster.SHUFFLE)
+        val open = order.filter { it.introLevel <= level.number || it in levelFree }
+        val pick = open.firstOrNull { progress.count(it) > 0 || isFree(it) } ?: open.firstOrNull() ?: return
         nudge = pick
-        say("Stuck? Try ${pick.emoji} ${pick.title}!", 2600)
+        val have = progress.count(pick) > 0 || isFree(pick)
+        say(when {
+            lowMoves && have -> "Only $movesLeft moves left! Try ${pick.emoji} ${pick.title}!"
+            lowMoves -> "Only $movesLeft moves left! ${pick.emoji} ${pick.title} can help (🪙${Rewards.price(pick, progress.unlocked)})."
+            have -> "Stuck? Try ${pick.emoji} ${pick.title}!"
+            else -> "Stuck? ${pick.emoji} ${pick.title} can help (🪙${Rewards.price(pick, progress.unlocked)})."
+        }, 3200)
+    }
+
+    /** Few moves left and the goal still far: the best booster glows (once per level). */
+    private var lowMovesNudged = false
+    private fun checkLowMoves() {
+        if (lowMovesNudged || status != GameStatus.PLAYING || level.number <= 5) return
+        val need = level.targets.sumOf { it.left(stats) }
+        if (movesLeft in 1..3 && need > movesLeft) { lowMovesNudged = true; suggestBooster(lowMoves = true) }
     }
 
     /** True while the hint on the board is the soft auto hint (it goes away as soon as the player touches the board). */
@@ -385,6 +419,9 @@ class GameController(
                 hint = game.hint()
                 autoHint = hint != null
             }
+            // Still nothing after about 8 more seconds: the best booster glows (from Level 6).
+            delay(8_000)
+            if (!busy && status == GameStatus.PLAYING && armed == null && tutorial == null && mysteryCards == null && nudge == null && level.number > 5) suggestBooster()
         }
     }
 
@@ -409,7 +446,7 @@ class GameController(
             say(if (t.swap != null) "First swap the two glowing tiles 👆" else "Tap the glowing ${t.booster?.emoji ?: "button"} 👆", 1500)
             return
         }
-        if (progress.count(b) <= 0 && !progress.hasFreeUse(b)) { buyAsk = b; return }
+        if (progress.count(b) <= 0 && !isFree(b)) { buyAsk = b; return }
         nudge = null
         when (b.aim) {
             Aim.NONE -> useNow(b)
@@ -527,6 +564,8 @@ class GameController(
     }
 
     private fun consume(b: Booster) {
+        // A free one for this level: nothing is taken from the bag.
+        if (levelFree.remove(b)) { if (b == Booster.SHUFFLE) stuckShuffle = false; return }
         val wasFree = progress.hasFreeUse(b)
         progress.useBooster(b)
         if (wasFree && !b.strong) {
@@ -662,14 +701,13 @@ class GameController(
             delay(450)
             board = game.board
         }
-        if (r.shuffled != null) {
-            say("No words left. Shuffling!", 1000)
-            sounds.play("shuffle")
-            delay(500)
-            flipping.addAll(r.shuffled!!.tiles().map { it.id })
-            board = r.shuffled!!
-            delay(500)
-            flipping.clear()
+        // No word left: never shuffled by itself. The Shuffle button glows FREE and the player taps it.
+        if ((r.stuck || game.stuck) && r.status == GameStatus.PLAYING && !stuckShuffle) {
+            stuckShuffle = true
+            if (Booster.SHUFFLE !in levelFree) levelFree.add(Booster.SHUFFLE)
+            nudge = Booster.SHUFFLE
+            sounds.play("ding")
+            say("No words left! Tap the FREE 🔀 Shuffle to mix the letters.", 5000)
         }
         when (r.status) {
             GameStatus.WON -> win(r)
@@ -678,6 +716,8 @@ class GameController(
         }
         status = r.status
         busy = false
+        if (fx0.words.isNotEmpty() && nudge != Booster.SHUFFLE) nudge = null
+        checkLowMoves()
         if (meterFills > 0 && status == GameStatus.PLAYING) openMystery()
         if (fx0.words.isNotEmpty() && status == GameStatus.PLAYING) afterWordTutorial()
     }
@@ -1105,5 +1145,7 @@ class GameController(
         const val AUTO_TOWN_LEVELS = 3
         /** Boosters whose first try is guided step by step (the player must use it). */
         val GUIDED = setOf(Booster.HAMMER, Booster.JOKER, Booster.MAGIC_SWAP)
+        /** Boosters with no aim that still change letters (so they could make a word): never used at the start by themselves. */
+        val WORD_MAKERS = setOf(Booster.SHUFFLE, Booster.VOWEL_FLIP, Booster.LETTER_RAIN, Booster.TREASURE_FINDER)
     }
 }

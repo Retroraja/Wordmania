@@ -52,6 +52,7 @@ fun SettingsScreen(progress: Progress, sounds: SoundFx, onBack: () -> Unit, onHo
                     SettingsToggles(progress)
                     ArcadeButton("❓ How to play", color = Palette.royal, textSize = 16.sp, onClick = onHowToPlay)
                     ArcadeButton("⭐ Rate us", color = Palette.purple, textSize = 16.sp) { askReview(activity, progress, force = true) }
+                    SuggestWordBox(progress, sounds)
                 }
                 Column(Modifier.weight(1f).arcadePanel().padding(14.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     ArcadeText("Account and privacy", 18.sp, Palette.gold)
@@ -69,6 +70,32 @@ fun SettingsScreen(progress: Progress, sounds: SoundFx, onBack: () -> Unit, onHo
             }
         }
     }
+}
+
+/** Update 1.1: "Suggest a word" (a word the game should know). Letters only, 3-8 letters, 3 a day. Only the word is sent. */
+@Composable
+private fun SuggestWordBox(progress: Progress, sounds: SoundFx) {
+    var text by remember { mutableStateOf("") }
+    var note by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) { com.retroraja.wordnoid.data.Suggestions.flush(progress) }
+    ArcadeText("💡 Suggest a word", 18.sp, Palette.gold)
+    Text("Did the game miss a real word? Tell us! We check every word before the next update.", color = Color.White, fontSize = 13.sp)
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        androidx.compose.foundation.text.BasicTextField(
+            value = text,
+            onValueChange = { v -> text = v.filter { it.isLetter() }.take(8).uppercase(); note = null },
+            singleLine = true,
+            textStyle = androidx.compose.ui.text.TextStyle(color = Palette.royalDeep, fontSize = 20.sp, fontWeight = Heavy),
+            modifier = Modifier.weight(1f).background(Color.White, RoundedCornerShape(10.dp)).border(2.dp, Palette.gold, RoundedCornerShape(10.dp)).padding(horizontal = 10.dp, vertical = 8.dp),
+            decorationBox = { inner -> if (text.isEmpty()) Text("WORD", color = Color(0xFF9AA3C7), fontSize = 20.sp, fontWeight = Heavy); inner() },
+        )
+        ArcadeButton("Send", textSize = 16.sp) {
+            val why = com.retroraja.wordnoid.data.Suggestions.problem(text, progress)
+            if (why != null) { note = why; sounds.play("nope") }
+            else { com.retroraja.wordnoid.data.Suggestions.send(text, progress); note = "Thank you! \"$text\" is on our list."; text = ""; sounds.play("ding") }
+        }
+    }
+    note?.let { Text(it, color = Palette.cream, fontSize = 12.sp, fontWeight = Heavy) }
 }
 
 /** In-app review ("Rate us"): after a boss or a finished district, at most once a month. */

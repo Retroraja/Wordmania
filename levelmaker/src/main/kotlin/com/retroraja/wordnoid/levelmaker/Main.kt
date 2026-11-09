@@ -61,6 +61,29 @@ val BOSS = 0.22..0.42
 val BREATHER = 0.65..0.85
 val SPELL = 0.2..0.55
 
+// Update 1.1 (user 2026-11-08): "not about failing, it's about using coins, boosters, video ads for moves".
+// A thinking player without boosters often ends 1-3 moves short; with one booster or +5 moves they almost always win.
+// Levels 1-10 stay easy. Every 5th level (that isn't a boss) is a breather.
+val U11 = 0.40..0.52
+val U21 = 0.30..0.42
+val U_BREATHER = 0.62..0.80
+val U_BOSS = 0.25..0.40
+val U_SPELL = 0.25..0.45
+/** With +5 moves the casual player should win at least this often (boss levels a bit less). */
+const val PLUS5 = 0.85
+const val PLUS5_BOSS = 0.75
+
+/** The casual win-rate range a recipe aims for (Update 1.1 targets from Level 11). */
+fun tunedRange(r: Recipe): ClosedFloatingPointRange<Double> = when {
+    r.number <= 10 -> r.casual
+    r.boss -> U_BOSS
+    r.number % 5 == 0 -> U_BREATHER
+    r.plant.isNotEmpty() -> U_SPELL
+    // A level that brings in a new goal is a little kinder.
+    r.feature != null || r.number <= 20 -> U11
+    else -> U21
+}
+
 private fun G(p: Placed) = Objective.Gold(p.gold)
 private fun C(p: Placed) = Objective.Crates(p.crates)
 /** Iron Crates (2 hits) are their own goal. */
@@ -272,7 +295,7 @@ fun make(recipe: Recipe, dict: Dictionary): Level {
     val rng = Rng(recipe.number * 7919L + 13)
     var tried = 0
     val started = System.currentTimeMillis()
-    var range = recipe.casual
+    var range = tunedRange(recipe)
     while (true) {
         tried++
         // If a recipe is hard to hit, widen the range a little every 40 boards.
@@ -328,6 +351,15 @@ fun make(recipe: Recipe, dict: Dictionary): Level {
         }
         level = level.copy(moves = moves)
         if (!Solver.play(level, dict, 1.0, Rng(1)).won) continue
+        // With one booster's worth of help (+5 moves) the casual player should almost always win.
+        val plus5 = if (recipe.number > 10) Solver.winRate(level.copy(moves = moves + 5), dict, CASUAL_SKILL, RUNS, 99) else 1.0
+        // Spell levels depend on finding one word, so extra moves help less there.
+        // A hard recipe lowers the bar a little every 40 boards (never under 0.5), so the maker never gets stuck.
+        val need = ((if (recipe.plant.isNotEmpty()) 0.6 else if (recipe.boss) PLUS5_BOSS else PLUS5) - 0.1 * (tried / 40)).coerceAtLeast(0.5)
+        if (plus5 < need) {
+            println("  level ${recipe.number}: +5 moves only wins ${"%.2f".format(plus5)}, next")
+            continue
+        }
         val random = Solver.winRate(level, dict, 0.0, RUNS, 7)
         if (recipe.number >= 6 && random > 0.15) {
             println("  level ${recipe.number}: random swaps win ${"%.2f".format(random)}, next")
@@ -342,7 +374,7 @@ fun make(recipe: Recipe, dict: Dictionary): Level {
         }
         println(
             "Level ${recipe.number}: ${level.start.joinToString("/")} moves=$moves strongUsed=$used " +
-                "casual=${"%.2f".format(casualRate)} random=${"%.2f".format(random)} boards=$tried " +
+                "casual=${"%.2f".format(casualRate)} plus5=${"%.2f".format(plus5)} random=${"%.2f".format(random)} boards=$tried " +
                 "time=${(System.currentTimeMillis() - started) / 1000}s"
         )
         return level

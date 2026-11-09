@@ -334,9 +334,11 @@ private fun PowerMeter(meter: Int) {
 fun panelBoosters(c: GameController): List<Booster> {
     val unlocked = Booster.unlockedAt(c.level.number)
     val intro = c.level.introBoosters.filter { c.progress.hasFreeUse(it) }
+    // Free ones for this level (streak gifts, a pre-level Joker, a Shuffle when stuck) always show first.
+    val free = c.levelFree.distinct()
     val owned = unlocked.filter { c.progress.count(it) > 0 }.sortedByDescending { c.progress.count(it) }
     val rest = unlocked.filter { it !in owned }.sortedBy { it.price }
-    return (intro + owned + rest).distinct().take(6)
+    return (free + intro + owned + rest).distinct().take(6)
 }
 
 @Composable
@@ -383,12 +385,12 @@ fun BoosterButton(
     val anim = rememberInfiniteTransition(label = "bb")
     val pulse by anim.animateFloat(1f, 1.12f, infiniteRepeatable(tween(450), RepeatMode.Reverse), label = "p")
     val glow by anim.animateFloat(0.35f, 1f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "g")
-    val spotlight = c.tutorial?.booster == b || c.nudge == b || c.glowBooster == b
+    val spotlight = c.tutorial?.booster == b || c.nudge == b || c.glowBooster == b || b in c.levelFree
     // The booster tutorial: a hand taps this button.
     val handHere = c.tutorial?.booster == b && c.armed == null && c.tutorial?.dismissible == false
     val isArmed = c.armed == b
     val count = c.progress.count(b)
-    val free = c.progress.hasFreeUse(b)
+    val free = c.isFree(b)
     val owned = free || count > 0
     val icon = Fx.icons[b.name]
     val k = Look.skin

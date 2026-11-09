@@ -41,6 +41,9 @@ private sealed interface Screen {
     data class Start(val level: Int) : Screen
     data class Play(val level: Int, val attempt: Int, val boosters: List<Booster>) : Screen
     data class Story(val land: Int, val part: String, val then: Screen) : Screen
+    /** Update 1.1 mini games: the menu ([won] coins fly in after a round) and one round. */
+    data class MiniGames(val won: Int = 0) : Screen
+    data class MiniPlay(val game: com.retroraja.wordnoid.data.MiniGames.Game) : Screen
 }
 
 @Composable
@@ -138,6 +141,7 @@ fun WordnoidApp() {
                 progress.markSeen("first_time")
                 progress.markSeen("welcome_build3")
                 progress.markSeen("welcome_update1")
+                progress.markSeen("welcome_update11")
                 if (Build.VERSION.SDK_INT >= 33) notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
                 // New players go straight into the Level 1 demo.
                 screen = if (progress.unlocked <= 1 && dict != null) storyOr(0, "intro", Screen.Play(1, ++attempts, emptyList())) else Screen.Town
@@ -151,6 +155,7 @@ fun WordnoidApp() {
                 onWordbook = { go(Screen.Wordbook) },
                 onDaily = { tab -> dailyTab = tab; go(Screen.Daily) },
                 onSettings = { go(Screen.Settings) },
+                onMiniGames = { go(Screen.MiniGames()) },
                 onQuit = { leaveAsk = true },
                 arrival = arrival,
                 onArrivalNext = { n -> arrival = null; screen = if (Levels.get(n) != null) startLevel(n) else Screen.Town },
@@ -187,7 +192,9 @@ fun WordnoidApp() {
             Screen.Shop -> ShopScreen(progress, sounds, onBack = { screen = back })
             Screen.Wordbook -> WordbookScreen(progress, onBack = { screen = back })
             Screen.Boosters -> BoostersGuide(progress, onBack = { screen = back })
-            Screen.Daily -> DailyGiftsScreen(progress, sounds, startTab = dailyTab, onTab = { dailyTab = it }, onBack = { screen = Screen.Town }, onMiniQuiz = { dailyTab = 2; screen = Screen.Quiz(null, 0) })
+            Screen.Daily -> DailyGiftsScreen(progress, sounds, onBack = { screen = Screen.Town })
+            is Screen.MiniGames -> MiniGamesScreen(progress, sounds, s.won, onBack = { screen = Screen.Town }, onPlay = { g -> screen = Screen.MiniPlay(g) })
+            is Screen.MiniPlay -> key(s) { MiniPlayScreen(s.game, progress, sounds, onDone = { n -> screen = Screen.MiniGames(n) }) }
             Screen.Settings -> SettingsScreen(progress, sounds, onBack = { screen = Screen.Town }, onHowToPlay = { screen = Screen.HowTo })
             Screen.HowTo -> HowToPlayScreen(progress, onBack = { screen = Screen.Settings })
             is Screen.Quiz -> QuizScreen(
