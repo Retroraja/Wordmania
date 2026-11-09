@@ -32,7 +32,8 @@ extra = read("play_extra.txt") - block
 # Theme words (Themes.kt) stay too, so every theme level keeps all its words.
 import re
 themes_src = open(os.path.join(ROOT, "core/src/main/kotlin/com/retroraja/wordnoid/core/Themes.kt")).read()
-extra |= {w.lower() for w in re.findall(r'"([A-Z]{3,10})"', themes_src)} & (current | extra)
+theme_words = {w for chunk in re.findall(r'"([a-zA-Z ]+)"', themes_src) for w in chunk.lower().split() if 3 <= len(w) <= 10}
+extra |= theme_words & (current | extra)
 
 # 3 letters: hand-picked only, most used first, at most THREE.
 three = set(sorted(picked3, key=lambda w: -z(w, "en"))[:THREE])

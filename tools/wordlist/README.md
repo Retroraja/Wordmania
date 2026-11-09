@@ -4,11 +4,14 @@ The game accepts only **everyday words**, so players have to think to make words
 
 | File | What it is | Size |
 |---|---|---|
-| `app/src/main/assets/play_words.txt` | **The words the game accepts.** About 18,500 everyday words (Update 1): hand-picked 3-letter words, and 4 to 10 letter words from SCOWL sizes 10-35 that people really use (wordfreq Zipf 3.0+). American, British, Canadian and Australian spellings. | ~300 KB |
+| `app/src/main/assets/play_words.txt` | **The words the game accepts.** 8,000 everyday words (Update 1.1): the hand-picked 3-letter words, every theme word, then the most used 4+ letter words (wordfreq). Made by `build_wordlist.sh` then `trim_by_frequency.py`. Mini games use the same list. | ~60 KB |
 | `tools/wordlist/all_words.txt` | Every English word (about 283,000). Reference only, not in the app. | ~2.4 MB |
 | `tools/wordlist/common_words.txt` | A wider common list (about 50,000). Reference only. | ~420 KB |
 
 ## How to change the words
+
+Update 1.1: after `build_wordlist.sh`, run `python3 tools/wordlist/trim_by_frequency.py` (needs `pip install wordfreq`) to cut the list to the 8,000 most used words.
+
 
 - **Block a word from the game:** add it to `play_blocklist.txt` (or `blocklist.txt` to drop it everywhere) and run `tools/wordlist/build_wordlist.sh` from the repo root.
 - **Rebuild everything:** run the same script. It downloads the sources below and writes both files.

@@ -222,7 +222,7 @@ fun randomLayout(recipe: Recipe, rng: Rng, dict: Dictionary): Layout? {
     val crateTotal = recipe.crates + recipe.strongCrates
     if (crateTotal > 0) {
         val anchor = Pos(rows - 1 - rng.nextInt(2), rng.nextInt(cols))
-        val near = free.sortedBy { Math.abs(it.row - anchor.row) * 2 + Math.abs(it.col - anchor.col) + rng.nextDouble() * 2.5 }
+        val near = free.map { it to Math.abs(it.row - anchor.row) * 2 + Math.abs(it.col - anchor.col) + rng.nextDouble() * 2.5 }.sortedBy { it.second }.map { it.first }
         val chosen = near.take(crateTotal)
         chosen.forEachIndexed { i, p -> grid[p.row][p.col] = if (i < recipe.strongCrates) CRATE2_CHAR else CRATE_CHAR }
         free.removeAll(chosen.toSet())

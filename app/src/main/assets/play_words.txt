@@ -110,7 +110,6 @@ adjustment
 admiral
 admire
 admission
-admissions
 admit
 admits
 admitted
@@ -261,7 +260,6 @@ among
 amongst
 amount
 amounts
-amusing
 analyses
 analysis
 analyst
@@ -555,6 +553,7 @@ ballot
 balls
 ban
 banana
+bananas
 band
 bands
 bang
@@ -573,6 +572,7 @@ bare
 barely
 bargain
 bark
+barks
 barn
 baron
 barrel
@@ -598,6 +598,7 @@ bat
 batch
 bath
 bathroom
+baths
 bats
 battalion
 batteries
@@ -609,10 +610,12 @@ bay
 beach
 beaches
 beam
+beams
 bean
 beans
 bear
 beard
+beards
 bearing
 bears
 beast
@@ -682,14 +685,12 @@ besides
 best
 bet
 beta
-betrayed
 bets
 better
 betting
 between
 beyond
 bias
-biased
 bib
 bible
 biblical
@@ -717,6 +718,8 @@ bird
 birds
 birth
 birthday
+biscuit
+biscuits
 bishop
 bishops
 bit
@@ -750,7 +753,6 @@ blocking
 blocks
 blog
 blogger
-bloggers
 blogs
 blonde
 blood
@@ -960,6 +962,7 @@ buzz
 bye
 bypass
 cab
+cabbage
 cabin
 cabinet
 cable
@@ -998,7 +1001,6 @@ candidates
 candle
 candles
 candy
-cane
 cannon
 cannot
 canon
@@ -1018,7 +1020,6 @@ caps
 captain
 capture
 captured
-capturing
 car
 carbon
 card
@@ -1044,6 +1045,8 @@ carried
 carrier
 carriers
 carries
+carrot
+carrots
 carry
 carrying
 cars
@@ -1085,7 +1088,6 @@ ceased
 ceiling
 celebrate
 celebrated
-celebrates
 celebrity
 cell
 cells
@@ -1270,6 +1272,7 @@ clinics
 clip
 clips
 clock
+clocks
 close
 closed
 closely
@@ -1439,6 +1442,7 @@ concert
 concerts
 conclude
 concluded
+concludes
 conclusion
 concrete
 condemned
@@ -1710,6 +1714,7 @@ cultural
 culture
 cultures
 cup
+cupboard
 cups
 curb
 cure
@@ -1723,6 +1728,7 @@ curry
 curse
 cursed
 curtain
+curtains
 curve
 curved
 curves
@@ -1879,7 +1885,6 @@ demand
 demanded
 demanding
 demands
-dementia
 democracy
 democrat
 democratic
@@ -1919,6 +1924,7 @@ described
 describes
 describing
 desert
+deserts
 deserve
 deserved
 deserves
@@ -1980,7 +1986,6 @@ diameter
 diamond
 diamonds
 diary
-dice
 dictionary
 did
 died
@@ -2005,7 +2010,6 @@ dinner
 dinosaur
 dioxide
 dip
-diploma
 diplomatic
 direct
 directed
@@ -2023,10 +2027,8 @@ disabled
 disagree
 disappear
 disaster
-disasters
 disc
 discharge
-discharged
 discipline
 disclose
 disclosed
@@ -2208,6 +2210,7 @@ dull
 dumb
 dump
 dumped
+dunno
 duo
 duration
 during
@@ -2591,7 +2594,6 @@ facility
 facing
 fact
 faction
-factions
 factor
 factories
 factors
@@ -2771,6 +2773,7 @@ first
 fiscal
 fish
 fisher
+fishes
 fishing
 fist
 fit
@@ -2831,6 +2834,7 @@ focuses
 focusing
 foe
 fog
+foil
 fold
 folded
 folk
@@ -2877,7 +2881,6 @@ formal
 formally
 format
 formation
-formats
 formed
 former
 formerly
@@ -2943,6 +2946,7 @@ friendship
 fries
 fringe
 frog
+frogs
 from
 front
 frontier
@@ -3039,7 +3043,6 @@ genuinely
 geographic
 geography
 geological
-geology
 geometry
 gesture
 get
@@ -3116,10 +3119,8 @@ gradually
 graduate
 graduated
 graduates
-graduating
 graduation
 grain
-gram
 grammar
 grams
 grand
@@ -3417,11 +3418,9 @@ hoping
 horizon
 horizontal
 hormone
-hormones
 horn
 horns
 horrible
-horrific
 horror
 horse
 horses
@@ -3730,6 +3729,7 @@ isolation
 issue
 issued
 issues
+issuing
 item
 items
 its
@@ -3743,12 +3743,14 @@ jackets
 jade
 jail
 jam
+jams
 jar
 jaw
 jay
 jazz
 jealous
 jeans
+jellies
 jelly
 jerk
 jersey
@@ -3807,6 +3809,7 @@ keeping
 keeps
 keg
 kept
+kettle
 key
 keyboard
 keys
@@ -4103,7 +4106,6 @@ locking
 locks
 lodge
 log
-logging
 logic
 logical
 logo
@@ -4430,10 +4432,12 @@ missing
 mission
 missionary
 missions
+mist
 mistake
 mistaken
 mistakes
 mistress
+mists
 mix
 mixed
 mixing
@@ -4455,6 +4459,7 @@ modify
 module
 moisture
 mold
+mole
 molecular
 molecules
 mom
@@ -4479,6 +4484,7 @@ months
 monument
 mood
 moon
+moons
 mop
 moral
 morality
@@ -4520,9 +4526,11 @@ mow
 much
 mud
 mug
+mugs
 multi
 multiple
 mum
+mummy
 municipal
 murder
 murdered
@@ -4600,6 +4608,7 @@ nerve
 nerves
 nervous
 nest
+nests
 net
 nets
 network
@@ -4614,7 +4623,6 @@ newer
 newest
 newly
 news
-newsletter
 newspaper
 newspapers
 newton
@@ -4656,6 +4664,7 @@ northeast
 northern
 northwest
 nose
+noses
 not
 notable
 notably
@@ -4938,6 +4947,7 @@ parks
 parliament
 parody
 parole
+parrot
 part
 partial
 partially
@@ -5091,6 +5101,7 @@ pieces
 pier
 pierce
 pig
+pigeon
 pigs
 pile
 pill
@@ -5116,6 +5127,7 @@ pitched
 pitcher
 pity
 pizza
+pizzas
 place
 placed
 placement
@@ -5451,10 +5463,8 @@ protein
 proteins
 protest
 protestant
-protesting
 protests
 protocol
-protocols
 prototype
 proud
 prove
@@ -5486,6 +5496,7 @@ published
 publisher
 publishers
 publishing
+pudding
 pull
 pulled
 pulling
@@ -5561,6 +5572,7 @@ quote
 quoted
 quotes
 rabbit
+rabbits
 race
 races
 racial
@@ -5572,6 +5584,7 @@ radar
 radiation
 radical
 radio
+radios
 radius
 rag
 rage
@@ -5662,7 +5675,6 @@ reasons
 rebel
 rebellion
 rebels
-rebounds
 rebuild
 recall
 recalled
@@ -5701,7 +5713,6 @@ recreation
 recruit
 recruited
 recruiting
-recycling
 red
 redemption
 reds
@@ -5907,7 +5918,6 @@ resulted
 resulting
 results
 resume
-resumed
 retail
 retailers
 retain
@@ -6139,7 +6149,7 @@ scandal
 scar
 scare
 scared
-scars
+scarlet
 scary
 scattered
 scenario
@@ -6339,6 +6349,7 @@ shelf
 shell
 shells
 shelter
+shelves
 shepherd
 sheriff
 shield
@@ -6351,7 +6362,6 @@ shine
 shining
 shiny
 ship
-shipment
 shipped
 shipping
 ships
@@ -6440,6 +6450,7 @@ singles
 sings
 sink
 sinking
+sinks
 sins
 sip
 sir
@@ -6525,6 +6536,7 @@ smoking
 smooth
 snack
 snacks
+snail
 snake
 snakes
 snap
@@ -6611,7 +6623,6 @@ span
 spare
 spark
 sparks
-spatial
 speak
 speaker
 speakers
@@ -6697,6 +6708,7 @@ stage
 staged
 stages
 stained
+stair
 stairs
 stake
 stakes
@@ -6911,7 +6923,6 @@ sum
 summary
 summer
 summit
-summoned
 sums
 sun
 sung
@@ -6998,7 +7009,6 @@ switched
 switches
 switching
 sword
-swords
 sworn
 symbol
 symbolic
@@ -7009,7 +7019,6 @@ symptoms
 syndrome
 synthesis
 synthetic
-syrup
 system
 systematic
 systems
@@ -7046,7 +7055,6 @@ tanks
 tap
 tape
 tapes
-tapping
 tar
 target
 targeted
@@ -7072,7 +7080,6 @@ teacher
 teachers
 teaches
 teaching
-teachings
 team
 teammate
 teammates
@@ -7211,6 +7218,7 @@ threw
 thrilled
 thriller
 throat
+throats
 throne
 thrones
 through
@@ -7234,7 +7242,6 @@ ties
 tiger
 tigers
 tight
-tightly
 till
 timber
 time
@@ -7253,6 +7260,7 @@ tissues
 title
 titled
 titles
+toad
 toast
 tobacco
 today
@@ -7261,6 +7269,7 @@ toe
 toes
 together
 toilet
+toilets
 token
 told
 tolerance
@@ -7272,7 +7281,6 @@ tomb
 tomorrow
 ton
 tone
-tones
 tongue
 tonight
 tons
@@ -7354,11 +7362,9 @@ transit
 transition
 translate
 translated
-transplant
 transport
 trap
 trapped
-traps
 trash
 trauma
 traumatic
@@ -7441,7 +7447,6 @@ tuned
 tunes
 tunnel
 tunnels
-turf
 turkey
 turn
 turned
@@ -7524,7 +7529,6 @@ until
 unto
 unusual
 unusually
-unveiled
 unwanted
 update
 updated
@@ -7564,7 +7568,6 @@ utterly
 vacant
 vacation
 vaccine
-vaccines
 vacuum
 vague
 valentine
@@ -7608,7 +7611,6 @@ vendor
 vendors
 vent
 venture
-ventures
 venue
 venues
 verbal
@@ -7667,7 +7669,6 @@ visa
 visibility
 visible
 vision
-visions
 visit
 visited
 visiting
@@ -7682,9 +7683,9 @@ vocal
 vocals
 vodka
 voice
-voiced
 voices
 void
+volcano
 volleyball
 voltage
 volume
@@ -7702,6 +7703,7 @@ vow
 voyage
 vulnerable
 wade
+waffle
 wag
 wage
 wages
@@ -7732,7 +7734,6 @@ wardrobe
 warehouse
 warfare
 warm
-warmer
 warming
 warmth
 warn
@@ -7778,7 +7779,6 @@ weather
 web
 wed
 wedding
-weddings
 wee
 weed
 week
