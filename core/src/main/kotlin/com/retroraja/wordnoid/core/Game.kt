@@ -473,6 +473,7 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
                     when {
                         t.isCrate -> smash(setOf(a), fullBreak = true)
                         t.isIce || t.isChain -> apply(bd, Effects(iceMelted = if (t.isIce) listOf(a) else emptyList(), chainsBroken = if (t.isChain) listOf(a) else emptyList(), points = 20))
+                        t.isBalloon -> apply(bd, Effects(balloons = listOf(a), points = 20))
                         else -> null
                     }
                 }
@@ -587,30 +588,34 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
         for (k in minOf(maxRun, 8) downTo 3) {
             val words = wordsFromPool(pool.map { it.letter }, k)
             if (words.isEmpty()) continue
-            var best: Pair<List<Pos>, String>? = null
-            var bestCost = Int.MAX_VALUE
+            // Every place the word could go, cheapest first (fewest letters moved). A spot where the word already
+            // sits is skipped, but other spots and other words are still tried (that used to stop the search).
+            val tries = ArrayList<Triple<List<Pos>, String, Int>>()
             for (run in runs) for (start in 0..run.size - k) {
                 val window = run.subList(start, start + k)
                 for (w in words) {
                     val cost = window.indices.count { bd[window[it]].letter != w[it] }
-                    if (cost < bestCost) { bestCost = cost; best = window to w }
+                    if (cost > 0) tries += Triple(window, w, cost)
                 }
             }
-            val (window, w) = best ?: continue
-            if (bestCost == 0) continue // already spelled (it would have burst): look for another
-            val left = pool.toMutableList()
-            val place = HashMap<Pos, Tile>()
-            // Keep tiles that already sit on the right letter, then fill the rest of the window.
-            for (i in window.indices) { val t = bd[window[i]]; if (t.letter == w[i] && left.remove(t)) place[window[i]] = t }
-            for (i in window.indices) if (window[i] !in place) {
-                val t = left.first { it.letter == w[i] }
-                left.remove(t); place[window[i]] = t
+            tries.sortBy { it.third }
+            for ((window, w, _) in tries.take(400)) {
+                val left = pool.toMutableList()
+                val place = HashMap<Pos, Tile>()
+                // Keep tiles that already sit on the right letter, then fill the rest of the window.
+                for (i in window.indices) { val t = bd[window[i]]; if (t.letter == w[i] && left.remove(t)) place[window[i]] = t }
+                var fits = true
+                for (i in window.indices) if (window[i] !in place) {
+                    val t = left.firstOrNull { it.letter == w[i] } ?: run { fits = false; null } ?: break
+                    left.remove(t); place[window[i]] = t
+                }
+                if (!fits) continue
+                for (p in movable) if (p !in place) { place[p] = left.removeAt(0) }
+                var nb = bd
+                for ((p, t) in place) nb = nb.with(p, t)
+                if (WordFinder.wordsThrough(nb, window, dict).isEmpty()) continue
+                return nb
             }
-            for (p in movable) if (p !in place) { place[p] = left.removeAt(0) }
-            var nb = bd
-            for ((p, t) in place) nb = nb.with(p, t)
-            if (WordFinder.wordsThrough(nb, window, dict).isEmpty()) continue
-            return nb
         }
         return null
     }
@@ -722,6 +727,45 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
         return l
     }
 
+    /**
+     * Every tile where [booster] really works right now (it is tried on a copy of the game, nothing changes).
+     * For Magic Swap / Paintbrush / Dice this is every tile that can move (they always work there).
+     * Boosters that need no tile give an empty set: use [canUseNow] for them.
+     */
+    fun targets(booster: Booster): Set<Pos> {
+        if (s.status != GameStatus.PLAYING) return emptySet()
+        val bd = board
+        val all = bd.positions()
+        return when (booster.aim) {
+            Aim.NONE -> emptySet()
+            Aim.TWO_TILES -> all.filter { bd[it].movable }.toSet().takeIf { it.size >= 2 } ?: emptySet()
+            Aim.MOVABLE -> when (booster) {
+                Booster.LOCK -> all.filter { bd[it].movable && !bd[it].locked }
+                Booster.JOKER -> all.filter { bd[it].movable && !bd[it].isJoker }
+                else -> all.filter { bd[it].movable }
+            }.toSet()
+            // The same checks useBooster makes, without playing the move (fast enough to run on every tap).
+            Aim.ROW -> (0 until bd.rows).filter { r -> arrangeLine(bd, WordFinder.rowLine(bd, r)) != null }.flatMap { r -> (0 until bd.cols).map { Pos(r, it) } }.toSet()
+            Aim.COLUMN -> (0 until bd.cols).filter { c -> arrangeLine(bd, WordFinder.colLine(bd, c)) != null }.flatMap { c -> (0 until bd.rows).map { Pos(it, c) } }.toSet()
+            Aim.SQUARE -> all.filter { tl ->
+                val cells = listOf(tl, Pos(tl.row, tl.col + 1), Pos(tl.row + 1, tl.col + 1), Pos(tl.row + 1, tl.col))
+                cells.all { bd.contains(it) && bd[it].movable } && bestSpin(bd, cells) != null
+            }.toSet()
+            Aim.TILE -> all.filter { !bd[it].isGold && !bd[it].isBuddy }.toSet()
+            Aim.OBSTACLE -> all.filter { bd[it].isCrate || bd[it].isIce || bd[it].isChain || bd[it].isBalloon }.toSet()
+            Aim.GOLD -> all.filter { bd[it].isGold }.toSet()
+        }.filter { bd.contains(it) }.toSet()
+    }
+
+    /** True if [booster] can be used now: a tile booster has at least one target, Undo has a move to take back. */
+    fun canUseNow(booster: Booster): Boolean = when {
+        s.status != GameStatus.PLAYING -> false
+        booster == Booster.HINT -> hintWords(1).isNotEmpty()
+        booster == Booster.SCANNER -> true
+        booster.aim == Aim.NONE -> copy().useBooster(booster) != null
+        else -> targets(booster).isNotEmpty()
+    }
+
     /** Best tile for a booster tutorial (where it helps most), or null for "any tile". */
     fun suggestTarget(booster: Booster): Pos? = when (booster) {
         Booster.HAMMER -> board.positions().filter { board[it].isCrate }.firstOrNull()
@@ -729,7 +773,7 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
         Booster.JOKER -> board.positions().filter { board[it].movable }.maxByOrNull { p ->
             WordFinder.wordsThrough(board.with(p, board[p].copy(letter = JOKER_CHAR, kind = TileKind.JOKER)), listOf(p), dict).sumOf { it.length }
         }
-        Booster.AXE -> board.positions().firstOrNull { board[it].isCrate || board[it].isIce || board[it].isChain }
+        Booster.AXE -> board.positions().firstOrNull { board[it].isCrate || board[it].isIce || board[it].isChain } ?: board.positions().firstOrNull { board[it].isBalloon }
         Booster.MAGNET -> board.positions().firstOrNull { board[it].isGold }
         else -> null
     }

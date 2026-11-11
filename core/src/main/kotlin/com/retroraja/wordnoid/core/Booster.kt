@@ -16,7 +16,7 @@ enum class Aim {
     COLUMN,
     /** The top-left tile of a 2x2 group. */
     SQUARE,
-    /** A crate, ice or chain. */
+    /** A crate, ice, chain or balloon. */
     OBSTACLE,
     /** A gold tile. */
     GOLD,
@@ -52,10 +52,10 @@ enum class Booster(
     TREASURE_FINDER("Treasure Finder", "🗺️", 150, 32, Aim.NONE, true, "Finds the hidden treasure and digs it out at once"),
     // Saved as VOWEL_FLIP (old name) so old saves keep their boosters.
     VOWEL_FLIP("Vowel Rain", "💧", 100, 34, Aim.NONE, false, "Rains 4-5 vowels onto the board"),
-    AXE("Axe", "🪓", 100, 37, Aim.OBSTACLE, false, "Breaks a crate, chain or ice in one chop"),
+    AXE("Axe", "🪓", 100, 37, Aim.OBSTACLE, false, "Breaks a crate, chain or ice, or pops a balloon, in one chop"),
     SCANNER("Word Scanner", "🔍", 180, 41, Aim.NONE, true, "Lights up every tile that can make a word"),
     DICE("Dice", "🎲", 80, 43, Aim.MOVABLE, false, "Re-roll a tile and pick 1 of 3 new letters", needsLetter = true),
-    MAGNET("Magnet", "🧲", 120, 46, Aim.GOLD, false, "Pulls one gold tile off the board for you"),
+    MAGNET("Magnet", "🧲", 120, 47, Aim.GOLD, false, "Pulls one gold tile off the board for you"),
     LOCK("Lock", "🔒", 60, 25, Aim.MOVABLE, false, "Locks a letter so no word uses it. Move it anywhere, then tap it to unlock"),
     DOUBLE("Double Points", "🌟", 80, 7, Aim.NONE, false, "Your next word fills the Power Meter twice"),
     LETTER_RAIN("Letter Rain", "🌧️", 140, 49, Aim.NONE, false, "Rains 3 useful letters (B, D, L, M, N, R, S, T) onto the board");

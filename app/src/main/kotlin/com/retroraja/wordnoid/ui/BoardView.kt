@@ -160,7 +160,7 @@ fun BoardView(c: GameController, cell: Dp, modifier: Modifier = Modifier) {
                     inScan -> Palette.cyan.copy(alpha = 0.4f + 0.6f * pulse)
                     else -> null
                 }
-                val dim = armed != null && !aimable(armed.aim, tile)
+                val dim = armed != null && (if (armed.aim == Aim.TWO_TILES) !aimable(armed.aim, tile) else p !in c.aimTargets)
                 Tile3D(
                     tile, cell,
                     Modifier
@@ -244,6 +244,6 @@ fun aimable(aim: Aim, t: com.retroraja.wordnoid.core.Tile): Boolean = when (aim)
     Aim.TILE -> !t.isGold && !t.isBuddy
     Aim.MOVABLE, Aim.TWO_TILES, Aim.SQUARE -> t.movable
     Aim.ROW, Aim.COLUMN -> true
-    Aim.OBSTACLE -> t.isCrate || t.isIce || t.isChain
+    Aim.OBSTACLE -> t.isCrate || t.isIce || t.isChain || t.isBalloon
     Aim.GOLD -> t.isGold
 }

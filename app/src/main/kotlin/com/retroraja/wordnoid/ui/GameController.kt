@@ -102,6 +102,8 @@ class GameController(
     var unlockAsk by mutableStateOf<Pos?>(null); private set
     var scan by mutableStateOf<Set<Pos>>(emptySet()); private set
     var armed by mutableStateOf<Booster?>(null); private set
+    /** Tiles where the armed booster really works (the others are dimmed). */
+    var aimTargets by mutableStateOf<Set<Pos>>(emptySet()); private set
     var aimFirst by mutableStateOf<Pos?>(null); private set
     var letterPick by mutableStateOf<LetterPick?>(null); private set
     var fx by mutableStateOf<BoosterFx?>(null); private set
@@ -448,10 +450,18 @@ class GameController(
         }
         if (progress.count(b) <= 0 && !isFree(b)) { buyAsk = b; return }
         nudge = null
+        // Never let a booster "do nothing": if it can't work on this board, say why at once and keep it.
+        val targets = if (b.aim == Aim.NONE) emptySet() else game.targets(b)
+        if (if (b.aim == Aim.NONE) b != Booster.SCANNER && !game.canUseNow(b) else targets.isEmpty()) {
+            sounds.play("nope")
+            say(cantUseText(b), 3500)
+            return
+        }
         when (b.aim) {
             Aim.NONE -> useNow(b)
             else -> {
                 armed = b
+                aimTargets = targets
                 aimFirst = null
                 val cells = when (b) {
                     Booster.MAGIC_SWAP -> game.suggestMagicSwap()?.toList() ?: emptyList()
@@ -465,20 +475,35 @@ class GameController(
         }
     }
 
+    /** Why [b] can't be used on this board right now (it is kept, nothing is spent). */
+    fun cantUseText(b: Booster): String = "${b.emoji} " + when (b) {
+        Booster.AXE -> "No box, ice, chain or balloon here, so the Axe is kept for later."
+        Booster.MAGNET -> "No gold tile here, so the Magnet is kept for later."
+        Booster.ROW_SLIDE -> "No row here can make a word, so the Row Slide is kept. Try after your next move!"
+        Booster.COLUMN_SLIDE -> "No column here can make a word, so the Column Slide is kept. Try after your next move!"
+        Booster.SPIN -> "No 4 tiles here can spin into a word, so the Spin is kept. Try after your next move!"
+        Booster.UNDO -> "Nothing to undo yet. Make a move first!"
+        Booster.HINT -> "No word can be made right now. Try a Shuffle!"
+        Booster.TREASURE_FINDER -> "No hidden treasure on this level, so it is kept for later."
+        Booster.HAMMER -> "Nothing here for the Hammer, so it is kept for later."
+        else -> "${b.title} can't be used right now, so it is kept."
+    }
+
     fun aimText(b: Booster): String = when (b.aim) {
         Aim.TILE -> "Tap any tile or box to use the ${b.title}"
         Aim.MOVABLE -> "Tap any tile for the ${b.title}"
         Aim.TWO_TILES -> if (aimFirst == null) "Tap the first tile to swap" else "Now tap the second tile"
-        Aim.ROW -> "Tap any tile in the row to turn into a word"
-        Aim.COLUMN -> "Tap any tile in the column to turn into a word"
-        Aim.SQUARE -> "Tap the top-left tile of 4 tiles to spin"
-        Aim.OBSTACLE -> "Tap a box, ice or chain"
+        Aim.ROW -> "Tap a bright row to turn it into a word"
+        Aim.COLUMN -> "Tap a bright column to turn it into a word"
+        Aim.SQUARE -> "Tap a bright tile: it and the 3 tiles right and below spin into a word"
+        Aim.OBSTACLE -> "Tap a bright box, ice, chain or balloon"
         Aim.GOLD -> "Tap a gold tile"
         Aim.NONE -> ""
     }
 
     fun cancelAim() {
         armed = null
+        aimTargets = emptySet()
         aimFirst = null
         letterPick = null
         if (tutorial?.cells?.isNotEmpty() == true && tutorial?.booster == null) tutorial = null
@@ -505,6 +530,16 @@ class GameController(
 
     private fun aim(b: Booster, p: Pos) {
         val t = board[p]
+        // A dim tile: the booster can't work there. Say so and stay armed (nothing is spent).
+        if (b.aim != Aim.TWO_TILES && p !in aimTargets) {
+            sounds.play("nope")
+            say(when (b.aim) {
+                Aim.ROW -> "That row can't make a word. Tap a bright row!"
+                Aim.COLUMN -> "That column can't make a word. Tap a bright column!"
+                else -> "The ${b.title} can't work there. Tap a bright tile!"
+            }, 3000)
+            return
+        }
         when (b.aim) {
             Aim.TWO_TILES -> {
                 val first = aimFirst
