@@ -14,7 +14,7 @@ android {
         targetSdk = 36
         // Play needs a bigger number for every upload: the CI run number (+100 so it is above all old test builds).
         versionCode = 100 + (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
-        versionName = "1.2.${System.getenv("GITHUB_RUN_NUMBER") ?: "0"}" // Update 1.2
+        versionName = "1.3.${System.getenv("GITHUB_RUN_NUMBER") ?: "0"}" // Update 1.3
     }
 
     signingConfigs {
@@ -80,6 +80,8 @@ dependencies {
     implementation("androidx.fragment:fragment-ktx:1.8.5")
     // "Rate us" in-app review.
     implementation("com.google.android.play:review-ktx:2.0.2")
+    // In-game "Update available" (Google Play in-app updates, Update 1.3).
+    implementation("com.google.android.play:app-update-ktx:2.1.0")
     // Friendly daily reminders.
     implementation("androidx.work:work-runtime-ktx:2.10.0")
 }

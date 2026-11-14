@@ -14,8 +14,37 @@ import com.retroraja.wordnoid.ui.Fx
 import com.retroraja.wordnoid.ui.FxWebView
 import com.retroraja.wordnoid.ui.WordnoidApp
 import kotlinx.coroutines.launch
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import com.google.android.play.core.appupdate.AppUpdateManagerFactory
+import com.google.android.play.core.appupdate.AppUpdateOptions
+import com.google.android.play.core.install.InstallStateUpdatedListener
+import com.google.android.play.core.install.model.AppUpdateType
+import com.google.android.play.core.install.model.InstallStatus
+import com.google.android.play.core.install.model.UpdateAvailability
 
 class MainActivity : ComponentActivity() {
+    // Update 1.3: when a new version is on the Play Store, Google's own "Update available" window shows
+    // (Update / No thanks). It downloads in the background and installs the next time the game opens.
+    private val updates by lazy { AppUpdateManagerFactory.create(this) }
+    private val updateLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {}
+    private val updateListener = InstallStateUpdatedListener { st ->
+        if (st.installStatus() == InstallStatus.DOWNLOADED) {
+            android.widget.Toast.makeText(this, "Wordnoid update ready! It installs next time you open the game.", android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun checkForUpdate() = runCatching {
+        updates.registerListener(updateListener)
+        updates.appUpdateInfo.addOnSuccessListener { info ->
+            when {
+                info.installStatus() == InstallStatus.DOWNLOADED -> updates.completeUpdate()
+                info.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE && info.isUpdateTypeAllowed(AppUpdateType.FLEXIBLE) ->
+                    runCatching { updates.startUpdateFlowForResult(info, updateLauncher, AppUpdateOptions.newBuilder(AppUpdateType.FLEXIBLE).build()) }
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -32,6 +61,7 @@ class MainActivity : ComponentActivity() {
         root.addView(web, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         setContentView(root)
         runCatching { Fx.attach(web) }
+        checkForUpdate()
         lifecycleScope.launch {
             snapshotFlow { Fx.front }.collect { onTop ->
                 web.z = if (onTop) 1f else -1f
@@ -41,6 +71,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        runCatching { updates.unregisterListener(updateListener) }
         Fx.detach()
         super.onDestroy()
     }
