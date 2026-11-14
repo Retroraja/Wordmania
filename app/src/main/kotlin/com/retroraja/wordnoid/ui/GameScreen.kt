@@ -292,7 +292,7 @@ private fun GoalRow(o: Objective, c: GameController) {
             // Update 1.3: a picture of the pink x2 tile, so "double tiles" is easy to spot on the board.
             else if (o is Objective.Twins) Tile3D(com.retroraja.wordnoid.core.Tile(0, 'A', kind = com.retroraja.wordnoid.core.TileKind.TWIN), 20.dp)
             else Text(o.icon, fontSize = 15.sp)
-            Text(o.text + if (theme != null) " ⓘ" else "", Modifier.weight(1f).padding(start = 5.dp), fontSize = 11.sp, color = Look.skin.ink, fontWeight = Heavy, lineHeight = 12.sp, maxLines = 3)
+            Text(BlockStyle.words(o.text) + if (theme != null) " ⓘ" else "", Modifier.weight(1f).padding(start = 5.dp), fontSize = 11.sp, color = Look.skin.ink, fontWeight = Heavy, lineHeight = 12.sp, maxLines = 3)
             if (done) Text("✅", fontSize = 13.sp)
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -500,7 +500,11 @@ fun introsFor(level: Level, progress: Progress): List<IntroInfo> {
             )
         }
     }
-    level.feature?.let { out += IntroInfo(it.title, featureEmoji(it), it.text, it) }
+    level.feature?.let {
+        val thread = it == Feature.CHAINS && BlockStyle.isThread(level.number)
+        out += if (thread) IntroInfo("Yarn-wrapped tiles", "🧶", "Yarn-wrapped tiles can't be moved. Make a word next to them (or with them) to cut the yarn.", it)
+        else IntroInfo(it.title, featureEmoji(it), it.text, it)
+    }
     return out
 }
 

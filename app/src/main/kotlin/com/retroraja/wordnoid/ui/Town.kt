@@ -285,7 +285,7 @@ fun TownScreen(
             SideButton("🎒", "Boosters", onClick = onBoosters)
         }
         Row(Modifier.align(Alignment.BottomStart).padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val canBuild = DISTRICTS[current].tasks.withIndex().any { (i, t) -> !progress.taskDone(current, i) && t.cost <= progress.bricksToSpend }
+            val canBuild = DISTRICTS[current].tasks.withIndex().any { (i, t) -> !progress.taskDone(current, i) && !progress.taskLocked(current, i, DISTRICTS[current].tasks.size) && t.cost <= progress.bricksToSpend }
             Box(Modifier.graphicsLayer { translationY = if (canBuild) -6f * bounce * density.density else 0f }) {
                 SideButton("🔨", "Tasks", badge = if (canBuild) "${progress.bricksToSpend}🧱" else null) { tasksOpen = true }
                 // First visit with bricks: Tiko shows where to build.
@@ -556,7 +556,7 @@ private fun DrawScope.drawBuilding(base: Offset, bw: Float, bh: Float, color0: C
 @Composable
 private fun TasksDialog(d: District, progress: Progress, sounds: SoundFx, guide: Boolean = false, onClose: () -> Unit, onDo: (Int) -> Unit) {
     // Guided (Levels 1-3): a hand taps the first Build button the player can afford.
-    val handTask = if (!guide) -1 else d.tasks.indices.firstOrNull { !progress.taskDone(d.world, it) && d.tasks[it].cost <= progress.bricksToSpend } ?: -1
+    val handTask = if (!guide) -1 else d.tasks.indices.firstOrNull { !progress.taskDone(d.world, it) && !progress.taskLocked(d.world, it, d.tasks.size) && d.tasks[it].cost <= progress.bricksToSpend } ?: -1
     val anim = rememberInfiniteTransition(label = "tasks")
     val tap by anim.animateFloat(0f, 1f, infiniteRepeatable(tween(550), RepeatMode.Reverse), label = "tap")
     DimBox {
@@ -611,7 +611,7 @@ private fun TasksDialog(d: District, progress: Progress, sounds: SoundFx, guide:
 
 /** A task in the current street that the player has enough bricks for. */
 fun canBuildNow(progress: Progress, current: Int = currentDistrict(progress)): Boolean =
-    DISTRICTS[current].tasks.withIndex().any { (i, t) -> !progress.taskDone(current, i) && t.cost <= progress.bricksToSpend }
+    DISTRICTS[current].tasks.withIndex().any { (i, t) -> !progress.taskDone(current, i) && !progress.taskLocked(current, i, DISTRICTS[current].tasks.size) && t.cost <= progress.bricksToSpend }
 
 /** Unfinished tasks in a street the player can build in. */
 private fun openTasks(d: District, progress: Progress, current: Int): Int =

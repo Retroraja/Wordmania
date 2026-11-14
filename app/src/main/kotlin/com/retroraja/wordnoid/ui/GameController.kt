@@ -66,7 +66,7 @@ class GameController(
     bonusMoves: Int,
     private val startBoosters: List<Booster>,
 ) {
-    val game = Game(level, dict, bonusMoves)
+    val game = Game(level, dict, bonusMoves).also { BlockStyle.thread = BlockStyle.isThread(level.number) }
     val particles = ParticleField()
 
     var board by mutableStateOf(game.board); private set
@@ -938,22 +938,22 @@ class GameController(
                 val text = when (prize.kind) {
                     PrizeKind.COINS -> "+${prize.amount} 🪙"
                     PrizeKind.MOVES -> "+${prize.amount} move"
-                    PrizeKind.BOOSTER -> "🎁 Booster!"
+                    PrizeKind.BOOSTER -> "🎁 +${com.retroraja.wordnoid.data.Rewards.BOOSTER_COINS} 🪙"
                 }
                 if (prize.kind == PrizeKind.COINS) coinsThisLevel += prize.amount
                 // The prize jumps out big and shows its name.
-                if (fx3) Fx.call("crate", Fx.at(cellCenter(h.pos), Fx.obj("text" to text, "to" to if (prize.kind == PrizeKind.MOVES) "moves" else "coins")))
+                if (fx3) Fx.call("crate", Fx.at(cellCenter(h.pos), Fx.obj("text" to text, "to" to if (prize.kind == PrizeKind.MOVES) "moves" else "coins", "iron" to h.iron)))
                 else {
                     particles.sparkle(cellCenter(h.pos), Palette.gold, 18)
                     toast(text, cellCenter(h.pos), Palette.gold, big = true)
                 }
             }
-            if (fx3 && h.prize == null && h.broken) Fx.call("crate", Fx.at(cellCenter(h.pos), Fx.obj("prize" to false)))
+            if (fx3 && h.prize == null && h.broken) Fx.call("crate", Fx.at(cellCenter(h.pos), Fx.obj("prize" to false, "iron" to h.iron)))
         }
         if (fx0.iceMelted.isNotEmpty()) sounds.play("shatter")
         for (p in fx0.iceMelted) if (fx3) Fx.call("ice", Fx.at(cellCenter(p))) else particles.shards(cellCenter(p))
         if (fx0.chainsBroken.isNotEmpty()) sounds.play("snap")
-        for (p in fx0.chainsBroken) if (fx3) Fx.call("chain", Fx.at(cellCenter(p))) else particles.links(cellCenter(p))
+        for (p in fx0.chainsBroken) if (fx3) Fx.call("chain", Fx.at(cellCenter(p), Fx.obj("thread" to BlockStyle.thread))) else particles.links(cellCenter(p))
         if (fx0.balloons.isNotEmpty()) sounds.play("pop")
         for (p in fx0.balloons) if (fx3) Fx.call("balloon", Fx.at(cellCenter(p), Fx.obj("cell" to Fx.dp(cellPx)))) else { particles.burst(cellCenter(p), Palette.pink, 1.2f); toast("🎈 Pop!", cellCenter(p), Palette.pink) }
         for (p in fx0.gold) if (fx3) Fx.call("gold", Fx.at(cellCenter(p), Fx.obj("n" to 2))) else { particles.sparkle(cellCenter(p)); particles.coins(cellCenter(p), goalAnchor, 2) }

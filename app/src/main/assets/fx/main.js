@@ -103,9 +103,22 @@ function goalBlast(o){const c0=P(o.cx,o.cy,1);const list=o.cells.slice().sort((a
 /* ---------- blockers ---------- */
 const crackTex=ctex(128,128,x=>{x.strokeStyle='#ffffff';x.lineWidth=4;x.lineCap='round';for(let i=0;i<7;i++){x.beginPath();x.moveTo(64,64);let px=64,py=64;const a=i*.9+.3;for(let k=0;k<4;k++){px+=Math.cos(a+rnd(.8))*16;py+=Math.sin(a+rnd(.8))*16;x.lineTo(px,py)}x.stroke()}});
 const heartTex=ctex(64,64,x=>{x.fillStyle='#ff5c8a';x.beginPath();x.moveTo(32,56);x.bezierCurveTo(4,36,6,10,22,10);x.bezierCurveTo(30,10,32,18,32,20);x.bezierCurveTo(32,18,34,10,42,10);x.bezierCurveTo(58,10,60,36,32,56);x.fill()});
+/* ---------- Update 1.3: break effects that use the real obstacle pictures (Crackers Match art) ---------- */
+const obTex={};
+function obMat(k){if(!obTex[k]&&typeof OB_ART!=='undefined'&&OB_ART[k]){obTex[k]=new THREE.TextureLoader().load(OB_ART[k])}
+  return new THREE.MeshBasicMaterial({map:obTex[k]||null,transparent:true,depthWrite:false,side:THREE.DoubleSide})}
+/** The picture on the tile, as one flat card (for a shake before it breaks). */
+function obCard(k,wp,s=.98){const m=new THREE.Mesh(new THREE.PlaneGeometry(s,s),obMat(k));m.position.copy(wp);add(m);return m}
+/** Breaks the picture into cols x rows pieces that fly apart, spin and fade. */
+function obPieces(k,wp,cols,rows,o={}){const s=o.s||.98,pw=s/cols,ph=s/rows,pow=o.pow||1;
+  for(let c=0;c<cols;c++)for(let r=0;r<rows;r++){const g=new THREE.PlaneGeometry(pw,ph),uv=g.attributes.uv;
+    for(let i=0;i<uv.count;i++)uv.setXY(i,(c+uv.getX(i))/cols,(rows-1-r+uv.getY(i))/rows);
+    const m=new THREE.Mesh(g,obMat(k));const dx=(c+.5)/cols-.5,dy=.5-(r+.5)/rows;m.position.copy(wp).add(v3(dx*s,dy*s,.05));
+    addPart(m,ov.scene,{v:v3(dx*9*pow+rnd(1.5),(dy*7+3+Math.random()*2)*pow,2+Math.random()*2),av:v3(rnd(7),rnd(7),rnd(10)),g:12,life:1.1,fade:true})}}
 function crateBreak(o){const cr=crate();const wp=P(o.x,o.y,.1);cr.position.copy(wp);cr.scale.setScalar(.92);add(cr);
   tween(.3,(e,k)=>{cr.rotation.z=Math.sin(k*40)*.09;cr.scale.setScalar(.92+k*.08)},{ease:E.lin,done:()=>{rm(cr);
-    for(let i=0;i<9;i++){const p=new THREE.Mesh(geo.plank||(geo.plank=new THREE.BoxGeometry(.9,.16,.08)),cr.material);p.position.copy(wp).add(v3(rnd(.6),rnd(.6),.3));p.rotation.z=Math.random()*3;
+    obPieces(o.iron?'iron':'crate',wp.clone().setZ(.5),3,3,{pow:1.1});
+    for(let i=0;i<5;i++){const p=new THREE.Mesh(geo.plank||(geo.plank=new THREE.BoxGeometry(.9,.16,.08)),cr.material);p.position.copy(wp).add(v3(rnd(.6),rnd(.6),.3));p.rotation.z=Math.random()*3;
       addPart(p,ov.scene,{v:v3(rnd(8),2+Math.random()*5,2+Math.random()*3),av:v3(rnd(10),rnd(10),rnd(10)),g:12,life:1.3,shrink:true})}
     flash(wp,3.2);if(o.prize===false)return;const c=coinMesh();c.position.copy(wp).setZ(.8);c.scale.setScalar(.01);add(c);const gl=sprite(glowTex,0xffe080,2.4);gl.position.copy(wp).setZ(.6);add(gl);
     tween(.45,e=>{c.scale.setScalar(Math.max(.01,e*1.6));c.position.z=.8+e*1.2;c.userData.spin.rotation.y+=.3;gl.material.opacity=e},{ease:E.outBack});
@@ -113,15 +126,24 @@ function crateBreak(o){const cr=crate();const wp=P(o.x,o.y,.1);cr.position.copy(
     wait(.75,()=>{rm(gl);flyTo(c,o.to||'coins',.6,{s0:1.6,each:()=>c.userData.spin.rotation.y+=.4,done:()=>sfx.coin()})})}})}
 function iceCrack(o){const cr=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({map:crackTex,transparent:true,opacity:0,depthWrite:false}));cr.position.copy(P(o.x,o.y)).setZ(.42);add(cr);
   tween(.15,e=>cr.material.opacity=e);starsAt(cr.position,5,0xffffff,.6);wait(.9,()=>tween(.3,e=>cr.material.opacity=1-e,{done:()=>rm(cr)}))}
-function iceBreak(o){const wp=P(o.x,o.y,.1);const mat=new THREE.MeshStandardMaterial({color:'#bdf0ff',transparent:true,opacity:.6,roughness:.05,metalness:.2,emissive:'#4aa8d0',emissiveIntensity:.5,depthWrite:false});
-  for(let i=0;i<18;i++){const s=new THREE.Mesh(geo.shard||(geo.shard=new THREE.TetrahedronGeometry(.16)),mat.clone());s.position.copy(wp).add(v3(rnd(.9),rnd(.9),.3));
+function iceBreak(o){const wp=P(o.x,o.y,.1);
+  // The ice picture cracks into 9 pieces, plus small sparkling shards.
+  const card=obCard('ice',P(o.x,o.y,.45));tween(.18,(e,k)=>{card.rotation.z=Math.sin(k*50)*.05;card.scale.setScalar(1+k*.06)},{ease:E.lin,done:()=>{rm(card);obPieces('ice',P(o.x,o.y,.45),3,3)}});const mat=new THREE.MeshStandardMaterial({color:'#bdf0ff',transparent:true,opacity:.6,roughness:.05,metalness:.2,emissive:'#4aa8d0',emissiveIntensity:.5,depthWrite:false});
+  for(let i=0;i<10;i++){const s=new THREE.Mesh(geo.shard||(geo.shard=new THREE.TetrahedronGeometry(.16)),mat.clone());s.position.copy(wp).add(v3(rnd(.9),rnd(.9),.3));
     addPart(s,ov.scene,{v:v3(rnd(9),rnd(8)+2,1.5+Math.random()*3),av:v3(rnd(12),rnd(12),rnd(12)),g:11,life:1.1,fade:true,op:.6})}
   starsAt(wp,8,0xffffff);flash(wp,3,0xbff4ff)}
-function chainBreak(o){const wp=P(o.x,o.y,.33),g=new THREE.Group(),m=new THREE.MeshStandardMaterial({color:'#b8c0d0',metalness:.6,roughness:.35,emissive:'#222222'});
-  for(const d of[1,-1])for(let i=-3;i<=3;i++){const l=new THREE.Mesh(geo.link||(geo.link=new THREE.TorusGeometry(.085,.03,8,16)),m);l.position.set(i*.13,d*i*.13,0);l.rotation.z=d*Math.PI/4;if(i%2)l.rotation.x=Math.PI/2;g.add(l)}
-  g.position.copy(wp);add(g);tween(.3,(e,k)=>{m.emissive.setRGB(.9*e,.45*e,.1*e);g.rotation.z=Math.sin(k*45)*.05},{ease:E.lin,done:()=>{
-    g.children.slice().forEach(l=>{const p=wpos(l);const q=l.getWorldQuaternion(new THREE.Quaternion());g.remove(l);l.position.copy(p);l.quaternion.copy(q);
-      addPart(l,ov.scene,{v:v3(rnd(8),rnd(6)+2,2+Math.random()*2),av:v3(rnd(16),rnd(16),rnd(16)),g:11,life:1.2,shrink:true})});rm(g);flash(wp,2.5,0xffd8a0)}})}
+function chainBreak(o){
+  // The chain (or yarn) picture pulls tight, glows, then snaps into pieces; the letter tile underneath is free.
+  const k=o.thread?'thread':'chain',wp=P(o.x,o.y,.4),card=obCard(k,wp);const gl=sprite(glowTex,o.thread?0xffe070:0xffd8a0,1.6);gl.position.copy(wp).setZ(wp.z-.05);gl.material.opacity=0;add(gl);
+  tween(.32,(e,k2)=>{card.scale.setScalar(1-.08*Math.sin(k2*Math.PI));card.rotation.z=Math.sin(k2*45)*.05;gl.material.opacity=e*.9},{ease:E.lin,done:()=>{
+    rm(card);rm(gl);
+    if(o.thread){
+      // Snip! The yarn splits in two halves that slide off, with little fluffs.
+      obPieces(k,wp,2,1,{pow:.8});
+      for(let i=0;i<8;i++){const f=sprite(glowTex,0xffd040,.25,false);f.position.copy(wp).add(v3(rnd(.4),rnd(.4),.2));addPart(f,ov.scene,{v:v3(rnd(4),2+Math.random()*3,1),g:6,life:.9,fade:true})}
+    } else {
+      obPieces(k,wp,3,3,{pow:1});starsAt(wp,6,0xffe0a0,.8)}
+    flash(wp,2.6,o.thread?0xfff0a0:0xffd8a0)}})}
 /** Iron Crate, first hit: the two iron bands snap off and fly away, a crack shows, the crate shakes (Update 1). */
 function ironSnap(o){const wp=P(o.x,o.y,.35),m=new THREE.MeshStandardMaterial({color:'#5b6475',metalness:.75,roughness:.3,emissive:'#331a00'});
   for(const d of[-1,1]){const b=new THREE.Mesh(geo.band||(geo.band=new THREE.BoxGeometry(.95,.14,.08)),m);b.position.copy(wp).add(v3(0,d*.24,0));add(b);

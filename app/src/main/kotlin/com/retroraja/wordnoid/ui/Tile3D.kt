@@ -41,8 +41,24 @@ import com.retroraja.wordnoid.core.TileKind
 
 private val LetterShadow = Shadow(Color(0x99000000), Offset(0f, 3f), 4f)
 
-/** Obstacle pictures (from the Crackers Match art): wooden crate, Iron Crate, chains, ice. Loaded once. */
-class TileArt(val crate: ImageBitmap?, val iron: ImageBitmap?, val chain: ImageBitmap?, val ice: ImageBitmap?) {
+/**
+ * Update 1.3: some levels wrap their blocked tiles in yarn (Crackers Match "thread" art) instead of chains.
+ * Same rule: make a word next to it (or with it) to set it free.
+ */
+object BlockStyle {
+    private val state = androidx.compose.runtime.mutableStateOf(false)
+    var thread: Boolean
+        get() = state.value
+        set(v) { state.value = v }
+    fun isThread(level: Int) = level % 3 == 2
+    /** Goal and help texts with the right name for this level's blocked tiles. */
+    fun words(text: String): String = if (!thread) text else text
+        .replace("chained tiles", "yarn-wrapped tiles").replace("Chained tiles", "Yarn-wrapped tiles")
+        .replace("Chains", "Yarn").replace("chains", "yarn").replace("chain", "yarn")
+}
+
+/** Obstacle pictures (from the Crackers Match art): wooden crate, Iron Crate, chains, yarn, ice. Loaded once. */
+class TileArt(val crate: ImageBitmap?, val iron: ImageBitmap?, val chain: ImageBitmap?, val ice: ImageBitmap?, val thread: ImageBitmap? = null) {
     companion object {
         @Volatile private var cached: TileArt? = null
         fun get(context: android.content.Context): TileArt = cached ?: synchronized(this) {
@@ -50,7 +66,7 @@ class TileArt(val crate: ImageBitmap?, val iron: ImageBitmap?, val chain: ImageB
                 fun load(name: String): ImageBitmap? = runCatching {
                     context.assets.open("art/$name.webp").use { android.graphics.BitmapFactory.decodeStream(it)?.asImageBitmap() }
                 }.getOrNull()
-                TileArt(load("crate"), load("crate2"), load("chain"), load("ice")).also { cached = it }
+                TileArt(load("crate"), load("crate2"), load("chain"), load("ice"), load("thread")).also { cached = it }
             }
         }
     }
@@ -267,7 +283,7 @@ fun DrawScope.drawTile(t: Tile, glow: Color?, dim: Boolean, shine: Float = -1f, 
             drawRoundRect(Color(0xFFFF4F8B), Offset(inset, inset), Size(w - inset * 2, faceH), r, style = Stroke(width = w * 0.05f))
         }
         TileKind.CHAIN -> {
-            art?.chain?.let { img -> drawArt(img, inset * 0.2f, faceH + inset * 1.6f, 0.95f); return }
+            (if (BlockStyle.thread) art?.thread ?: art?.chain else art?.chain)?.let { img -> drawArt(img, inset * 0.2f, faceH + inset * 1.6f, 0.95f); return }
             val link = Color(0xFFCFD8DC)
             val dark = Color(0xFF455A64)
             for (diag in 0..1) {
