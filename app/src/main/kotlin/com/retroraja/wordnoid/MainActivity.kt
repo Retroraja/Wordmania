@@ -14,7 +14,6 @@ import com.retroraja.wordnoid.ui.Fx
 import com.retroraja.wordnoid.ui.FxWebView
 import com.retroraja.wordnoid.ui.WordnoidApp
 import kotlinx.coroutines.launch
-import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import com.google.android.play.core.appupdate.AppUpdateManagerFactory
 import com.google.android.play.core.appupdate.AppUpdateOptions
