@@ -402,6 +402,11 @@ fun BoosterButton(
     val ph = b.ordinal * 1.3f
     val hop = remember { Animatable(0f) }
     val tapScope = rememberCoroutineScope()
+    val badge = when {
+        free -> "FREE"
+        count > 0 -> "$count"
+        else -> "🪙${Rewards.price(b, c.progress.unlocked)}"
+    }
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
     Box(contentAlignment = Alignment.Center) {
         // Ready glow: a soft ring behind the button when you own it.
@@ -446,11 +451,6 @@ fun BoosterButton(
             }
             if (icon != null) androidx.compose.foundation.Image(icon, b.title, toolMod)
             else Box(toolMod, contentAlignment = Alignment.Center) { Text(b.emoji, fontSize = (size.value * 0.5f).sp) }
-        }
-        val badge = when {
-            free -> "FREE"
-            count > 0 -> "$count"
-            else -> "🪙${Rewards.price(b, c.progress.unlocked)}"
         }
         if (handHere) {
             val t by anim.animateFloat(0f, 1f, infiniteRepeatable(tween(550), RepeatMode.Reverse), label = "hand")
