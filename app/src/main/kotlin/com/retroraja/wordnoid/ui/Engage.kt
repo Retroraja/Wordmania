@@ -45,10 +45,10 @@ import kotlinx.coroutines.delay
 /** Update 1: win streak, level chest, "build ready" nudges. */
 
 /** Free boosters a win streak gives at the start of [level]: 1 win Hammer, 2 + Joker, 3+ + Magic Swap. Only unlocked ones, never in Levels 1-4. */
-fun streakBoosters(streak: Int, level: Int): List<Booster> {
-    if (streak <= 0 || level <= 4) return emptyList()
-    return listOf(Booster.HAMMER, Booster.JOKER, Booster.MAGIC_SWAP).take(streak.coerceAtMost(3)).filter { it.introLevel < level }
-}
+fun streakBoosters(streak: Int, level: Int): List<Booster> = emptyList()
+
+/** Update 1.3: a win streak gives coins at the start of the next level (no free boosters). */
+fun streakCoins(streak: Int, level: Int): Int = if (streak <= 0 || level <= 4) 0 else 15 * streak.coerceAtMost(4)
 
 /** What the full level chest gives. */
 data class ChestPrize(val coins: Int, val boosters: List<Booster>)
@@ -59,7 +59,7 @@ fun StreakBadge(streak: Int, level: Int, modifier: Modifier = Modifier) {
     if (streak <= 0) return
     val anim = rememberInfiniteTransition(label = "fire")
     val f by anim.animateFloat(0.95f, 1.08f, infiniteRepeatable(tween(520), RepeatMode.Reverse), label = "f")
-    val free = streakBoosters(streak, level)
+    val bonus = streakCoins(streak, level)
     Row(
         modifier.scale(f)
             .background(Brush.verticalGradient(listOf(Color(0xFFFFA23A), Color(0xFFE5432D))), RoundedCornerShape(50))
@@ -68,7 +68,7 @@ fun StreakBadge(streak: Int, level: Int, modifier: Modifier = Modifier) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text("🔥 $streak win${if (streak > 1) "s" else ""} in a row", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Black)
-        if (free.isNotEmpty()) Text("  Free: " + free.joinToString(" ") { it.emoji }, color = Color(0xFFFFF3C4), fontSize = 13.sp, fontWeight = FontWeight.Black)
+        if (bonus > 0) Text("  +$bonus 🪙", color = Color(0xFFFFF3C4), fontSize = 13.sp, fontWeight = FontWeight.Black)
     }
 }
 

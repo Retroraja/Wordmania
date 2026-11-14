@@ -17,8 +17,9 @@ object Daily {
     }
 
     val CALENDAR = listOf(
-        DayReward(20, null), DayReward(30, Booster.HAMMER), DayReward(40, null), DayReward(50, Booster.JOKER),
-        DayReward(60, null, 1), DayReward(80, Booster.HAMMER), DayReward(150, Booster.PLUS_MOVES, 2),
+        // Update 1.3: coins only (boosters come from the shop, mystery cards and new levels).
+        DayReward(20, null), DayReward(60, null), DayReward(40, null), DayReward(90, null),
+        DayReward(60, null, 1), DayReward(120, null), DayReward(200, null, 2),
     )
 
     // ---------------------------------------------------------------- spin wheel
@@ -29,12 +30,12 @@ object Daily {
     /** Odds agreed in the plan: 10c 25%, 20c 20%, 40c 15%, Hammer 12%, brick 12%, +3 Moves 6%, Joker 6%, 300c 4%. */
     val WHEEL = listOf(
         Slot("10", SlotKind.COINS, 10, null, 25),
-        Slot("🔨", SlotKind.BOOSTER, 1, Booster.HAMMER, 12),
+        Slot("50", SlotKind.COINS, 50, null, 12),
         Slot("20", SlotKind.COINS, 20, null, 20),
-        Slot("➕", SlotKind.BOOSTER, 1, Booster.PLUS_MOVES, 6),
+        Slot("80", SlotKind.COINS, 80, null, 6),
         Slot("40", SlotKind.COINS, 40, null, 15),
         Slot("🧱", SlotKind.BRICK, 1, null, 12),
-        Slot("🃏", SlotKind.BOOSTER, 1, Booster.JOKER, 6),
+        Slot("100", SlotKind.COINS, 100, null, 6),
         Slot("300", SlotKind.COINS, 300, null, 4),
     )
 

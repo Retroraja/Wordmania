@@ -6,6 +6,9 @@ import kotlin.random.Random
 
 /** Picking prize boosters, daily gifts and the shop's booster of the day. */
 object Rewards {
+    /** Update 1.3: rewards (streaks, chests, gifts, quiz, town) give coins only. A booster prize is worth this many coins. */
+    const val BOOSTER_COINS = 40
+
     /** Strong boosters (Hint, Magic Swap, +3 Moves, Scanner) are 4 times rarer than the rest. */
     fun randomBooster(unlockedLevel: Int, random: Random = Random): Booster {
         val pool = Booster.unlockedAt(unlockedLevel).ifEmpty { listOf(Booster.HAMMER) }

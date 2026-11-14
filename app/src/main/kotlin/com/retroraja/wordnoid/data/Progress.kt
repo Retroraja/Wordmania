@@ -260,6 +260,22 @@ class Progress(context: Context) {
         return true
     }
 
+    /**
+     * Update 1.3: a district's last task (the big building) stays locked until its boss level is beaten,
+     * so spare bricks can't finish the town early.
+     */
+    fun taskLocked(district: Int, task: Int, taskCount: Int): Boolean = task == taskCount - 1 && !districtOpen(district)
+
+    /** Spare bricks can be traded for coins ([BRICK_TRADE_COINS] each). */
+    fun tradeBricks(n: Int): Int {
+        val k = n.coerceAtMost(bricksToSpend)
+        if (k <= 0) return 0
+        bricksSpent += k
+        prefs.edit().putInt("bricks_spent", bricksSpent).apply()
+        addCoins(k * BRICK_TRADE_COINS)
+        return k * BRICK_TRADE_COINS
+    }
+
     /** A district's big building opens when its boss is beaten (and gives a gift every day after). */
     fun districtOpen(district: Int): Boolean = unlocked > (district + 1) * 10
     fun buildingGiftReady(district: Int): Boolean = districtOpen(district) && prefs.getLong("bgift_$district", -1) != today()
@@ -342,6 +358,7 @@ class Progress(context: Context) {
     fun canAskRating(): Boolean = today() - lastRateAsk >= 30
 
     companion object {
+        const val BRICK_TRADE_COINS = 20
         const val STARTING_COINS = 200
         const val SAVE_VERSION = 3
         const val CHEST_SLOTS = 5

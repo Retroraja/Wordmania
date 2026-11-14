@@ -89,7 +89,7 @@ fun QuizScreen(world: Int?, slot: Int, progress: Progress, dict: Dictionary?, so
                             finished = true
                             if (world != null) {
                                 reward = when {
-                                    right == 3 -> { val b = Rewards.randomBooster(progress.unlocked); progress.addBooster(b); progress.addBonusBricks(2); "+2 🧱 and ${b.emoji} ${b.title}" }
+                                    right == 3 -> { progress.addCoins(Rewards.BOOSTER_COINS); progress.addBonusBricks(2); "+2 🧱 and 🪙${Rewards.BOOSTER_COINS}" }
                                     right == 2 -> { progress.addBonusBricks(1); progress.addCoins(20); "+1 🧱 and 🪙20" }
                                     else -> ""
                                 }

@@ -61,7 +61,7 @@ data class District(val world: Int, val name: String, val building: String, val 
 
 val DISTRICTS = listOf(
     District(
-        0, "Candy Street", "Candy Factory", "a free booster",
+        0, "Candy Street", "Candy Factory", "a coin bag",
         listOf("BAKREY" to "BAKERY", "SWEETS" to "SWEETS", "TYOS" to "TOYS", "CFAE" to "CAFE"),
         listOf(
             TownTask("Fix the Bakery sign", 1, 0, "Tiko: \"BAKREY? Let's put those letters back!\"", 20),
@@ -89,7 +89,7 @@ val DISTRICTS = listOf(
         ),
     ),
     District(
-        2, "Jungle Park", "Tree House", "a free booster",
+        2, "Jungle Park", "Tree House", "a coin bag",
         listOf("JUCIE" to "JUICE", "ZOO" to "ZOO", "HUTS" to "HUTS", "MAPS" to "MAPS"),
         listOf(
             TownTask("Fix the Juice Bar", 3, 0, "Tiko: \"Bonkers drank all the mango juice!\"", 30),
@@ -117,7 +117,7 @@ val DISTRICTS = listOf(
         ),
     ),
     District(
-        4, "Star Square", "Space Station", "a free booster",
+        4, "Star Square", "Space Station", "a coin bag",
         listOf("ROCKTE" to "ROCKET", "MOON" to "MOON", "COMET" to "COMET", "ORBIT" to "ORBIT"),
         listOf(
             TownTask("Fix the Rocket Shop", 3, 0, "Tiko: \"The Word Eater ate the letters!\"", 40),
@@ -394,11 +394,10 @@ fun TownScreen(
             DimBox {
                 Column(Modifier.width(400.dp).arcadePanel().padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     ArcadeText("${DISTRICTS[w].building} gift!", 24.sp, Palette.gold)
-                    val prize = remember { if (w % 2 == 0) Rewards.randomBooster(progress.unlocked) else null }
-                    Text(if (prize != null) "${prize.emoji} ${prize.title}" else "🪙 50", color = Color.White, fontSize = 22.sp, fontWeight = Heavy)
+                    Text("🪙 100", color = Color.White, fontSize = 22.sp, fontWeight = Heavy)
                     Spacer(Modifier.height(10.dp))
                     ArcadeButton("Collect") {
-                        if (prize != null) progress.addBooster(prize) else CoinFly.coins(townScope, progress, sounds, 50)
+                        CoinFly.coins(townScope, progress, sounds, 100)
                         progress.claimBuildingGift(w)
                         sounds.play("cash")
                         buildingGift = null
@@ -574,17 +573,19 @@ private fun TasksDialog(d: District, progress: Progress, sounds: SoundFx, guide:
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 d.tasks.forEachIndexed { i, t ->
                     val done = progress.taskDone(d.world, i)
+                    val locked = !done && progress.taskLocked(d.world, i, d.tasks.size)
                     Row(Modifier.fillMaxWidth().softCard(if (done) 0.12f else 0.22f).padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(if (done) "✅" else "🧱${t.cost}", color = Color.White, fontSize = 15.sp, fontWeight = Heavy, modifier = Modifier.width(56.dp))
                         Column(Modifier.weight(1f)) {
                             Text(t.title, color = Color.White, fontSize = 15.sp, fontWeight = Heavy)
-                            Text("Reward: 🪙${t.coins}" + (t.booster?.let { " + ${it.emoji}" } ?: ""), color = Palette.gold, fontSize = 12.sp)
+                            Text("Reward: 🪙${t.coins + (if (t.booster != null) Rewards.BOOSTER_COINS else 0)}", color = Palette.gold, fontSize = 12.sp)
                         }
-                        if (!done) Box {
+                        if (locked) Text("🔒 Beat the boss\n(Level ${(d.world + 1) * 10})", color = Palette.gold, fontSize = 12.sp, fontWeight = Heavy, textAlign = TextAlign.Center)
+                        else if (!done) Box {
                             ArcadeButton("Build", enabled = progress.bricksToSpend >= t.cost, textSize = 14.sp, modifier = if (i == handTask) Modifier.scale(1f + 0.08f * tap) else Modifier) {
                                 if (progress.doTask(d.world, i, t.cost)) {
                                     progress.addCoins(t.coins); CoinFly.holdCoins(t.coins)
-                                    t.booster?.let { progress.addBooster(it) }
+                                    if (t.booster != null) progress.addCoins(Rewards.BOOSTER_COINS)
                                     sounds.play("thunk")
                                     onDo(i)
                                 }
@@ -594,7 +595,16 @@ private fun TasksDialog(d: District, progress: Progress, sounds: SoundFx, guide:
                     }
                 }
             }
-            ArcadeButton("Close", color = Palette.slate, textSize = 16.sp, modifier = Modifier.align(Alignment.CenterHorizontally), onClick = onClose)
+            // Spare bricks (nothing left to build here right now) can be traded for coins.
+            val canBuild = d.tasks.indices.any { !progress.taskDone(d.world, it) && !progress.taskLocked(d.world, it, d.tasks.size) }
+            val spare = progress.bricksToSpend
+            Row(Modifier.align(Alignment.CenterHorizontally), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (!canBuild && spare > 0) ArcadeButton("Trade 🧱$spare for 🪙${spare * Progress.BRICK_TRADE_COINS}", color = Palette.green, textSize = 14.sp) {
+                    val got = progress.tradeBricks(spare)
+                    if (got > 0) sounds.play("cash")
+                }
+                ArcadeButton("Close", color = Palette.slate, textSize = 16.sp, onClick = onClose)
+            }
         }
     }
 }
@@ -655,7 +665,7 @@ private fun FixScene3D(d: District, task: Int, sounds: SoundFx, last: Boolean, o
     else DimBox(0.35f) {
         Column(Modifier.width(440.dp).arcadePanel().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             ArcadeText(t.title, 22.sp, Palette.gold)
-            Text("+🪙${t.coins}" + (t.booster?.let { "  +${it.emoji} ${it.title}" } ?: ""), color = Palette.gold, fontSize = 18.sp, fontWeight = Heavy)
+            Text("+🪙${t.coins + (if (t.booster != null) Rewards.BOOSTER_COINS else 0)}", color = Palette.gold, fontSize = 18.sp, fontWeight = Heavy)
             Spacer(Modifier.height(8.dp))
             ArcadeButton("Yay!", onClick = onDone)
         }
@@ -685,7 +695,7 @@ private fun FixScene(d: District, task: Int, sounds: SoundFx, onDone: () -> Unit
             }
             if (step == 1) {
                 Text(t.story, color = Color.White, fontSize = 15.sp, textAlign = TextAlign.Center)
-                Text("+🪙${t.coins}" + (t.booster?.let { "  +${it.emoji} ${it.title}" } ?: ""), color = Palette.gold, fontSize = 18.sp, fontWeight = Heavy)
+                Text("+🪙${t.coins + (if (t.booster != null) Rewards.BOOSTER_COINS else 0)}", color = Palette.gold, fontSize = 18.sp, fontWeight = Heavy)
                 Spacer(Modifier.height(8.dp))
                 ArcadeButton("Yay!", onClick = onDone)
             } else Text("Tiko is building…", color = Color.White, fontSize = 14.sp)

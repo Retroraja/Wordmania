@@ -214,6 +214,14 @@ class GameController(
                 if (b.aim == Aim.NONE && b !in WORD_MAKERS) applyStartBooster(b) else levelFree.add(b)
             }
             // Win streak gifts: FREE glowing buttons for this level. Never used by themselves (Update 1.1 fix).
+            val streakBonus = streakCoins(progress.streak, level.number)
+            if (streakBonus > 0) {
+                delay(300)
+                progress.addCoins(streakBonus)
+                coinsThisLevel += streakBonus
+                toast("🔥 Streak gift: +$streakBonus 🪙", center(), Palette.gold, big = true)
+                sounds.play("cash")
+            }
             val gifts = streakBoosters(progress.streak, level.number)
             if (gifts.isNotEmpty()) {
                 levelFree.addAll(gifts)
@@ -811,11 +819,10 @@ class GameController(
         val at = cellCenter(cells.first())
         if (fx3) Fx.call("chest", Fx.at(at, Fx.obj("n" to 3))) else particles.firework(at)
         sounds.play("fanfare")
-        val prize = Rewards.randomBooster(level.number, random)
-        progress.addBooster(prize)
-        progress.addCoins(TREASURE_COINS)
-        coinsThisLevel += TREASURE_COINS
-        toast("💎 Treasure! +$TREASURE_COINS 🪙 ${prize.emoji}", at, Palette.gold, big = true)
+        val coins = TREASURE_COINS + Rewards.BOOSTER_COINS
+        progress.addCoins(coins)
+        coinsThisLevel += coins
+        toast("💎 Treasure! +$coins 🪙", at, Palette.gold, big = true)
     }
 
     private fun praise(len: Int) = when {
@@ -959,10 +966,12 @@ class GameController(
             scope.launch { delay(700); sounds.play("coin") }
         }
         if (fx0.bonusMoves > 0) toast("+${fx0.bonusMoves} move${if (fx0.bonusMoves > 1) "s" else ""}", movesAnchor, Palette.green, big = true)
-        repeat(fx0.boosters) {
-            val prize = Rewards.randomBooster(level.number, random)
-            progress.addBooster(prize)
-            scope.launch { delay(400L + it * 500L); sounds.play("sparkle"); toast("${prize.emoji} ${prize.title}!", center(), Palette.pink, big = true) }
+        if (fx0.boosters > 0) {
+            // Gift tiles, crate prizes and the bonus word give coins (Update 1.3).
+            val coins = fx0.boosters * Rewards.BOOSTER_COINS
+            progress.addCoins(coins)
+            coinsThisLevel += coins
+            scope.launch { delay(400L); sounds.play("cash"); toast("🎁 +$coins 🪙", center(), Palette.pink, big = true) }
         }
         // The Power Meter starts at Level 5 (before that it's hidden and doesn't charge).
         if (fx0.meter > 0 && level.number >= METER_LEVEL) {
@@ -1037,10 +1046,9 @@ class GameController(
         chestSlot = progress.chest
         if (progress.chestWin()) {
             chestSlot = Progress.CHEST_SLOTS - 1
-            val boosters = List(2) { Rewards.randomBooster(level.number, random) }
-            boosters.forEach { progress.addBooster(it) }
-            progress.addCoins(CHEST_COINS)
-            chestPrize = ChestPrize(CHEST_COINS, boosters)
+            val coins = CHEST_COINS + 2 * Rewards.BOOSTER_COINS
+            progress.addCoins(coins)
+            chestPrize = ChestPrize(coins, emptyList())
         }
         winStars = game.stars()
         winCoins = WIN_COINS + winStars * BRICK_COINS
@@ -1049,7 +1057,7 @@ class GameController(
         progress.levelWon(level.number, winStars)
         Daily.report(progress, Daily.Kind.WIN_LEVELS)
         if (winStars == 3) Daily.report(progress, Daily.Kind.THREE_BRICKS)
-        if (winStars == 3 && random.nextDouble() < 0.25) winBooster = Rewards.randomBooster(level.number, random).also { progress.addBooster(it) }
+        // Update 1.3: no random booster for 3 bricks (rewards are coins only).
         delay(300)
         // Every win: the big 3D "WORDNOID!" first. Levels 1-3 then go to town; later levels show the win screen.
         autoTown = auto

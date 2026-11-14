@@ -42,8 +42,8 @@ object Story {
         val coins = if (land == 4) 1500 else 500 + land * 250
         val boosters = if (land == 4) 8 else 3 + land
         progress.addCoins(coins)
-        val pool = Booster.unlockedAt(((land + 1) * 10).coerceAtMost(50)).filter { !it.strong }.ifEmpty { listOf(Booster.HAMMER) }
-        repeat(boosters) { i -> progress.addBooster(pool[i % pool.size]) }
+        // Update 1.3: coins instead of boosters.
+        progress.addCoins(boosters * com.retroraja.wordnoid.data.Rewards.BOOSTER_COINS)
         // Grand finale bonus.
         if (land == 4) progress.addCoins(2000)
     }
