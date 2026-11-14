@@ -209,9 +209,24 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
     private fun act(changed: Collection<Pos>, fromSwap: Boolean = false): MoveResult {
         val changedBoard = board
         val moved = changed.filter { changedBoard[it].hasLetter }
-        val words = WordFinder.wordsThrough(changedBoard, moved, dict, rankFor(changedBoard))
+        val words = limitWords(changedBoard, WordFinder.wordsThrough(changedBoard, moved, dict, rankFor(changedBoard)))
         val fx = if (words.isEmpty()) Effects() else effectsOf(changedBoard, words, emptySet(), power = if (fromSwap) powerSpots(changedBoard, words, moved) else emptyMap())
         return apply(changedBoard, fx)
+    }
+
+    /**
+     * Update 1.3, the fix for "words match on their own": one move bursts the word the player made (the best one:
+     * theme, gold, goal, then longest) plus at most [MAX_FREE_WORDS] lucky extra word, and only a long one
+     * ([FREE_WORD_MIN]+ letters). Before, every word through both moved tiles in all 4 directions burst, so one
+     * swap often cleared 2-3 words the player never planned. Other words just stay on the board.
+     */
+    private fun limitWords(b: Board, words: List<FoundWord>): List<FoundWord> {
+        if (words.size <= 1) return words
+        val rank = rankFor(b)
+        val sorted = words.sortedWith(compareByDescending<FoundWord> { rank.of(it.word, it.cells) }.thenByDescending { it.length })
+        val main = sorted.first()
+        val extra = sorted.drop(1).filter { it.length >= FREE_WORD_MIN }.take(MAX_FREE_WORDS)
+        return listOf(main) + extra
     }
 
     /**
@@ -397,13 +412,17 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
      */
     private fun smartRefill(b: Board, cleared: Set<Pos>, drop: Boolean = false): Board {
         val lucky = drop && luckyRate > 0 && s.rng.nextDouble() < luckyRate
+        // Best board: enough word swaps, and as few ready-made words as possible (none, except one long lucky word).
         var best: Board? = null
-        var bestCount = -1
+        var bestScore = Int.MIN_VALUE
         repeat(REFILL_TRIES) {
             val nb = Refill.collapse(b, cleared, s.rng, s.ids, dict, level.giftRate, lucky)
+            val ready = WordFinder.findAll(nb, dict)
+            val bad = ready.count { !lucky || it.length < FREE_WORD_MIN } + maxOf(0, ready.size - 1)
             val n = wordSwaps(nb, MIN_WORD_SWAPS)
-            if (n > bestCount) { best = nb; bestCount = n }
-            if (n >= MIN_WORD_SWAPS) return nb
+            val score = minOf(n, MIN_WORD_SWAPS) - bad * 10
+            if (score > bestScore) { best = nb; bestScore = score }
+            if (n >= MIN_WORD_SWAPS && bad == 0) return nb
         }
         return best!!
     }
@@ -857,6 +876,9 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
         const val REFILL_TRIES = 12
         /** Levels up to here are easy (medium starts at 6). */
         const val EASY_UNTIL = 5
+        /** At most this many free (unplanned) words burst with the player's word, and only long ones. */
+        const val MAX_FREE_WORDS = 1
+        const val FREE_WORD_MIN = 4
 
         fun startBoard(level: Level): Board {
             val ids = IdCounter()

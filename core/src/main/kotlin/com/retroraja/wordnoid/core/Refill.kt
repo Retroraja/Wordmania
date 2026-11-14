@@ -2,7 +2,7 @@ package com.retroraja.wordnoid.core
 
 /** Drops tiles down into the gaps and fills the top with new letters. */
 object Refill {
-    private const val TRIES = 5
+    private const val TRIES = 10
 
     fun collapse(board: Board, cleared: Set<Pos>, rng: Rng, ids: IdCounter, dict: Dictionary, giftRate: Double = 0.0, lucky: Boolean = false): Board {
         val rows = board.rows
@@ -25,12 +25,13 @@ object Refill {
                 }
                 val needVowel = placed > 0 && vowels.toDouble() / (placed + 1) < Letters.MIN_VOWEL_SHARE
                 var chosen = Letters.pick(rng, vowelOnly = needVowel)
-                // Lucky drop: letters fall as they come (a word may form). Otherwise re-roll to avoid ready-made words.
-                if (!lucky) for (attempt in 0 until TRIES) {
+                                // Lucky drop (Update 1.3): only a long word (4+ letters) may form; short ones are re-rolled too.
+                val minOk = if (lucky) 4 else Int.MAX_VALUE
+                for (attempt in 0 until TRIES) {
                     val letter = if (attempt == 0) chosen else Letters.pick(rng, vowelOnly = needVowel && attempt < TRIES / 2)
                     letters[r][c] = letter
                     chosen = letter
-                    if (!WordFinder.anyWordThrough(letters, Pos(r, c), dict)) break
+                    if (!WordFinder.anyWordThrough(letters, Pos(r, c), dict, maxLen = minOk - 1)) break
                 }
                 letters[r][c] = chosen
                 val kind = if (giftRate > 0 && rng.nextDouble() < giftRate) TileKind.GIFT else TileKind.NORMAL

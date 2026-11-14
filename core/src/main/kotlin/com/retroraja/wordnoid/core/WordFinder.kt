@@ -108,7 +108,7 @@ object WordFinder {
     }
 
     /** True if any word passes through [pos], looking only at filled cells (nulls and '#' break a line). Used when refilling. */
-    fun anyWordThrough(grid: Array<Array<Char?>>, pos: Pos, dict: Dictionary): Boolean {
+    fun anyWordThrough(grid: Array<Array<Char?>>, pos: Pos, dict: Dictionary, maxLen: Int = Int.MAX_VALUE): Boolean {
         val rows = grid.size
         val cols = grid[0].size
         fun ok(r: Int, c: Int) = grid[r][c] != null && grid[r][c] != CRATE_CHAR
@@ -117,20 +117,20 @@ object WordFinder {
         var right = pos.col
         while (right + 1 < cols && ok(pos.row, right + 1)) right++
         val rowSeg = (left..right).map { grid[pos.row][it]!!.lowercaseChar() }
-        if (segmentHasWordThrough(rowSeg, pos.col - left, dict)) return true
+        if (segmentHasWordThrough(rowSeg, pos.col - left, dict, maxLen)) return true
         var top = pos.row
         while (top - 1 >= 0 && ok(top - 1, pos.col)) top--
         var bottom = pos.row
         while (bottom + 1 < rows && ok(bottom + 1, pos.col)) bottom++
         val colSeg = (top..bottom).map { grid[it][pos.col]!!.lowercaseChar() }
-        return segmentHasWordThrough(colSeg, pos.row - top, dict)
+        return segmentHasWordThrough(colSeg, pos.row - top, dict, maxLen)
     }
 
-    private fun segmentHasWordThrough(seg: List<Char>, index: Int, dict: Dictionary): Boolean {
+    private fun segmentHasWordThrough(seg: List<Char>, index: Int, dict: Dictionary, maxLen: Int = Int.MAX_VALUE): Boolean {
         val n = seg.size
         if (n < Dictionary.MIN_LENGTH) return false
         val s = String(seg.toCharArray())
-        for (len in Dictionary.MIN_LENGTH..n) {
+        for (len in Dictionary.MIN_LENGTH..minOf(n, maxLen)) {
             for (start in maxOf(0, index - len + 1)..minOf(index, n - len)) {
                 val w = s.substring(start, start + len)
                 if (resolve(w, dict) != null || resolve(w.reversed(), dict) != null) return true

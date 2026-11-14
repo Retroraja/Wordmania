@@ -162,7 +162,7 @@ object GeneratedLevels {
         Level(
             number = 19, cols = 8, rows = 5, moves = 16,
             targets = listOf(Objective.Letter('S', 6), Objective.LongWords(2, 4)),
-            start = listOf("COISHILO", "CTFLRRUE", "CHFDSLEL", "LNNFKSOO", "IAIEOISM"),
+            start = listOf("COISHILO", "CTFLRRUE", "CHFDSLEL", "LNNFKSOO", "IAIEOISZ"),
             seed = 1900017L,
             bonusWord = "HOME",
             giftRate = 0.04,
