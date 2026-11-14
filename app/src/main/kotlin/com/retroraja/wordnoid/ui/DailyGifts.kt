@@ -40,17 +40,20 @@ fun DailyGiftsScreen(progress: Progress, sounds: SoundFx, onBack: () -> Unit) {
     @Suppress("UNUSED_VARIABLE") val v = progress.version
     // In 3D the gift box is a scene behind this screen (as the approved preview).
     LaunchedEffect(Fx.ok) { if (Fx.ok) Fx.backdrop("gift", Fx.obj("opened" to (progress.dailyGiftDay() == 0), "offsetX" to 0.0)) }
+    // Update 1.2: after the (shorter, dimmer) opening, a big clear card says exactly what you got.
+    var youGot by remember { mutableStateOf<Daily.DayReward?>(null) }
     val content: @Composable BoxScope.() -> Unit = {
         Column(Modifier.fillMaxSize().padding(10.dp)) {
             ScreenTop("🎁 Daily Rewards", progress, onBack)
-            Box(Modifier.weight(1f).fillMaxWidth().padding(top = 6.dp), contentAlignment = Alignment.Center) { RewardsTab(progress, sounds, activity) }
+            Box(Modifier.weight(1f).fillMaxWidth().padding(top = 6.dp), contentAlignment = Alignment.Center) { RewardsTab(progress, sounds, activity) { youGot = it } }
         }
+        youGot?.let { r -> YouGotCard(r) { youGot = null; sounds.play("pop") } }
     }
     if (Fx.ok) Box(Modifier.fillMaxSize(), content = content) else LivingBackground(progress.unlocked.coerceAtMost(50), content = content)
 }
 
 @Composable
-private fun RewardsTab(progress: Progress, sounds: SoundFx, activity: Activity) {
+private fun RewardsTab(progress: Progress, sounds: SoundFx, activity: Activity, onGot: (Daily.DayReward) -> Unit) {
     val day = progress.dailyGiftDay()
     var got by remember { mutableStateOf<Daily.DayReward?>(null) }
     var doubled by remember { mutableStateOf(false) }
@@ -89,14 +92,35 @@ private fun RewardsTab(progress: Progress, sounds: SoundFx, activity: Activity) 
             if (Fx.ok) {
                 opening = true
                 Fx.act("open", Fx.obj("emoji" to (r.booster?.emoji ?: "🪙"), "name" to (r.booster?.title ?: "${r.coins} coins"), "text" to "You got ${r.text}!"))
-                scope.launch { Fx.await("giftOpened", 4000); sounds.play("cash"); got = r; opening = false
+                scope.launch { Fx.await("giftOpened", 3000); sounds.play("cash"); got = r; opening = false; onGot(r)
                     CoinFly.release(scope, sounds, r.coins); CoinFly.releaseBricks(scope, sounds, r.bricks) }
-            } else { sounds.play("fanfare"); sounds.play("cash"); got = r; CoinFly.release(scope, sounds, r.coins); CoinFly.releaseBricks(scope, sounds, r.bricks) }
+            } else { sounds.play("fanfare"); sounds.play("cash"); got = r; onGot(r); CoinFly.release(scope, sounds, r.coins); CoinFly.releaseBricks(scope, sounds, r.bricks) }
         } else if (g != null) {
             Text("You got ${g.text}!", color = Palette.gold, fontSize = 20.sp, fontWeight = Heavy)
             if (!doubled) WatchButton("x2 today's gift", Ads.Spot.DOUBLE_DAILY, activity) {
                 CoinFly.coins(scope, progress, sounds, g.coins); g.booster?.let { progress.addBooster(it) }; doubled = true; sounds.play("cash")
             }
         } else Text("Today's gift is collected. See you tomorrow!", color = Color.White, fontSize = 16.sp)
+    }
+}
+
+/** The big "You got" card: one clear line per prize. */
+@Composable
+private fun YouGotCard(r: Daily.DayReward, onOk: () -> Unit) {
+    val pop = remember { Animatable(0.6f) }
+    LaunchedEffect(Unit) { pop.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.5f, stiffness = 400f)) }
+    DimBox(0.45f) {
+        Column(
+            Modifier.width(380.dp).scale(pop.value).arcadePanel().padding(horizontal = 22.dp, vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            ArcadeText("You got", 30.sp, Palette.gold)
+            Spacer(Modifier.height(6.dp))
+            if (r.coins > 0) Text("🪙 +${r.coins} coins", color = Color.White, fontSize = 30.sp, fontWeight = Heavy)
+            r.booster?.let { Text("${it.emoji} ${it.title} x1", color = Color.White, fontSize = 30.sp, fontWeight = Heavy) }
+            if (r.bricks > 0) Text("🧱 +${r.bricks} bricks", color = Color.White, fontSize = 30.sp, fontWeight = Heavy)
+            Spacer(Modifier.height(10.dp))
+            ArcadeButton("Great!", onClick = onOk)
+        }
     }
 }

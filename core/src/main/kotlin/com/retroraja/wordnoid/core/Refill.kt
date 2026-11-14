@@ -2,9 +2,9 @@ package com.retroraja.wordnoid.core
 
 /** Drops tiles down into the gaps and fills the top with new letters. */
 object Refill {
-    private const val TRIES = 10
+    private const val TRIES = 5
 
-    fun collapse(board: Board, cleared: Set<Pos>, rng: Rng, ids: IdCounter, dict: Dictionary, giftRate: Double = 0.0): Board {
+    fun collapse(board: Board, cleared: Set<Pos>, rng: Rng, ids: IdCounter, dict: Dictionary, giftRate: Double = 0.0, lucky: Boolean = false): Board {
         val rows = board.rows
         val cols = board.cols
         val tiles = Array(rows) { arrayOfNulls<Tile>(cols) }
@@ -25,7 +25,8 @@ object Refill {
                 }
                 val needVowel = placed > 0 && vowels.toDouble() / (placed + 1) < Letters.MIN_VOWEL_SHARE
                 var chosen = Letters.pick(rng, vowelOnly = needVowel)
-                for (attempt in 0 until TRIES) {
+                // Lucky drop: letters fall as they come (a word may form). Otherwise re-roll to avoid ready-made words.
+                if (!lucky) for (attempt in 0 until TRIES) {
                     val letter = if (attempt == 0) chosen else Letters.pick(rng, vowelOnly = needVowel && attempt < TRIES / 2)
                     letters[r][c] = letter
                     chosen = letter

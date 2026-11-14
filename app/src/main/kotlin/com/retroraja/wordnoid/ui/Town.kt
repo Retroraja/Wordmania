@@ -379,7 +379,7 @@ fun TownScreen(
                 if (progress.tasksDone(DISTRICTS[d].world) >= DISTRICTS[d].tasks.size && !progress.seen(Story.seenKey(d, "complete")))
                     townScope.launch { delay(1600); onLandComplete(d) }
             }
-            if (use3d) FixScene3D(DISTRICTS[d], i, sounds, onDone = { rev++; done() })
+            if (use3d) FixScene3D(DISTRICTS[d], i, sounds, last = progress.tasksDone(DISTRICTS[d].world) >= DISTRICTS[d].tasks.size, onDone = { rev++; done() })
             else FixScene(DISTRICTS[d], i, sounds, onDone = done)
         }
         // After the guided build: one big button on to the next level.
@@ -630,6 +630,7 @@ private fun townData(d: District, progress: Progress, unlocked: Boolean): org.js
     ))
     val allDone = unlocked && progress.tasksDone(d.world) >= d.tasks.size
     return Fx.obj(
+        "world" to d.world, "street" to d.name, "locked" to !unlocked,
         "shops" to shops,
         "big" to Fx.obj("name" to d.building, "fixed" to allDone, "label" to if (allDone) null else d.building, "col" to Fx.hex(w.bottom), "roof" to "#ffc93c"),
         "deco" to Fx.obj("fountain" to (unlocked && spotFixed(progress, d, 4)), "trees" to (unlocked && spotFixed(progress, d, 5)),
@@ -640,13 +641,14 @@ private fun townData(d: District, progress: Progress, unlocked: Boolean): org.js
 
 /** 3D: Tiko hops over, bricks fly in, the colours and the sign come back. Then the story card. */
 @Composable
-private fun FixScene3D(d: District, task: Int, sounds: SoundFx, onDone: () -> Unit) {
+private fun FixScene3D(d: District, task: Int, sounds: SoundFx, last: Boolean, onDone: () -> Unit) {
     val t = d.tasks[task]
     var step by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) {
-        // Shops (0-3) and decorations (4-7: fountain, trees, lamps, extra) are all built in 3D.
-        Fx.act("fix", Fx.obj("spot" to t.spot))
-        Fx.await("townFixDone", 10000)
+        // Shops (0-3) and decorations (4-7, different in every area) are all built in 3D: Tiko walks over,
+        // throws the bricks, the building rises out of a hologram. The last task also opens the big building.
+        Fx.act("fix", Fx.obj("spot" to t.spot, "cost" to t.cost, "line" to t.story.removePrefix("Tiko: ").trim('"'), "last" to last))
+        Fx.await("townFixDone", if (last) 60_000 else 30_000)
         step = 1
     }
     if (step == 0) Box(Modifier.fillMaxSize().clickable(remember { MutableInteractionSource() }, null) {})

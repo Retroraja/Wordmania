@@ -364,7 +364,7 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
         for (p in fx.balloons) if (p !in fx.cleared) b = b.with(p, b[p].copy(kind = TileKind.NORMAL))
         for ((p, hp) in fx.powerMade) b = b.with(p, b[p].copy(kind = TileKind.POWER, hp = hp, locked = false))
         for (p in fx.revealed) if (p !in fx.cleared) b = b.with(p, b[p].copy(kind = TileKind.NORMAL))
-        var after = if (fx.cleared.isEmpty()) b else smartRefill(b, fx.cleared)
+        var after = if (fx.cleared.isEmpty()) b else smartRefill(b, fx.cleared, drop = fx.words.isNotEmpty())
         // Tiko friends that reach the bottom row escape (and the tiles above drop again).
         var rescued = 0
         while (true) {
@@ -395,16 +395,25 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
      * Smart refill: new letters are picked so the board keeps at least [MIN_WORD_SWAPS] swaps that make a word
      * (new tiles never make a word by themselves). Tries a few letter sets and keeps the best one.
      */
-    private fun smartRefill(b: Board, cleared: Set<Pos>): Board {
+    private fun smartRefill(b: Board, cleared: Set<Pos>, drop: Boolean = false): Board {
+        val lucky = drop && luckyRate > 0 && s.rng.nextDouble() < luckyRate
         var best: Board? = null
         var bestCount = -1
         repeat(REFILL_TRIES) {
-            val nb = Refill.collapse(b, cleared, s.rng, s.ids, dict, level.giftRate)
+            val nb = Refill.collapse(b, cleared, s.rng, s.ids, dict, level.giftRate, lucky)
             val n = wordSwaps(nb, MIN_WORD_SWAPS)
             if (n > bestCount) { best = nb; bestCount = n }
             if (n >= MIN_WORD_SWAPS) return nb
         }
         return best!!
+    }
+
+    /** Chance that a drop after the player's word is a lucky drop (new letters may form words). */
+    private val luckyRate: Double get() = when {
+        level.number <= 3 -> 0.0
+        level.boss -> 1.0 / 6
+        level.number <= EASY_UNTIL -> 1.0 / 2
+        else -> 1.0 / 3
     }
 
     /** How many swaps make a word on [b] (counting stops at [cap]). */
@@ -846,6 +855,8 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
         /** Smart refill keeps at least this many word-making swaps on the board. */
         const val MIN_WORD_SWAPS = 3
         const val REFILL_TRIES = 12
+        /** Levels up to here are easy (medium starts at 6). */
+        const val EASY_UNTIL = 5
 
         fun startBoard(level: Level): Board {
             val ids = IdCounter()

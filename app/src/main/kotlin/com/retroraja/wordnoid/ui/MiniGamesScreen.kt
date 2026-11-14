@@ -115,6 +115,7 @@ private fun GameCard(g: MiniGames.Game, progress: Progress, sounds: SoundFx, act
 fun MiniPlayScreen(game: MiniGames.Game, progress: Progress, sounds: SoundFx, onDone: (coins: Int) -> Unit) {
     val activity = LocalContext.current as Activity
     var web by remember { mutableStateOf<WebView?>(null) }
+    val help = remember { progress.miniHelp(game.id) }
     val done by rememberUpdatedState(onDone)
     // The back button asks first (the game shows "Leave? You keep your coins").
     // If the page doesn't answer (or the player keeps pressing back), the round just closes.
@@ -142,7 +143,7 @@ fun MiniPlayScreen(game: MiniGames.Game, progress: Progress, sounds: SoundFx, on
                 var finished = false
                 addJavascriptInterface(object {
                     @JavascriptInterface fun config(): String = JSONObject()
-                        .put("game", game.id).put("tier", MiniGames.tier(progress.unlocked)).put("hints", MiniGames.FREE_HINTS).toString()
+                        .put("game", game.id).put("tier", MiniGames.tier(progress.unlocked)).put("hints", MiniGames.FREE_HINTS).put("help", help).toString()
                     @JavascriptInterface fun words(): String =
                         runCatching { ctx.assets.open("play_words.txt").use { String(it.readBytes()) } }.getOrDefault("")
                     @JavascriptInterface fun sfx(name: String) { main.post { sounds.play(name) } }

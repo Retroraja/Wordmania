@@ -40,7 +40,23 @@ function sceneStory(w,data){
       boss:'NOTHING CAN STOP MY HUNGER!',lose:'Urrp... too... many... words...',win:'Every word is free! We saved Wordnoid!'}}];
   // ---------------- buildings
   const GREY=new THREE.Color('#a3a7b3'),GREY2=new THREE.Color('#7d8291'),D=3.2,BZ=-6.4,flags=[];
-  function building(d){const g=new THREE.Group();g.position.set(d.x,0,BZ);scene.add(g);const inner=new THREE.Group();g.add(inner);
+  /* Update 1.2: the same Kenney buildings as the 3D town (re-coloured per land), with the old API (set, setSign, front, door, inner). */
+  const ticks=[];
+  function building(d){if(typeof T3==="undefined"||!T3.ready())return buildingOld(d);
+    const g=new THREE.Group();g.position.set(d.x,0,BZ);scene.add(g);const inner=new THREE.Group();g.add(inner);const u={value:1};let glows=[],tick=null,body;
+    if(d.big){const b=T3.bigObj(T3.THEMES[d.li],true);body=b.g;body.position.set(0,0,0);glows=b.glows;tick=b.tick}else body=T3.shopObj(d.li,d.si,true);
+    inner.add(body);body.traverse(m=>{if(m.isMesh){m.castShadow=true;m.receiveShadow=true;
+      (Array.isArray(m.material)?m.material:[m.material]).forEach(mt=>{if(mt.isMeshStandardMaterial&&!glows.includes(mt))T3.greyable(mt,u)})}});
+    g.updateMatrixWorld(true);const bb=new THREE.Box3().setFromObject(body);const fz=bb.max.z-BZ;d.h=Math.min(bb.max.y,d.big?7.2:5.2);
+    const door=new THREE.Mesh(new THREE.BoxGeometry(d.big?1.3:.9,d.big?1.9:1.4,.1),new THREE.MeshStandardMaterial({color:'#7a4a2a',roughness:.6,emissive:'#ffcf5a',emissiveIntensity:0}));door.position.set(0,d.big?1:.75,fz+.06);door.visible=!!d.big;inner.add(door);
+    const sw=d.big?3.9:2.6;const signMat=new THREE.MeshBasicMaterial({map:signTex(d.sign,d,false),transparent:true});
+    const sign=new THREE.Mesh(new THREE.PlaneGeometry(sw,sw*.22),signMat);sign.position.set(0,d.big?Math.min(bb.max.y*.55,4.6):bb.max.y*.62,fz+.12);inner.add(sign);let on=0;
+    if(tick)ticks.push((dt,t)=>tick(dt,t,on>.5));
+    const api={d,g,inner,sign,signMat,door,set(k){on=k;u.value=1-k;glows.forEach(m=>m.emissiveIntensity=k>.99?.95:0)},
+      setSign(t,broken){if(api.cur===t+broken)return;api.cur=t+broken;api.signMat.map=signTex(t,d,broken);api.signMat.needsUpdate=true},
+      front(){return v3(d.x,sign.position.y,BZ+fz+.3)}};
+    return api}
+  function buildingOld(d){const g=new THREE.Group();g.position.set(d.x,0,BZ);scene.add(g);const inner=new THREE.Group();g.add(inner);
     const cB=new THREE.Color(d.col),cR=new THREE.Color(d.roof);const bodyMat=std('#a3a7b3',.75),roofMat=std('#7d8291',.6);
     const add=(m,x,y,z)=>{m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;inner.add(m);return m};
     add(new THREE.Mesh(new THREE.BoxGeometry(d.w,d.h,D),bodyMat),0,d.h/2,0);
@@ -87,9 +103,9 @@ function sceneStory(w,data){
   // ---------------- lands
   LANDS.forEach((L,li)=>{const X=li*GAP;L.X=X;
     box(44,3,34,L.ground,X,-1.5,8);box(44.3,2.6,34.3,L.side,X,-1.76,8);
-    box(44,.06,5,L.road,X,.03,1.3);box(44,.2,3.2,L.pave,X,.1,-2.9);
-    for(let x=-21;x<=21;x+=3)box(1.4,.07,.18,'#ffffff',X+x,.07,1.3);
-    L.blds=L.b.map((a,i)=>building({sign:a[0],bad:a[1],col:a[2],roof:a[3],w:a[4],h:a[5],x:X+[-12,-6.4,0,6.4,12][i],big:i===2}));
+    if(typeof T3!=="undefined"&&T3.ready())T3.street(scene,T3.THEMES[li],X,22,true,{plaza:false});
+    else{box(44,.06,5,L.road,X,.03,1.3);box(44,.2,3.2,L.pave,X,.1,-2.9);for(let x=-21;x<=21;x+=3)box(1.4,.07,.18,'#ffffff',X+x,.07,1.3)}
+    L.blds=L.b.map((a,i)=>building({sign:a[0],bad:a[1],col:a[2],roof:a[3],w:a[4],h:a[5],x:X+[-12,-6.4,0,6.4,12][i],big:i===2,li,si:[0,1,0,2,3][i]}));
     const back=[-18.5,-9.2,9.2,18.5];
     if(L.key==='candy'){back.forEach((x,i)=>lolli(X+x,-4.5,['#e8457a','#7b4dff','#2a8fe0','#39b86a'][i],.95));[[-15.2,'#ff6fa8'],[-3.4,'#ffd166'],[3.4,'#7fe3ff'],[15.2,'#b8f27a']].forEach(([x,c])=>gum(X+x,-4.3,c))}
     if(L.key==='sea'){back.forEach(x=>lamp(X+x,-4.4,'#2a3a5c'));[-15.2,-3.5,3.5,15.2].forEach(x=>barrel(X+x,-4.3))}
@@ -160,7 +176,7 @@ function sceneStory(w,data){
         g.visible=false;const tw=sprite(starTex,0xffffff,.01);tw.position.copy(g.position);scene.add(tw);sfx.ding(2);tween(.6,(e,k)=>{tw.scale.setScalar(Math.sin(k*Math.PI)*2.4);tw.material.rotation=k*3},{ease:E.lin,done:()=>{scene.remove(tw);cb&&cb()}})}})},
       idle(t){if(!g.visible||st==='spin')return;const l=T-laugh<2.4;b.bod.position.y=l?Math.abs(Math.sin(T*10))*.18:Math.sin(t*2)*.08;b.bod.rotation.z=st==='hit'?Math.sin(T*20)*.06:0;b.hands.forEach((h,i)=>h.position.y=1.5+(l?Math.abs(Math.sin(T*10+i))*.3:0))}}}
   // -- 2 Captain Inkbeard
-  function vInk(L){const g=new THREE.Group(),skin=std('#e04f6a',.4),spot=std('#ff9aa8',.5),wh=std('#ffffff',.25),bk=std('#15102a',.3);
+  function vInk(L){const IX=L.X+(typeof T3!=="undefined"&&T3.ready()?5.5:0);const g=new THREE.Group(),skin=std('#e04f6a',.4),spot=std('#ff9aa8',.5),wh=std('#ffffff',.25),bk=std('#15102a',.3);
     const head=new THREE.Mesh(new THREE.SphereGeometry(2,40,30),skin);head.scale.set(1,1.15,.9);head.position.y=3;g.add(head);
     for(let i=0;i<7;i++){const s=new THREE.Mesh(new THREE.SphereGeometry(.22,12,10),spot);const a=i*.9;s.position.set(Math.cos(a)*1.4,3.8+Math.sin(i*2)*.6,Math.sin(a)*.9+.4);s.scale.z=.4;s.lookAt(0,3,0);g.add(s)}
     const eye=new THREE.Mesh(new THREE.SphereGeometry(.45,20,16),wh);eye.position.set(.65,3.2,1.55);eye.scale.z=.6;g.add(eye);const pup=new THREE.Mesh(new THREE.SphereGeometry(.2,14,10),bk);pup.position.set(.65,3.15,1.85);g.add(pup);
@@ -176,21 +192,21 @@ function sceneStory(w,data){
       const segs=[];let par=a;for(let k=0;k<6;k++){const s=new THREE.Group();s.position.x=k?.42:0;s.add(new THREE.Mesh(new THREE.SphereGeometry(.42-k*.05,14,10),skin));par.add(s);segs.push(s);par=s}a.userData={segs,ph:i};g.add(a);arms.push(a)}
     rich(g);g.scale.setScalar(1.7);scene.add(g);const up=2.2,down=-12,Z=-19;let laugh=-9,st='idle',whirl=null;
     const headP=()=>g.position.clone().add(v3(0,3.3*1.7,1.6*1.7));
-    return{name:'ink',g,head:headP,cam:{tx:L.X-1,ty:5.2,tz:-8,yaw:0,pitch:.15,R:[28,18]},
-      reset(){g.visible=false;g.position.set(L.X,down,Z);g.rotation.set(0,0,0);g.scale.setScalar(1.7);xg.visible=false;pup.visible=true;st='idle';if(whirl){scene.remove(whirl);whirl=null}},
+    return{name:'ink',g,head:headP,cam:{tx:IX-2.5,ty:5.2,tz:-8,yaw:0,pitch:.15,R:[28,18]},
+      reset(){g.visible=false;g.position.set(IX,down,Z);g.rotation.set(0,0,0);g.scale.setScalar(1.7);xg.visible=false;pup.visible=true;st='idle';if(whirl){scene.remove(whirl);whirl=null}},
       place(){this.reset();g.visible=true;g.position.y=up},
       laugh(){laugh=T;[260,240,260,220].forEach((f,i)=>tone(f,.18,{type:'sawtooth',vol:.05,at:i*.2}))},
       arrive(cb){this.reset();g.visible=true;sfx.thud();shake=.25;noise(1.4,{vol:.2,freq:400,to:120});tween(1.6,e=>g.position.y=down+(up-down)*e,{ease:E.outBack,done:cb});
-        for(let i=0;i<34;i++)wait(i*.03,()=>{const d=new THREE.Mesh(geo.puff||(geo.puff=new THREE.SphereGeometry(.14,10,8)),new THREE.MeshBasicMaterial({color:'#e8f8ff',transparent:true}));d.position.set(L.X+rnd(7),-.6,Z+2+rnd(3));addPart(d,scene,{v:v3(rnd(3),4+Math.random()*5,rnd(2)),g:8,life:1.2,fade:true,grow:1.5})})},
+        for(let i=0;i<34;i++)wait(i*.03,()=>{const d=new THREE.Mesh(geo.puff||(geo.puff=new THREE.SphereGeometry(.14,10,8)),new THREE.MeshBasicMaterial({color:'#e8f8ff',transparent:true}));d.position.set(IX+rnd(7),-.6,Z+2+rnd(3));addPart(d,scene,{v:v3(rnd(3),4+Math.random()*5,rnd(2)),g:8,life:1.2,fade:true,grow:1.5})})},
       attack(bd,i,cb){const s=g.position.clone().add(v3(rnd(.6),2.4*1.7,3)),t=bd.front();const blob=new THREE.Mesh(new THREE.SphereGeometry(.35,14,10),std('#1a1030',.3));tone(180,.2,{vol:.1,to:80});
         lob(blob,s,t,.6,4,()=>{noise(.2,{vol:.18,freq:500,to:100});for(let j=0;j<12;j++){const d=new THREE.Mesh(geo.inkd||(geo.inkd=new THREE.SphereGeometry(.12,8,6)),new THREE.MeshBasicMaterial({color:'#1a1030',transparent:true}));d.position.copy(t);addPart(d,scene,{v:v3(rnd(5),Math.random()*3,1+Math.random()*2),g:9,life:.8,fade:true})}
           scramble(bd,i);cb&&cb()},0)},
-      leave(cb){tween(1.4,e=>g.position.y=up+(down-up)*e,{ease:E.inCubic,done:()=>{g.visible=false;cb&&cb()}});puff(v3(L.X,-.6,Z+2),14,'#e8f8ff',2)},
+      leave(cb){tween(1.4,e=>g.position.y=up+(down-up)*e,{ease:E.inCubic,done:()=>{g.visible=false;cb&&cb()}});puff(v3(IX,-.6,Z+2),14,'#e8f8ff',2)},
       hit(){st='hit';xg.visible=true;pup.visible=false;skin.emissive.set('#aa0000');tween(.3,(e,k)=>skin.emissive.setRGB(.67*(1-k),0,0),{ease:E.lin})},
-      defeat(cb){st='spin';whirl=new THREE.Mesh(new THREE.RingGeometry(1,7,48,1),new THREE.MeshBasicMaterial({map:swirlTex('#1f6fd0'),transparent:true,opacity:.0,side:THREE.DoubleSide,depthWrite:false}));whirl.rotation.x=-Math.PI/2;whirl.position.set(L.X,-.6,Z);scene.add(whirl);
+      defeat(cb){st='spin';whirl=new THREE.Mesh(new THREE.RingGeometry(1,7,48,1),new THREE.MeshBasicMaterial({map:swirlTex('#1f6fd0'),transparent:true,opacity:.0,side:THREE.DoubleSide,depthWrite:false}));whirl.rotation.x=-Math.PI/2;whirl.position.set(IX,-.6,Z);scene.add(whirl);
         tween(.5,e=>whirl.material.opacity=e*.85);noise(2.4,{vol:.16,freq:300,to:900,type:'bandpass',q:.6});tone(420,1.6,{type:'sine',vol:.08,to:90});
         tween(2.2,(e,k)=>{g.rotation.y=k*12;g.position.y=up+(down-up)*e;whirl.rotation.z=k*14},{ease:E.inCubic,done:()=>{g.visible=false;
-          for(let j=0;j<26;j++){const d=new THREE.Mesh(geo.puff||(geo.puff=new THREE.SphereGeometry(.14,10,8)),new THREE.MeshBasicMaterial({color:'#2a1840',transparent:true,opacity:.8}));d.position.set(L.X+rnd(3),-.2,Z+rnd(2));addPart(d,scene,{v:v3(rnd(3),2+Math.random()*3,rnd(2)),drag:1.4,life:1.4,fade:true,grow:3})}
+          for(let j=0;j<26;j++){const d=new THREE.Mesh(geo.puff||(geo.puff=new THREE.SphereGeometry(.14,10,8)),new THREE.MeshBasicMaterial({color:'#2a1840',transparent:true,opacity:.8}));d.position.set(IX+rnd(3),-.2,Z+rnd(2));addPart(d,scene,{v:v3(rnd(3),2+Math.random()*3,rnd(2)),drag:1.4,life:1.4,fade:true,grow:3})}
           tween(.8,e=>whirl.material.opacity=.85*(1-e),{done:()=>{scene.remove(whirl);whirl=null;cb&&cb()}})}})},
       idle(t){if(!g.visible)return;arms.forEach(a=>a.userData.segs.forEach((s,k)=>{s.rotation.z=Math.sin(t*2.4+a.userData.ph+k*.7)*.32-.12;s.rotation.y=Math.cos(t*1.8+a.userData.ph+k)*.18}));
         const l=T-laugh<2.6;head.scale.y=1.15*(1+(l?Math.abs(Math.sin(T*11))*.06:Math.sin(t*2)*.02));if(st!=='spin')g.rotation.z=st==='hit'?Math.sin(T*18)*.05:(l?Math.sin(T*11)*.04:Math.sin(t*.9)*.03)}}}
@@ -213,7 +229,7 @@ function sceneStory(w,data){
     rich(g);g.scale.setScalar(1.05);scene.add(g);const big=L.blds[2],roofY=big.d.h+1.5-.15,home=v3(L.X,roofY,BZ);let laugh=-9,st='idle';
     const vine=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,1,6),std('#2e7d32',.7));vine.visible=false;scene.add(vine);
     const head=()=>g.position.clone().add(v3(0,3.6*1.05,1));
-    return{name:'baboon',g,head,cam:{tx:L.X-1,ty:4.6,tz:-4,yaw:-.04,pitch:.16,R:[22,15]},
+    return{name:'baboon',g,head,cam:{tx:L.X-1,ty:5.8,tz:-4,yaw:-.04,pitch:.16,R:[24,18]},
       reset(){g.visible=false;g.position.copy(home);g.rotation.set(0,0,0);g.scale.setScalar(1.05);vine.visible=false;xg.visible=false;eyes.forEach(e=>e.visible=true);st='idle';arms.forEach((a,i)=>a.rotation.z=(i?1:-1)*.35)},
       place(){this.reset();g.visible=true},
       laugh(){laugh=T;[520,700,520,760].forEach((f,i)=>tone(f,.12,{type:'square',vol:.05,at:i*.14}))},
@@ -406,8 +422,11 @@ function sceneStory(w,data){
       if(!hop){const ch=T-cheerT<2.4||cheerT>T;tiko.position.y=.2+(ch?Math.abs(Math.sin(t*9))*.45:Math.abs(Math.sin(t*2.2))*.06)}
       friends.forEach((f,i)=>{if(f.visible&&cheerT>T)f.position.y=.2+Math.abs(Math.sin(t*9+i))*.45});
       tiko.userData.armR.rotation.z=T-throwT<.3?-.5-2.2*Math.sin((T-throwT)/.3*Math.PI):.5;
-      VIL.forEach(v=>v.idle(t))}};
+      VIL.forEach(v=>v.idle(t));ticks.forEach(f=>f(dt,t))}};
 }
 
 
-SCENES.story=sceneStory;
+/* The story uses the 3D town models: wait for them (a second at most) before building the scene. */
+SCENES.story=function(w,data){if(typeof T3==="undefined"||T3.ready())return sceneStory(w,data);let api=null,dead=false;
+  const proxy={start(){},onResize(){api&&api.onResize&&api.onResize()},update(dt,t){api&&api.update(dt,t)},dispose(){dead=true;api&&api.dispose&&api.dispose()},act(n,d){api&&api.act&&api.act(n,d)}};
+  const go=()=>{if(dead||api)return;use(w);api=sceneStory(w,data);api.start&&api.start();use(ov)};T3.load().then(go,go);setTimeout(go,4000);return proxy};

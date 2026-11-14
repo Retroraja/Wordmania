@@ -21,6 +21,9 @@ html,body{margin:0;height:100%;width:100%;overflow:hidden;background:#1a1f5c;col
 .pill{display:flex;align-items:center;gap:8px;background:linear-gradient(#3657c9,#24379a);border:3px solid var(--gold);border-radius:50px;padding:4px 16px 4px 5px;font-family:var(--display);font-size:26px;color:#fff}
 .coin{width:30px;height:30px;border-radius:50%;background:radial-gradient(circle at 38% 32%,#fff6b0,#ffc93c 55%,#d18a00);box-shadow:inset 0 0 0 3px #b8730a;display:inline-block;flex:none}
 .say{position:absolute;background:rgba(255,255,255,.97);color:var(--navy);border-radius:18px;padding:10px 18px 12px;font-weight:800;font-size:19px;line-height:1.25;box-shadow:0 10px 25px rgba(10,14,40,.3);max-width:300px;z-index:6;transition:opacity .3s,transform .3s cubic-bezier(.2,1.3,.4,1);transform-origin:left bottom;pointer-events:none}
+.sayx{position:absolute;right:-10px;top:-12px;width:32px;height:32px;border-radius:50%;border:3px solid #fff;background:#e5533d;color:#fff;font-size:15px;font-weight:900;padding:0;line-height:1;box-shadow:0 3px 8px rgba(0,0,0,.3)}
+.overx{position:absolute;right:10px;top:10px;width:40px;height:40px;border-radius:50%;border:3px solid #fff;background:#e5533d;color:#fff;font-size:18px;font-weight:900;padding:0}
+.card{position:relative}
 .say b{display:block;font-family:var(--display);font-weight:400;font-size:14px;letter-spacing:.08em;color:#7b4dff;text-transform:uppercase}
 .say.hide{opacity:0;transform:scale(.7)}
 .say::after{content:"";position:absolute;left:25px;bottom:-12px;border:12px solid transparent;border-top-color:rgba(255,255,255,.97);border-bottom:0}
@@ -186,6 +189,9 @@ function tikoFrame(now){const v=TK;if(!v)return;
 
 /* ================= shared helpers ================= */
 const SCR=()=>$('#s-'+GAME);
+const HELP=CFG.help!==false;
+/* How-to-play lines: only on the first day of each game, and Tiko's bubble has a close button. */
+function helpSay(text,ms){if(!HELP)return;say(text,ms);const e=$('#say-'+GAME);const x=document.createElement('button');x.className='sayx';x.setAttribute('aria-label','Close');x.textContent='✕';x.onclick=ev=>{ev.stopPropagation();e.classList.add('hide')};e.prepend(x)}
 function say(text,ms){const e=$('#say-'+GAME);e.innerHTML='<b>Tiko</b>'+text;e.classList.remove('hide');clearTimeout(e._t);if(ms)e._t=setTimeout(()=>e.classList.add('hide'),ms)}
 function hush(){$('#say-'+GAME).classList.add('hide')}
 function toast(id,text,bad){const e=$(id);e.textContent=text;e.classList.toggle('bad',!!bad);e.classList.remove('show');void e.offsetWidth;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),1100)}
@@ -256,7 +262,7 @@ function lwStart(){const P=lwMake();Object.assign(lw,{P,found:new Set(),bonus:ne
   const g=$('#lwgrid');g.innerHTML='';const cs=Math.min(7.2,46/C,40/R);g.style.setProperty('--cs',cs*10+'px');g.style.gridTemplateColumns=`repeat(${C},${cs*10}px)`;g.style.gridTemplateRows=`repeat(${R},${cs*10}px)`;
   const gw=C*cs+(C-1)*.5,gh=R*cs+(R-1)*.5;lw.gx=36-gw/2;lw.gy=31-gh/2;g.style.left=lw.gx*10+'px';g.style.top=lw.gy*10+'px';
   for(let r=0;r<R;r++)for(let c=0;c<C;c++){const k=r+','+c,d=document.createElement('div');if(lw.cells[k]){d.className='cell';lw.cells[k].el=d}g.appendChild(d)}
-  lw.cs=cs;lwWheel();lwCur();say(`Swipe across the ${P.letters.length} letters to make words and fill the puzzle. Extra real words = bonus coins!`,6000)}
+  lw.cs=cs;lwWheel();lwCur();helpSay(`Swipe across the ${P.letters.length} letters to make words and fill the puzzle. Extra real words = bonus coins!`,6000)}
 function lwWheel(){const w=$('#lwwheel'),D=31,n=lw.order.length;w.style.width=w.style.height=D*10+'px';w.style.left=(76-D/2)*10+'px';w.style.top=(34-D/2)*10+'px';w.classList.toggle('n7',n>=7);
   $$('#lwwheel .wl').forEach(e=>e.remove());const rad=n<=4?28:n===5?31:n===6?33:35;
   lw.order.forEach((ch,i)=>{const a=i/n*Math.PI*2-Math.PI/2,e=document.createElement('div');e.className='wl';e.textContent=ch;e.style.left=(50+Math.cos(a)*rad)+'%';e.style.top=(50+Math.sin(a)*rad)+'%';e.dataset.i=i;w.appendChild(e)});
@@ -290,7 +296,7 @@ function lwCheck(word){const P=lw.P,wi=P.words.findIndex(w=>w[0]===word);
     if(lw.found.size===P.words.length)setTimeout(lwWin,900);return}
   if(P.bonus.includes(word)){if(lw.bonus.has(word)){toast('#lwtoast','Bonus already found',true);return}
     lw.bonus.add(word);const add=lw.bonus.size<=10?2:0;lw.coins+=add;$('#lwcoins').textContent=lw.coins;$('#lwbonus').textContent=lw.bonus.size;toast('#lwtoast','Bonus word '+word+(add?'!  +2':'!'));mood('wave',1);sfx('coin');
-    if(lw.bonus.size===1)say('Bonus word! It is not in the puzzle, but it is a real word, so you get extra coins.',4000);return}
+    if(lw.bonus.size===1)helpSay('Bonus word! It is not in the puzzle, but it is a real word, so you get extra coins.',4000);return}
   toast('#lwtoast','Not a word',true);sfx('nope');$('#lwcur').classList.remove('shake');void $('#lwcur').offsetWidth;$('#lwcur').classList.add('shake');mood('sad',1)}
 function lwFull(wi){const [w,r,c,d]=lw.P.words[wi];return [...w].every((ch,i)=>lw.cells[(d==='v'?r+i:r)+','+(d==='h'?c+i:c)].filled)}
 function lwFill(wi,anim){const [w,r,c,d]=lw.P.words[wi];[...w].forEach((ch,i)=>{const k=(d==='v'?r+i:r)+','+(d==='h'?c+i:c),cell=lw.cells[k];if(cell.filled)return;cell.filled=true;
@@ -375,7 +381,7 @@ function phMake(){const n=[4,5,6,6,7][tier],lenOk=[w=>w.length<=4,w=>w.length<=5
   return list}
 function phStart(){ph.list=phMake().map(o=>Object.assign(o,{on:false}));Object.assign(ph,{sel:-1,hearts:5,coins:0,hints:FREE_HINTS,filled:0,done:false,ctx:null});
   curCoins=()=>ph.coins;$('#phcoins').textContent=0;hintBadge($('#phhn'),ph.hints);phHearts();phPaint();phPanel();
-  say(`Find the ${ph.list.length} shadows! Tap one, then tap the letters to spell it. Wrong letter = lose a heart.`,6000)}
+  helpSay(`Find the ${ph.list.length} shadows! Tap one, then tap the letters to spell it. Wrong letter = lose a heart.`,6000)}
 function phPaint(t=performance.now()/1000){const x=ph.ctx||(ph.ctx=sizeCanvas($('#phcv')));paintStreet(x,{base:420});
   ph.list.forEach((o,i)=>{if(i===ph.sel&&!o.on){x.save();x.shadowColor='#fff36a';x.shadowBlur=30+Math.sin(t*6)*12;drawObj(x,o.n,o.x,o.y,o.s,false);x.restore()}drawObj(x,o.n,o.x,o.y,o.s,o.on)})}
 function phHearts(){$('#phhearts').innerHTML=Array.from({length:5},(_,i)=>`<span class="${i<ph.hearts?'':'gone'}">❤️</span>`).join('')}
@@ -394,7 +400,7 @@ function phPlace(ch){const w=ph.list[ph.sel].n,slot=$('#phslots').children[ph.po
 function phFound(){const o=ph.list[ph.sel];o.on=true;ph.filled++;const won=4+o.n.length;ph.coins+=won;$('#phcoins').textContent=ph.coins;mood('cheer',1.3);sfx('ding');sfx('sparkle');
   const b=BOX[o.n],cx=(o.x+(b[0]+b[2]/2)*o.s)/16,cy=(o.y+(b[1]+b[3]/2)*o.s)/9;
   ph.sel=-1;phPaint();sparkles(cx,cy,22);flyCoins(cx,cy,$('#phcoins'),5);toast('#phtoast',o.n+'!  +'+won);
-  if(ph.filled===ph.list.length){ph.done=true;setTimeout(phWin,1000)}else{setTimeout(()=>{if(ph.sel<0)phPanel()},50);if(ph.filled===1)say('It came to life! Find the next shadow.',3000)}}
+  if(ph.filled===ph.list.length){ph.done=true;setTimeout(phWin,1000)}else{setTimeout(()=>{if(ph.sel<0)phPanel()},50);if(ph.filled===1)helpSay('It came to life! Find the next shadow.',3000)}}
 function phWin(){const bonus=ph.hearts*2;ph.coins+=bonus;$('#phcoins').textContent=ph.coins;
   endCard('SCENE COMPLETE!',`${ph.list.length} pictures found · ${ph.hearts} hearts left (+${bonus})`,ph.coins)}
 function phLose(){mood('sad',2);sfx('lose');
@@ -430,8 +436,8 @@ function cbSwapK(r,c,r2,c2){const t=cb.b[r][c];cb.b[r][c]=cb.b[r2][c2];cb.b[r2][
 function cbFill(){let g=0;do{cb.b=Array.from({length:N},()=>Array.from({length:N},cbNew));let fix;while((fix=cbRuns()).length)fix.forEach(run=>{const [r,c]=run.cells[1];cb.b[r][c]=cbNew()})}while(!cbHasMove()&&g++<50)}
 function cbStart(){Object.assign(cb,{t:TIME,cleared:0,coins:0,busy:false,running:false,over:false,parts:[],drag:null,hintT:0});curCoins=()=>cb.coins;cbGeom();cbFill();
   $('#cbtime').textContent=TIME;$('#cbbar').style.transform='scaleX(1)';
-  const o=overlay(`<h2>CRACKER BLAST</h2><ul><li>👉 Swipe a cracker to swap it. Match 3 in a row!</li><li>⏱ You have ${TIME} seconds.</li><li>🪙 Every 3 crackers = 1 coin (up to ${MAX_COINS}).</li><li>🚀 Match 4 = rocket, 5 = chakra, L shape = flower pot. Tap them!</li></ul><button class="big">START</button>`);
-  o.querySelector('button').onclick=()=>{o.remove();sfx('whoosh');toast('#cbtoast','GO!');cb.running=true;cb.last=performance.now()/1000}}
+  const o=overlay(HELP?`<button class="overx" aria-label="Close">✕</button><h2>CRACKER BLAST</h2><ul><li>👉 Swipe a cracker to swap it. Match 3 in a row!</li><li>⏱ You have ${TIME} seconds.</li><li>🪙 Every 3 crackers = 1 coin (up to ${MAX_COINS}).</li><li>🚀 Match 4 = rocket, 5 = chakra, L shape = flower pot. Tap them!</li></ul><button class="big go">START</button>`:`<h2>CRACKER BLAST</h2><button class="big go">START</button>`);
+  o.querySelectorAll('.go,.overx').forEach(b=>b.onclick=()=>{o.remove();sfx('whoosh');toast('#cbtoast','GO!');cb.running=true;cb.last=performance.now()/1000})}
 function cbXY(e){const r=$('#cbcv').getBoundingClientRect(),k=cb.W/r.width;return [(e.clientX-r.left)*k,(e.clientY-r.top)*k]}
 function cbCell(x,y){const c=Math.floor((x-cb.ox)/cb.cell),r=Math.floor((y-cb.oy)/cb.cell);return r>=0&&r<N&&c>=0&&c<N?[r,c]:null}
 function cbBind(){const cv=$('#cbcv');

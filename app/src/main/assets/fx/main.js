@@ -46,7 +46,7 @@ function loop(now){const dt=Math.min(.05,Math.max(0,(now-last)/1000));last=now;T
     renderer.clear();
     if(bd){use(bd.world);runTweens();updParts(dt);const c=bd.world.cam;bd.api.update&&bd.api.update(dt,T);
       if(shake>0){c.position.x+=rnd(shake);c.position.y+=rnd(shake);shake*=Math.pow(.02,dt);if(shake<.005)shake=0}
-      renderer.render(bd.world.scene,c);renderer.clearDepth()}
+      renderer.outputEncoding=bd.api.srgb?THREE.sRGBEncoding:THREE.LinearEncoding;renderer.render(bd.world.scene,c);renderer.outputEncoding=THREE.LinearEncoding;renderer.clearDepth()}
     use(ov);runTweens();updParts(dt);ovUpdate(dt,T);renderer.render(ov.scene,ov.cam);
   }catch(e){console.log('fx loop',e&&e.stack)}
   if(bd||ovBusy())requestAnimationFrame(loop);else{renderer.clear();running=false}}
@@ -537,7 +537,8 @@ SCENES.start=function(w,o){const scene=w.scene,cam=w.cam;cam.fov=42;cam.updatePr
       else if(readyT)tiles.forEach((tl,i)=>tl.position.z=Math.max(0,Math.sin(t*4-(i%7)*.6-Math.floor(i/7)*.4))*.18)}}};
 
 /* ---------- Tiko's Town: one street, built from Kotlin's data ---------- */
-SCENES.town=function(w,o){const scene=w.scene,cam=w.cam;cam.fov=42;cam.far=200;cam.updateProjectionMatrix();const sky=o.sky||'#ffd6ea';
+/* Old code-drawn town (kept as a fallback if the 3D models cannot load). */
+SCENES.townOld=function(w,o){const scene=w.scene,cam=w.cam;cam.fov=42;cam.far=200;cam.updateProjectionMatrix();const sky=o.sky||'#ffd6ea';
   scene.fog=new THREE.Fog(new THREE.Color(sky),40,90);document.body.style.background='linear-gradient('+(o.skyTop||'#8fd3ff')+','+sky+')';
   addLights(scene,{hemi:.72,sun:.9,pos:[-10,16,12],shadow:22,ground:0xc08ad8,target:[0,0,-3]});
   const ground=new THREE.Mesh(new THREE.PlaneGeometry(160,90),std(o.grass||'#9be27a',.9));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
@@ -652,6 +653,28 @@ SCENES.town=function(w,o){const scene=w.scene,cam=w.cam;cam.fov=42;cam.far=200;c
         const m=new THREE.Mesh(geo.puff2||(geo.puff2=new THREE.SphereGeometry(.22,12,10)),new THREE.MeshBasicMaterial({color:'#ffffff',transparent:true,opacity:.7}));m.position.copy(wp);
         addPart(m,scene,{v:new THREE.Vector3(.35+rnd(.2),.9,rnd(.2)),life:2.6,fade:true,op:.7,grow:2.2})}}}};
 
+/* ---------- town (Update 1.2): the 3D street of each area, built from Kenney models by town3d.js ---------- */
+SCENES.town=function(w,o){const scene=w.scene,cam=w.cam;cam.fov=38;cam.near=.1;cam.far=260;cam.aspect=W/H;cam.updateProjectionMatrix();document.body.style.background='#1d1433';
+  let town=null,dead=false;const queue=[];const sayEl=$('#sSay'),title=$('#sTitle');let sayT=null,titleT=null;
+  const SND={thunk:'bang',clack:'clack',whoosh:'whoosh',pop:'pop',fanfare:'fanfare',grand:'fanfare',coin:'coin'};
+  function tSay(t){sayEl.innerHTML=`<b style="color:#2a8fe0">Tiko</b>“${t}”`;sayEl.classList.remove('show');void sayEl.offsetWidth;sayEl.classList.add('show');clearTimeout(sayT);sayT=setTimeout(()=>sayEl.classList.remove('show'),3200)}
+  function tTitle(k,b,s2){title.innerHTML=`<i>${k}</i><b>${b}</b><span>${s2||''}</span>`;title.classList.remove('show');void title.offsetWidth;title.classList.add('show');snd('sparkle');clearTimeout(titleT);titleT=setTimeout(()=>title.classList.remove('show'),3000)}
+  const d4=o.deco||{};
+  function handle(name,d){if(name==='drag'){town.drag(d.dx||0);return}if(name==='cheer'){town.tiko.userData.cheer=T;return}
+    if(name==='fix'){if(town.isBusy()){emit('townFixDone');return}const k=d.spot|0;
+      town.build(k,d.cost||3,d.line||'').then(()=>d.last?town.finale({street:o.street||'',small:o.big&&o.big.name?o.big.name+' is open!':''}):null)
+        .then(()=>{emit('townFixed');emit('townFixDone');use(ov)},e=>{console.log('town build',e&&e.stack);emit('townFixDone');use(ov)})}}
+  const api={srgb:true,onResize(){},start(){},
+    act(name,d){if(!town){queue.push([name,d]);return}handle(name,d||{})},
+    update(dt,t){if(town)town.update(dt,t)},
+    dispose(){dead=true;clearTimeout(sayT);clearTimeout(titleT);sayEl.classList.remove('show');title.classList.remove('show');if(town)town.dispose();document.body.style.background=''}};
+  T3.load().then(()=>{if(dead)return;use(w);
+    town=T3.town(scene,cam,{world:o.world|0,shops:o.shops||[],deco:[d4.fountain,d4.trees,d4.lamps,d4.extra],big:o.big||{},locked:!!o.locked,lotHost:$('#ov'),use:()=>use(w),shadow:1024,
+      hooks:{sfx:n=>{if(SND[n])snd(SND[n])},say:tSay,banner:tTitle}});
+    town.hello();queue.splice(0).forEach(([n,d])=>handle(n,d||{}));use(ov);kick()}).catch(e=>{console.log('town3d failed',e&&e.stack);if(dead)return;use(w);
+    const old=SCENES.townOld(w,o);api.srgb=false;api.update=old.update;api.act=old.act;api.onResize=old.onResize||(()=>{});old.start&&old.start();queue.splice(0).forEach(([n,d])=>old.act(n,d||{}));use(ov)});
+  return api};
+
 /* ---------- spin wheel ---------- */
 SCENES.spin=function(w,o){const scene=w.scene,cam=w.cam;document.body.style.background='radial-gradient(circle at 50% 35%,#ffd36b,#ff8a3c 55%,#c2410c)';cam.fov=38;cam.updateProjectionMatrix();addLights(scene,{hemi:.9,sun:.8,pos:[2,5,9]});
   const SL=o.slices||['🪙25','🔨','🪙50','🎲','🪙100','🧱 1','🪙300','✨'],COL=['#ff7eb6','#6fc3ff','#ffd84a','#7ed957'];const n=SL.length,seg=Math.PI*2/n;
@@ -685,14 +708,16 @@ SCENES.gift=function(w,o){const scene=w.scene,cam=w.cam;document.body.style.back
   lid=new THREE.Group();const l=new THREE.Mesh(new THREE.BoxGeometry(1.98,.4,1.98),pink);lid.add(l);for(const r of[0,1]){const s=new THREE.Mesh(new THREE.BoxGeometry(r?.32:2.0,.42,r?2.0:.32),gold);lid.add(s)}
   for(const s of[-1,1]){const bw=new THREE.Mesh(new THREE.TorusGeometry(.3,.1,10,20),gold);bw.position.set(s*.3,.45,0);bw.rotation.y=Math.PI/2;bw.rotation.x=s*.5;lid.add(bw)}const k=new THREE.Mesh(new THREE.SphereGeometry(.14,12,10),gold);k.position.y=.35;lid.add(k);
   lid.position.y=1.6;scene.add(rich(lid));if(opened)lid.visible=false;tiko=makeTiko();tiko.scale.setScalar(1.2);tiko.position.set(2.4,0,.6);tiko.rotation.y=-.5;scene.add(tiko);
-  function open(d){if(opened)return;opened=true;const Bx=box,L=lid;[0,1,2].forEach(i=>wait(i*.35,()=>{snd('clack');tween(.3,(e,k2)=>{const a=Math.sin(k2*Math.PI*6)*(.05+i*.04);Bx.rotation.z=a;L.rotation.z=a;const s=1+Math.sin(k2*Math.PI)*.06*(i+1);Bx.scale.set(s,1/s,s)},{ease:E.lin})}));
-    wait(1.1,()=>{sfx.blast();sfx.fanfare();shake=.12;addPart(lid,scene,{v:v3(1.5,7,1.5),av:v3(3,5,6),g:9,life:2.5});lid=null;
+  function open(d){if(opened)return;opened=true;const Bx=box,L=lid;[0,1].forEach(i=>wait(i*.25,()=>{snd('clack');tween(.3,(e,k2)=>{const a=Math.sin(k2*Math.PI*6)*(.05+i*.04);Bx.rotation.z=a;L.rotation.z=a;const s=1+Math.sin(k2*Math.PI)*.06*(i+1);Bx.scale.set(s,1/s,s)},{ease:E.lin})}));
+    wait(.6,()=>{sfx.blast();sfx.fanfare();shake=.06;addPart(lid,scene,{v:v3(1.5,7,1.5),av:v3(3,5,6),g:9,life:2.5});lid=null;
       beam=new THREE.Mesh(new THREE.CylinderGeometry(1.2,.75,5,32,1,true),new THREE.MeshBasicMaterial({color:'#fff2a0',transparent:true,opacity:0,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,depthWrite:false}));beam.position.y=3.9;scene.add(beam);
-      tween(.4,e=>beam.material.opacity=.5*e);const gl=sprite(glowTex,0xffe080,4);gl.position.y=1.8;scene.add(gl);extras.push(gl);confettiAt(v3(0,1.6,.5),120,1.5);cheer=T;
+      tween(.3,e=>beam.material.opacity=.22*e);const gl=sprite(glowTex,0xffe080,2.2);gl.material.opacity=.6;gl.position.y=1.8;scene.add(gl);extras.push(gl);confettiAt(v3(0,1.6,.5),50,1.5);cheer=T;
+      wait(.9,()=>{const b0=beam;tween(.5,e=>{if(b0)b0.material.opacity=.22*(1-e);gl.material.opacity=.6*(1-e)})});
       const stack=new THREE.Group();for(let i=0;i<5;i++){const c=coinMesh();c.children[0].rotation.x=Math.PI/2;c.position.y=i*.08;stack.add(c)}stack.position.set(-.45,1.3,0);scene.add(stack);extras.push(stack);
       const card=mkCard(cardTex(d.emoji||'🎁',d.name||'Gift',false));card.position.set(.5,1.3,0);card.scale.setScalar(.6);scene.add(card);extras.push(card);
-      tween(1.0,(e,k2)=>{stack.position.y=1.3+e*1.6;card.position.y=1.3+e*2.0;card.rotation.y=k2*Math.PI*2;stack.rotation.y=k2*4},{ease:E.outBack});
-      wait(1.0,()=>{if(d.text){const tx=textMesh(d.text,{h:.6});tx.position.set(0,4.1,.8);tx.scale.setScalar(.01);scene.add(tx);extras.push(tx);tween(.4,e=>tx.scale.setScalar(Math.max(.01,e)),{ease:E.outBack})}emit('giftOpened')})})}
+      tween(.7,(e,k2)=>{stack.position.y=1.3+e*1.6;card.position.y=1.3+e*2.0;card.rotation.y=k2*Math.PI*2;stack.rotation.y=k2*4},{ease:E.outBack});
+      // Update 1.2: no 3D text here; the game shows a big clear "You got" card instead.
+      wait(.7,()=>emit('giftOpened'))})}
   return{act(name,d){if(name==='open')open(d)},
     update(dt,t){const fd=fitDist(cam,5.6,5.2,W*.6,Math.max(120,H-100));cam.position.set(Math.sin(t*.3)*1.2-ox,3.2,fd);cam.lookAt(-ox,1.9,0);if(beam)beam.rotation.y=t;
       tiko.position.y=cheer&&T-cheer<3?Math.abs(Math.sin(T*9))*.5:Math.abs(Math.sin(t*2.2))*.06;if(!opened){box.rotation.y=Math.sin(t*.8)*.15;const hop=Math.max(0,Math.sin(t*4))*.12*((t%2.4)<1.2?1:0);box.position.y=hop;if(lid)lid.position.y=1.6+hop}}}};

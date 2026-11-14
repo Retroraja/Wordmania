@@ -93,6 +93,13 @@ class Progress(context: Context) {
     // ---------------------------------------------------------------- Update 1.1: mini games and word ideas
 
     /** Today's free play of a mini game was used. */
+    /** Mini game help (how to play) shows only on the first day a game is played (user 2026-11-13). */
+    fun miniHelp(id: String): Boolean {
+        val k = "mg_help_day_$id"
+        val d = prefs.getLong(k, -1L)
+        if (d < 0) { prefs.edit().putLong(k, today()).apply(); return true }
+        return d == today()
+    }
     fun miniFreeUsed(id: String): Boolean = dayInt("mg_free_$id") == 1
     fun useMiniFree(id: String) = setDayInt("mg_free_$id", 1)
     /** The one extra play a day for a video (any one game). */
