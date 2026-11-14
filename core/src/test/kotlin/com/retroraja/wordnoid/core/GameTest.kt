@@ -180,7 +180,12 @@ class GameTest {
         assertEquals(GameStatus.WON, r.status)
         val g2 = Game(l, dict)
         assertNotNull(g2.useBooster(Booster.TREASURE_FINDER))
-        assertEquals(GameStatus.WON, g2.status)
+        // Update 1.3: the Treasure Finder only shows the tiles; the player still digs them out with a word.
+        assertEquals(GameStatus.PLAYING, g2.status)
+        assertEquals(setOf(Pos(0, 1), Pos(0, 2)), g2.treasureGlow)
+        assertEquals(null, g2.useBooster(Booster.TREASURE_FINDER))
+        assertEquals(listOf(0), g2.swap(Pos(0, 1), Pos(0, 2)).chestsFound)
+        assertEquals(emptySet(), g2.treasureGlow)
     }
 
     @Test fun bossAttacksEveryFourSwaps() {

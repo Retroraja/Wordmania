@@ -82,6 +82,8 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
         val bonusFound: Boolean,
         val dug: Set<Pos> = emptySet(),
         val chests: Set<Int> = emptySet(),
+        /** Chests shown by the Treasure Finder (Update 1.3: it only shows where, the player digs with words). */
+        val shown: Set<Int> = emptySet(),
     ) {
         fun deep(): State = copy(rng = rng.copy(), ids = ids.copy())
     }
@@ -109,6 +111,8 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
     /** Sand cells already dug (their tile was cleared at least once). */
     val dug: Set<Pos> get() = s.dug
     val chestsFound: Set<Int> get() = s.chests
+    /** Sand cells the Treasure Finder lit up that still need digging (clear them with words). */
+    val treasureGlow: Set<Pos> get() = s.shown.filter { it !in s.chests }.flatMap { level.chests[it] }.filter { it !in s.dug }.toSet()
 
     constructor(level: Level, dict: Dictionary, bonusMoves: Int = 0) : this(
         level, dict,
@@ -488,11 +492,12 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
                 else -> smash(setOf(a), fullBreak = false)
             }
             Booster.TREASURE_FINDER -> {
-                val i = level.chests.indices.firstOrNull { it !in s.chests }
+                // Shows the next hidden chest (the one closest to being dug out). Nothing is dug: clear its tiles with words.
+                val i = level.chests.indices.filter { it !in s.chests && it !in s.shown }
+                    .minByOrNull { level.chests[it].count { c -> c !in s.dug } }
                 if (i == null) null else {
-                    val cells = level.chests[i]
-                    s = s.copy(dug = s.dug + cells, chests = s.chests + i, stats = s.stats.copy(treasures = s.stats.treasures + 1))
-                    finish(bd, Effects()).copy(chestsFound = listOf(i))
+                    s = s.copy(shown = s.shown + i)
+                    MoveResult(bd, Effects(), bd, null, s.status, 0, 0)
                 }
             }
             Booster.AXE -> {

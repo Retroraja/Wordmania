@@ -151,7 +151,11 @@ function balloonPop(o){const wp=P(o.x,o.y-(o.cell||U)*.5,.75),g=new THREE.Group(
 function chestOpen(o){openChest(P(o.x,o.y,.4),o.n||3);popupTo('TREASURE!',P(o.x,o.y,1.6).add(v3(0,1.6,0)),null,null,{h:.8})}
 function friendHop(o){const f=makeTiko();recolor(f,0x3fa9ff,o.c||'#ff7eb6');f.scale.setScalar(.48);f.position.copy(P(o.x,o.y,.25)).add(v3(0,-.48,0));add(f);
   const p0=f.position.clone();tween(.25,(e,k)=>f.rotation.z=Math.sin(k*Math.PI*4)*.3,{ease:E.lin});
-  wait(.3,()=>{tween(.9,(e,k)=>{f.position.set(p0.x+e*1.5,p0.y+Math.sin(k*Math.PI)*1.6-e*2.5,p0.z+e*3);f.rotation.y=k*Math.PI*2},{ease:E.lin,done:()=>rm(f)});
+  // Update 1.3: a slower, happy exit (about 1.6 s): a hop up, a gentle fall with a little bounce, a wave, then away.
+  const bounce=k=>{const n=7.5625,d=2.75;if(k<1/d)return n*k*k;if(k<2/d)return n*(k-=1.5/d)*k+.75;if(k<2.5/d)return n*(k-=2.25/d)*k+.9375;return n*(k-=2.625/d)*k+.984375};
+  wait(.3,()=>{tween(.45,(e,k)=>{f.position.set(p0.x+k*.4,p0.y+Math.sin(k*Math.PI*.5)*1.1,p0.z+k*.6);f.rotation.y=k*Math.PI},{ease:E.outCubic,done:()=>{
+      const p1=f.position.clone();tween(.75,(e,k)=>{f.position.set(p1.x+k*.4,p1.y-bounce(k)*1.9,p1.z+k*.6);f.rotation.y=Math.PI+k*Math.PI},{ease:E.lin,done:()=>{
+        const p2=f.position.clone();tween(.45,(e,k)=>{f.rotation.z=Math.sin(k*Math.PI*4)*.35*(1-k);f.position.set(p2.x+k*1.2,p2.y,p2.z+k*1.5);f.scale.setScalar(.48*(1-k*.6))},{ease:E.inCubic,done:()=>rm(f)})}})}});
     for(let i=0;i<10;i++){const h=sprite(heartTex,0xffffff,.4,false);h.position.copy(p0);addPart(h,ov.scene,{v:v3(rnd(4),2+Math.random()*3,1.5),life:1.4,fade:true})}
     popupTo('FRIEND SAVED!',p0.clone().add(v3(0,1.4,2)),null,null,{...GREEN_TXT,h:.7})})}
 

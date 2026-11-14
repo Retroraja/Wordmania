@@ -15,6 +15,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -293,18 +294,30 @@ fun BuyDialog(b: Booster, progress: Progress, onBuy: () -> Unit, onClose: () -> 
 
 @Composable
 fun MoreBoosters(c: GameController, onClose: () -> Unit) {
+    // Update 1.3: the grid scrolls up and down (a bouncing arrow shows there is more), and each booster shows its
+    // name first with the price or count on a tag below, so nothing overlaps.
     DimBox {
-        Column(Modifier.arcadePanel().padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.arcadePanel().padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             ArcadeText("All boosters", 20.sp, Palette.gold)
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(4.dp))
             val all = Booster.unlockedAt(c.level.number)
-            for (row in all.chunked(7)) Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.padding(6.dp)) {
-                for (b in row) Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    BoosterButton(b, c, 46.dp, onUsed = onClose)
-                    Text(b.title, fontSize = 9.sp, color = Palette.cream, fontWeight = Heavy)
+            val scroll = androidx.compose.foundation.rememberScrollState()
+            Box {
+                Column(Modifier.heightIn(max = 230.dp).verticalScroll(scroll).padding(horizontal = 4.dp)) {
+                    for (row in all.chunked(6)) Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(vertical = 6.dp)) {
+                        for (b in row) Column(Modifier.width(76.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            BoosterButton(b, c, 46.dp, onUsed = onClose, tagBelow = true)
+                        }
+                    }
+                }
+                if (scroll.canScrollForward) {
+                    val t by rememberInfiniteTransition(label = "more").animateFloat(0f, 1f, infiniteRepeatable(tween(500), RepeatMode.Reverse), label = "bob")
+                    Box(Modifier.align(Alignment.BottomCenter).offset(y = (4 * t).dp).background(Palette.gold, RoundedCornerShape(50)).border(2.dp, Color.White, RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 2.dp)) {
+                        Text("▼ more", color = Color(0xFF5A2E00), fontSize = 12.sp, fontWeight = Heavy)
+                    }
                 }
             }
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(6.dp))
             ArcadeButton("Close", textSize = 16.sp, onClick = onClose)
         }
     }

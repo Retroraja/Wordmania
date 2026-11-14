@@ -289,6 +289,8 @@ private fun GoalRow(o: Objective, c: GameController) {
             if (o is Objective.Letter) Tile3D(com.retroraja.wordnoid.core.Tile(0, o.letter), 20.dp)
             else if (o is Objective.Rescue) Tiko(Modifier.size(20.dp), color = PINK_TIKO, hat = false, letter = null)
             else if (o is Objective.Gold) Tile3D(com.retroraja.wordnoid.core.Tile(0, 'G', kind = com.retroraja.wordnoid.core.TileKind.GOLD), 20.dp)
+            // Update 1.3: a picture of the pink x2 tile, so "double tiles" is easy to spot on the board.
+            else if (o is Objective.Twins) Tile3D(com.retroraja.wordnoid.core.Tile(0, 'A', kind = com.retroraja.wordnoid.core.TileKind.TWIN), 20.dp)
             else Text(o.icon, fontSize = 15.sp)
             Text(o.text + if (theme != null) " ⓘ" else "", Modifier.weight(1f).padding(start = 5.dp), fontSize = 11.sp, color = Look.skin.ink, fontWeight = Heavy, lineHeight = 12.sp, maxLines = 3)
             if (done) Text("✅", fontSize = 13.sp)
@@ -381,6 +383,8 @@ fun BoosterButton(
     animated: Boolean = false,
     onPlaced: ((Offset, Float) -> Unit)? = null,
     onUsed: () -> Unit = {},
+    /** More panel (Update 1.3): the count/price sits on its own tag under the button, so it never covers the name. */
+    tagBelow: Boolean = false,
 ) {
     val anim = rememberInfiniteTransition(label = "bb")
     val pulse by anim.animateFloat(1f, 1.12f, infiniteRepeatable(tween(450), RepeatMode.Reverse), label = "p")
@@ -453,16 +457,26 @@ fun BoosterButton(
             Text("👆", Modifier.align(Alignment.BottomCenter).offset(y = (22 + 8 * t).dp), fontSize = 30.sp)
         }
         // A 3D gold count badge (green when free, dark when you'd buy it).
-        val (b1, b2) = when { free -> Palette.green to Palette.greenDeep; count > 0 -> Palette.gold to Palette.goldDeep; else -> Color(0xFF4A4F72) to Color(0xFF23263F) }
-        Box(
-            Modifier.align(Alignment.BottomEnd).offset(8.dp, 6.dp)
-                .background(Brush.verticalGradient(listOf(b1.lighter(0.35f), b1, b2)), RoundedCornerShape(10.dp))
-                .border(2.dp, Color.White, RoundedCornerShape(10.dp))
-                .padding(horizontal = 6.dp, vertical = 1.dp),
-        ) { Text(badge, fontFamily = ArcadeFont, fontSize = 13.sp, color = if (count > 0 && !free) Color(0xFF5A2E00) else Color.White) }
+        if (!tagBelow) BoosterBadge(badge, free, count, Modifier.align(Alignment.BottomEnd).offset(8.dp, 6.dp))
+    }
+    if (tagBelow) {
+        Text(b.title, fontSize = 11.sp, color = Palette.cream, fontWeight = Heavy, maxLines = 2, lineHeight = 12.sp,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(top = 8.dp).width(size + 30.dp))
+        BoosterBadge(badge, free, count, Modifier.padding(top = 3.dp))
     }
     if (showName) Text(b.title, fontSize = 10.sp, color = if (animated) Look.skin.ink else Palette.cream, fontWeight = Heavy, maxLines = 1, lineHeight = 11.sp, modifier = Modifier.padding(top = 4.dp))
     }
+}
+
+@Composable
+private fun BoosterBadge(badge: String, free: Boolean, count: Int, modifier: Modifier) {
+    val (b1, b2) = when { free -> Palette.green to Palette.greenDeep; count > 0 -> Palette.gold to Palette.goldDeep; else -> Color(0xFF4A4F72) to Color(0xFF23263F) }
+    Box(
+        modifier
+            .background(Brush.verticalGradient(listOf(b1.lighter(0.35f), b1, b2)), RoundedCornerShape(10.dp))
+            .border(2.dp, Color.White, RoundedCornerShape(10.dp))
+            .padding(horizontal = 6.dp, vertical = 1.dp),
+    ) { Text(badge, fontFamily = ArcadeFont, fontSize = 13.sp, color = if (count > 0 && !free) Color(0xFF5A2E00) else Color.White) }
 }
 
 // ---------------------------------------------------------------- intro card

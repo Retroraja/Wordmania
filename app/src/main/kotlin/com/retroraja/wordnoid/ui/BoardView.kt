@@ -107,9 +107,12 @@ fun BoardView(c: GameController, cell: Dp, modifier: Modifier = Modifier) {
         val sand = c.level.chests.flatten().toSet()
         val dug = c.game.dug
         val found = c.game.chestsFound.flatMap { c.level.chests[it] }.toSet()
+        val treasure = c.treasureGlow
         for (p in board.positions()) {
             val color = when {
                 p in found -> Color(0xFFFFE9A8)
+                // Treasure Finder (Update 1.3): the buried treasure's tiles glow until they are dug out with words.
+                p in treasure -> Color(0xFFFFD54F).copy(alpha = 0.6f + 0.4f * pulse)
                 p in dug -> Color(0xFFF7DFA0)
                 p in sand -> Color(0xFFE2B866)
                 else -> Color(0x33000000)
@@ -134,7 +137,9 @@ fun BoardView(c: GameController, cell: Dp, modifier: Modifier = Modifier) {
                 val pos = remember { Animatable(Offset(target.x, target.y - tile.dropFrom * cellPx - (if (tile.dropFrom > 0) cellPx * 0.6f else 0f) - (if (tile.id < 1000) (board.rows - p.row) * cellPx * 1.2f else 0f)), Offset.VectorConverter) }
                 LaunchedEffect(target) {
                     val falling = pos.value.y < target.y - 1f && abs(pos.value.x - target.x) < 1f
-                    if (falling) pos.animateTo(target, spring(dampingRatio = 0.55f, stiffness = 380f))
+                    // Tiko friends fall slower, with a soft bounce, so you can watch them (Update 1.3).
+                    if (falling && tile.isBuddy) pos.animateTo(target, spring(dampingRatio = 0.4f, stiffness = 60f))
+                    else if (falling) pos.animateTo(target, spring(dampingRatio = 0.55f, stiffness = 380f))
                     else pos.animateTo(target, tween(190))
                 }
                 val popIndex = c.popping.indexOf(tile.id)
@@ -157,7 +162,9 @@ fun BoardView(c: GameController, cell: Dp, modifier: Modifier = Modifier) {
                     // Hint: the two tiles pulse gold (the soft auto hint glows gently).
                     inHint -> Palette.gold.copy(alpha = if (c.autoHint) 0.25f + 0.35f * pulse else 0.5f + 0.5f * pulse)
                     tile.id in c.themeGlow -> Palette.gold.copy(alpha = 0.5f + 0.5f * pulse)
-                    inScan -> Palette.cyan.copy(alpha = 0.4f + 0.6f * pulse)
+                    inScan -> Color(0xFF3FE8FF).copy(alpha = 0.65f + 0.35f * pulse)
+                    p in treasure -> Color(0xFFFFC93C).copy(alpha = 0.55f + 0.45f * pulse)
+                    tile.id in c.rainFlash -> Color.White.copy(alpha = 0.6f + 0.4f * pulse)
                     else -> null
                 }
                 val dim = armed != null && (if (armed.aim == Aim.TWO_TILES) !aimable(armed.aim, tile) else p !in c.aimTargets)
@@ -166,9 +173,9 @@ fun BoardView(c: GameController, cell: Dp, modifier: Modifier = Modifier) {
                     Modifier
                         .offset { IntOffset(pos.value.x.roundToInt(), pos.value.y.roundToInt()) }
                         .graphicsLayer {
-                            val s = 1f + 0.22f * lift + 0.1f * sel + (if (inTut) 0.06f * pulse else 0f)
+                            val s = 1f + 0.22f * lift + 0.1f * sel + (if (inTut) 0.06f * pulse else 0f) + (if (inScan) 0.08f + 0.05f * pulse else 0f)
                             scaleX = s; scaleY = s
-                            translationY = -cellPx * 0.18f * lift - cellPx * 0.06f * sel
+                            translationY = -cellPx * 0.18f * lift - cellPx * 0.06f * sel - (if (inScan) cellPx * 0.08f else 0f)
                             rotationX = if (lifted) flip.value else 0f
                             rotationY = if (!lifted && flipping) flip.value else 0f
                             rotationZ = if (inHint && !c.autoHint) wiggle else 0f
@@ -178,6 +185,48 @@ fun BoardView(c: GameController, cell: Dp, modifier: Modifier = Modifier) {
                     glow = glow,
                     dim = dim,
                 )
+            }
+        }
+        // Treasure Finder: a sparkle and a gem on each glowing tile, so it's clear where to dig.
+        for (p in treasure) {
+            val bob = 1f + 0.18f * pulse
+            Text(
+                "💎", Modifier.offset { IntOffset(((p.col + 0.58f) * cellPx).roundToInt(), ((p.row - 0.05f) * cellPx).roundToInt()) }
+                    .graphicsLayer { scaleX = bob; scaleY = bob },
+                style = TextStyle(fontSize = (cell.value * 0.3f).sp),
+            )
+        }
+        // Word Scanner (Update 1.3): a wide glowing beam sweeps slowly across the board.
+        val beam = remember { Animatable(-1f) }
+        LaunchedEffect(c.scanBeamKey) {
+            if (c.scanBeamKey > 0) { beam.snapTo(0f); beam.animateTo(1f, tween(1500, easing = LinearEasing)); beam.snapTo(-1f) }
+        }
+        if (beam.value >= 0f) {
+            val bw = cellPx * 1.6f
+            val bx = -bw + beam.value * (board.cols * cellPx + bw)
+            Box(
+                Modifier.offset { IntOffset(bx.roundToInt(), 0) }
+                    .size(with(density) { bw.toDp() }, cell * board.rows)
+                    .background(Brush.horizontalGradient(listOf(Color.Transparent, Color(0x663FE8FF), Color(0xEEFFFFFF), Color(0x663FE8FF), Color.Transparent))),
+            )
+        }
+        // Vowel Rain (Update 1.3): big vowels fall from the sky and land on the tiles they replace.
+        c.rainDrops?.let { drops ->
+            for ((i, d) in drops.withIndex()) key(c.rainKey, i) {
+                val fall = remember { Animatable(0f) }
+                LaunchedEffect(Unit) { kotlinx.coroutines.delay(i * 140L); fall.animateTo(1f, tween(650, easing = androidx.compose.animation.core.FastOutLinearInEasing)) }
+                val (p, ch) = d
+                val y = (p.row - (1f - fall.value) * (p.row + 2.5f)) * cellPx
+                val a = if (fall.value <= 0f) 0f else 1f
+                Box(
+                    Modifier.offset { IntOffset((p.col * cellPx).roundToInt(), y.roundToInt()) }.size(cell)
+                        .graphicsLayer { alpha = a; val k = 1.25f - 0.25f * fall.value; scaleX = k; scaleY = k }
+                        .background(Brush.radialGradient(listOf(Color(0xCC7FDBFF), Color(0x003FA9FF))), androidx.compose.foundation.shape.CircleShape),
+                    contentAlignment = androidx.compose.ui.Alignment.Center,
+                ) {
+                    Text(ch.toString(), color = Color.White, fontFamily = ArcadeFont,
+                        style = TextStyle(fontSize = (cell.value * 0.55f).sp, shadow = androidx.compose.ui.graphics.Shadow(Color(0xFF0D47A1), Offset(0f, 4f), 6f)))
+                }
             }
         }
         // The "🔓 Unlock" bubble over a tapped locked letter. Tapping it unlocks; tapping anywhere else closes it.

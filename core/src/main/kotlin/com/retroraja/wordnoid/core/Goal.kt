@@ -119,9 +119,9 @@ sealed class Objective {
 
     data class Twins(override val count: Int) : Objective() {
         override fun progress(s: Stats) = s.twins
-        override val label get() = "x2 tiles"
-        override val icon get() = "✖️"
-        override val text get() = "Use $count x2 tiles in words (each word counts twice)"
+        override val label get() = "Double tiles"
+        override val icon get() = "2️⃣"
+        override val text get() = if (count == 1) "Use 1 double tile (pink x2 tile) in a word" else "Use $count double tiles (pink x2 tiles) in words"
     }
 
     data class Mystery(override val count: Int) : Objective() {
@@ -156,7 +156,7 @@ enum class Feature(val title: String, val text: String) {
     BOSS("Boss level", "The villain fights back! Every few moves it freezes a tile or drops a crate. Each word you make hits it."),
     RESCUE("Tiko friends", "Little Tiko friends are stuck! Use the letters under them in words so they drop down. When they reach the bottom, they're free."),
     BALLOONS("Balloons", "Make a word right next to a balloon (above, below or beside) to pop it."),
-    TWIN("x2 tiles", "A word that uses a x2 tile counts twice for your goals. Look for the shiny x2 badge!"),
+    TWIN("Double tiles", "Pink tiles with a x2 badge are double tiles. Use one in a word: that word counts twice for your goals!"),
     MYSTERY("Mystery tiles", "A ? tile hides a letter. Make a word right beside it to reveal the letter, then use it!"),
     TREASURE("Hidden treasure", "A treasure chest is hidden under the sandy tiles. Use those tiles in words to dig it out. Treasure Finder digs it out at once!"),
 }

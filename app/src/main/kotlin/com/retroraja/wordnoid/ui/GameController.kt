@@ -101,6 +101,15 @@ class GameController(
     /** A locked letter the player tapped: the "🔓 Unlock" bubble shows over it. */
     var unlockAsk by mutableStateOf<Pos?>(null); private set
     var scan by mutableStateOf<Set<Pos>>(emptySet()); private set
+    /** Word Scanner beam sweep (Update 1.3). */
+    var scanBeamKey by mutableIntStateOf(0); private set
+    /** Treasure Finder: tiles over the buried treasure that still need digging (Update 1.3). */
+    var treasureGlow by mutableStateOf<Set<Pos>>(emptySet()); private set
+    /** Vowel Rain: the letters falling now and where they land (Update 1.3). */
+    var rainDrops by mutableStateOf<List<Pair<Pos, Char>>?>(null); private set
+    var rainKey by mutableIntStateOf(0); private set
+    /** Tiles that flash white after a raindrop letter landed on them. */
+    val rainFlash = mutableStateListOf<Long>()
     var armed by mutableStateOf<Booster?>(null); private set
     /** Tiles where the armed booster really works (the others are dimmed). */
     var aimTargets by mutableStateOf<Set<Pos>>(emptySet()); private set
@@ -216,8 +225,21 @@ class GameController(
                 scope.launch { delay(4200); if (glowBooster in gifts) glowBooster = null }
             }
             startTutorial()
+            twinTip()
             armIdleHint()
         }
+    }
+
+    /** First try of a "double tiles" goal (Update 1.3): the pink x2 tiles glow and Tiko says what to do. */
+    private suspend fun twinTip() {
+        if (level.targets.none { it is Objective.Twins } || progress.seen("twin_tip")) return
+        progress.markSeen("twin_tip")
+        val ids = board.tiles().filter { it.isTwin }.map { it.id }
+        delay(600)
+        glowing.addAll(ids)
+        say("Goal: use the pink x2 tiles in words. Each one counts twice! 2️⃣", 5000)
+        delay(5000)
+        glowing.removeAll(ids)
     }
 
     /** A pre-level booster that only adds moves (+3 Moves, Free Move). Tile boosters never run by themselves. */
@@ -586,11 +608,17 @@ class GameController(
                 Daily.report(progress, Daily.Kind.BOOSTERS)
             }
             Booster.SCANNER -> {
+                // Update 1.3: a slow glowing beam with a sound, then the word tiles lift and glow until the next move.
                 val cells = game.scan()
                 consume(b)
-                fx = BoosterFx(b, emptyList(), ++keys)
+                scanBeamKey++
                 sounds.play("whoosh")
-                scope.launch { delay(700); scan = cells; delay(6000); scan = emptySet() }
+                scope.launch {
+                    delay(700); sounds.play("hum")
+                    delay(800); scan = cells; sounds.play("ding")
+                    say(if (cells.isEmpty()) "🔍 No words to find right now. Try 🔀 Shuffle!"
+                        else "🔍 Found ${cells.size} word tiles! Swap a glowing tile with its neighbour to make a word.", 5200)
+                }
                 if (tutorial?.booster == b) tutorial = null
                 Daily.report(progress, Daily.Kind.BOOSTERS)
             }
@@ -621,11 +649,20 @@ class GameController(
                 Booster.LETTER_RAIN, Booster.VOWEL_FLIP -> pre?.changedBoard?.let { nb -> nb.positions().filter { nb[it].letter != before[it].letter } } ?: emptyList()
                 else -> emptyList()
             }
-            if (fx3) Fx.call("booster", fxBoard(Fx.obj("k" to b.name, "cells" to fxCells(cells))).also { o -> a?.let { Fx.at(cellCenter(it), o) } })
-            else fx = BoosterFx(b, cells, ++keys)
-            sounds.play(boosterSound(b))
-            haptics.tap()
-            delay(boosterLead(b))
+            if (rain && pre != null) {
+                // Big letters fall and land on the tiles they change, then those tiles flash (Update 1.3).
+                rainDrops = cells.map { it to pre.changedBoard[it].letter }
+                rainKey++
+                sounds.play(boosterSound(b))
+                haptics.tap()
+                delay(650L + cells.size * 140L)
+            } else {
+                if (fx3) Fx.call("booster", fxBoard(Fx.obj("k" to b.name, "cells" to fxCells(cells))).also { o -> a?.let { Fx.at(cellCenter(it), o) } })
+                else fx = BoosterFx(b, cells, ++keys)
+                sounds.play(boosterSound(b))
+                haptics.tap()
+                delay(boosterLead(b))
+            }
             val r = if (rain) pre else game.useBooster(b, a, second, letter)
             if (r == null) {
                 sounds.play("nope")
@@ -633,7 +670,7 @@ class GameController(
                     when (b) {
                         Booster.SPIN, Booster.ROW_SLIDE, Booster.COLUMN_SLIDE -> "No word can be made there, so your ${b.title} is kept. Try another spot!"
                         Booster.HAMMER -> "The Hammer can't smash gold tiles or Tiko friends. Gold is collected with words!"
-                        Booster.TREASURE_FINDER -> "No treasure left to find!"
+                        Booster.TREASURE_FINDER -> "Every treasure is already showing. Dig the glowing tiles with words!"
                         else -> "Can't use ${b.title} there"
                     }, 2600,
                 )
@@ -651,8 +688,18 @@ class GameController(
                 Booster.UNDO -> { wobbleKey++ }
                 Booster.SHUFFLE -> { flipping.addAll(board.tiles().map { it.id }) }
                 Booster.JOKER, Booster.PAINT, Booster.DICE, Booster.LOCK -> a?.let { flipping.add(before[it].id) }
-                Booster.LETTER_RAIN, Booster.VOWEL_FLIP -> flipping.addAll(r.changedBoard.positions().filter { r.changedBoard[it].letter != before[it].letter }.map { before[it].id })
-                Booster.TREASURE_FINDER -> for (i in r.chestsFound) treasureFound(i)
+                Booster.LETTER_RAIN, Booster.VOWEL_FLIP -> {
+                    val ids = r.changedBoard.positions().filter { r.changedBoard[it].letter != before[it].letter }.map { before[it].id }
+                    rainDrops = null
+                    sounds.play("pop")
+                    rainFlash.clear(); rainFlash.addAll(ids)
+                    scope.launch { delay(1600); rainFlash.removeAll(ids) }
+                    say("${b.emoji} ${ids.size} new letters landed! The flashing tiles changed.", 2600)
+                }
+                Booster.TREASURE_FINDER -> {
+                    treasureGlow = game.treasureGlow
+                    say("🗺️ Treasure found under the glowing 💎 tiles! Use them in words to dig it out.", 4200)
+                }
                 else -> {}
             }
             if (b == Booster.LOCK && a != null) {
@@ -700,6 +747,7 @@ class GameController(
     // ---------------------------------------------------------------- playing out a move
 
     private fun sync() {
+        treasureGlow = game.treasureGlow
         movesLeft = game.movesLeft
         stats = game.stats
         score = game.score
@@ -722,7 +770,7 @@ class GameController(
                 particles.sparkle(center(), Palette.green, 20)
             }
         }
-        if (booster != Booster.TREASURE_FINDER) for (i in r.chestsFound) treasureFound(i)
+        for (i in r.chestsFound) treasureFound(i)
         sync()
         r.bossAttack?.let { atk ->
             bossAttackKey++

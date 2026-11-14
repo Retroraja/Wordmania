@@ -49,7 +49,7 @@ enum class Booster(
     ROW_SLIDE("Row Slide", "↔️", 120, 28, Aim.ROW, false, "Rearranges a row's letters to spell a word"),
     COLUMN_SLIDE("Column Slide", "↕️", 120, 28, Aim.COLUMN, false, "Rearranges a column's letters to spell a word"),
     SPIN("Spin", "🌀", 100, 31, Aim.SQUARE, false, "Turns 4 tiles until they make a word"),
-    TREASURE_FINDER("Treasure Finder", "🗺️", 150, 32, Aim.NONE, true, "Finds the hidden treasure and digs it out at once"),
+    TREASURE_FINDER("Treasure Finder", "🗺️", 150, 32, Aim.NONE, true, "Shows where the next treasure is buried. Clear those glowing tiles with words to dig it out"),
     // Saved as VOWEL_FLIP (old name) so old saves keep their boosters.
     VOWEL_FLIP("Vowel Rain", "💧", 100, 34, Aim.NONE, false, "Rains 4-5 vowels onto the board"),
     AXE("Axe", "🪓", 100, 37, Aim.OBSTACLE, false, "Breaks a crate, chain or ice, or pops a balloon, in one chop"),
