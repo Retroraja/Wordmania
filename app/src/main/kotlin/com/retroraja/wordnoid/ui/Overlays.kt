@@ -284,7 +284,7 @@ fun BuyDialog(b: Booster, progress: Progress, onBuy: () -> Unit, onClose: () -> 
             if (price < b.price) Text("Booster of the day: half price!", color = Palette.green, fontSize = 13.sp, fontWeight = Heavy)
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                ArcadeButton("Buy 🪙$price", enabled = progress.coins >= price, onClick = onBuy)
+                ArcadeButton(if (progress.boosterFull(b)) "Max ${Progress.MAX_BOOSTER}" else "Buy 🪙$price", enabled = progress.coins >= price && !progress.boosterFull(b), onClick = onBuy)
                 ArcadeButton("Close", color = Palette.slate, onClick = onClose)
             }
             Text("You have 🪙${progress.coins}", color = Palette.cream, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
@@ -440,7 +440,6 @@ fun WatchButton(text: String, spot: Ads.Spot, activity: Activity, onReward: () -
 
 @Composable
 fun WinDialog(c: GameController, activity: Activity, onNext: () -> Unit, onTown: () -> Unit) {
-    var doubled by remember { mutableStateOf(false) }
     val sounds = c.sounds
     val pop = remember { Animatable(0.7f) }
     LaunchedEffect(Unit) { pop.animateTo(1f, spring(dampingRatio = 0.55f, stiffness = 320f)) }
@@ -500,11 +499,9 @@ fun WinDialog(c: GameController, activity: Activity, onNext: () -> Unit, onTown:
                 @Suppress("UNUSED_VARIABLE") val v = c.progress.version
                 if (canBuildNow(c.progress)) BuildReadyButton { sounds.play("pop"); onTown() }
                 else ArcadeButton("🏠 Town", color = Palette.slate, textSize = 20.sp, onClick = { sounds.play("pop"); onTown() })
-                if (!doubled) WatchButton("▶ Watch ad: x2 coins", Ads.Spot.DOUBLE_WIN_COINS, activity) { c.doubleWinCoins(); doubled = true }
                 if (!last) ArcadeButton("Next ▶", textSize = 26.sp, modifier = Modifier.scale(glow), onClick = { sounds.play("pop"); onNext() })
             }
         }
-        Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp)) { Ads.Banner(Modifier.width(320.dp)) }
         c.chestPrize?.let { p -> ChestOpenOverlay(p, sounds) { c.chestCollected() } }
     }
 }
@@ -544,13 +541,10 @@ fun LoseDialog(c: GameController, activity: Activity, onRetry: () -> Unit, onMap
                 "➕5 MOVES and finish it!", Modifier.scale(glow).background(Palette.green, RoundedCornerShape(10.dp)).padding(horizontal = 12.dp, vertical = 3.dp),
                 color = Color.White, fontSize = 18.sp, fontWeight = Heavy,
             )
-            if (c.progress.streak > 0 && !c.streakKept) {
+            if (c.progress.streak > 0) {
                 Spacer(Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("🔥 Don't lose your ${c.progress.streak}-win streak!", color = Color(0xFFFFB74D), fontSize = 14.sp, fontWeight = Heavy)
-                    if (c.progress.streakSaveReady) WatchButton("Keep streak", Ads.Spot.KEEP_STREAK, activity) { c.keepStreak() }
-                }
-            } else if (c.streakKept) Text("🔥 Streak kept!", color = Color(0xFFFFB74D), fontSize = 14.sp, fontWeight = Heavy)
+                Text("🔥 Finish it to keep your ${c.progress.streak}-win streak!", color = Color(0xFFFFB74D), fontSize = 14.sp, fontWeight = Heavy)
+            }
             Spacer(Modifier.height(6.dp))
             if (c.level.boss) {
                 // Boss levels: one simple choice, +5 moves (coins or a video) or try again.
@@ -588,9 +582,6 @@ fun LoseDialog(c: GameController, activity: Activity, onRetry: () -> Unit, onMap
                     ArcadeButton("Try again", color = Color(0xFFE5533D), textSize = 16.sp, onClick = onRetry)
                     ArcadeButton("Level Map", color = Palette.slate, textSize = 16.sp, onClick = onMap)
                 }
-                // A free Hammer after a fail, for a video.
-                var gotHammer by remember { mutableStateOf(false) }
-                if (!gotHammer) WatchButton("Free 🔨 Hammer for next try", Ads.Spot.FREE_HAMMER, activity) { c.progress.addBooster(Booster.HAMMER); gotHammer = true }
             }
         }
     }
@@ -605,14 +596,12 @@ fun PauseDialog(progress: Progress, c: GameController, activity: Activity, onRes
                 Text(c.level.targets.joinToString("\n") { "${it.icon} ${it.text}: ${minOf(it.count, it.progress(c.stats))}/${it.count}" }, color = Color.White, fontSize = 13.sp, textAlign = TextAlign.Center)
                 SettingsToggles(progress)
                 ArcadeButton("Resume", onClick = onResume)
-                WatchButton("Stuck? Show me words", Ads.Spot.STUCK_HINT, activity) { c.freeHint(); onResume() }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     ArcadeButton("Restart", color = Color(0xFFE5533D), textSize = 16.sp, onClick = onRestart)
                     ArcadeButton("Level Map", color = Palette.slate, textSize = 16.sp, onClick = onMap)
                     ArcadeButton("🏠 Home", color = Palette.slate, textSize = 16.sp, onClick = onHome)
                 }
             }
-            Box(Modifier.padding(start = 10.dp).width(250.dp)) { Ads.Banner(big = true) }
         }
     }
 }

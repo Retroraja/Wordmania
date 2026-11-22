@@ -141,12 +141,18 @@ fun GameScreen(
             c.mysteryCards?.let { MysteryCards(it, sounds, onPicked = { b -> c.mysteryPicked(b) }, onDone = { c.mysteryDone() }) }
             if (c.showWin) WinDialog(
                 c, activity,
-                onNext = { Ads.maybeInterstitial(activity, level.number) { onNext(level.number + 1) } },
-                onTown = { Ads.maybeInterstitial(activity, level.number) { onTown() } },
+                onNext = { Ads.maybeInterstitial(activity, level.number, "win") { onNext(level.number + 1) } },
+                onTown = { Ads.maybeInterstitial(activity, level.number, "win") { onTown() } },
             )
-            if (c.showLose) LoseDialog(c, activity, onRetry = { c.giveUp(); onRestart() }, onMap = { c.giveUp(); onMap() })
+            // Live release: an automatic ad may show after losing or quitting a level (never in levels 1-3, 3+ min apart).
+            if (c.showLose) LoseDialog(c, activity,
+                onRetry = { c.giveUp(); Ads.maybeInterstitial(activity, level.number, "lose") { onRestart() } },
+                onMap = { c.giveUp(); Ads.maybeInterstitial(activity, level.number, "lose") { onMap() } })
             // Leaving a level that isn't won breaks the win streak.
-            if (paused) PauseDialog(progress, c, activity, onResume = { paused = false }, onRestart = { c.quit(); onRestart() }, onMap = { c.quit(); onMap() }, onHome = { c.quit(); onTown() })
+            if (paused) PauseDialog(progress, c, activity, onResume = { paused = false },
+                onRestart = { c.quit(); paused = false; Ads.maybeInterstitial(activity, level.number, "quit") { onRestart() } },
+                onMap = { c.quit(); paused = false; Ads.maybeInterstitial(activity, level.number, "quit") { onMap() } },
+                onHome = { c.quit(); paused = false; Ads.maybeInterstitial(activity, level.number, "quit") { onTown() } })
             if (c.bigWin) BigWin(c, sounds, onDone = { if (c.autoTown) onAutoTown(c.coinsThisLevel, c.winStars) else c.bigWinDone() })
             if (intro != null) IntroCard(intro, onGo = { intros.removeAt(0); if (intros.isEmpty() && help == null) c.begin() })
             else help?.let { b -> BoosterHelpCard(b, onTry = { help = null; c.begin() }) }

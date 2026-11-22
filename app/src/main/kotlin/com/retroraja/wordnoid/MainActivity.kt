@@ -4,9 +4,10 @@ import android.os.Bundle
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
+import androidx.core.view.ViewCompat
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.platform.ComposeView
-import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
@@ -44,13 +45,27 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        WindowCompat.setDecorFitsSystemWindows(window, false)
+    /** Full screen: the status and navigation bars stay hidden (a swipe shows them for a moment). */
+    private fun hideBars() {
         WindowInsetsControllerCompat(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.systemBars())
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        // Ads and system windows can bring the bars back: hide them again.
+        if (hasFocus) hideBars()
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        // Android 15 (SDK 35) edge-to-edge: the game draws behind the bars and the camera cutout,
+        // and keeps its buttons clear of them with the insets padding below.
+        enableEdgeToEdge()
+        super.onCreate(savedInstanceState)
+        com.retroraja.wordnoid.data.Analytics.start(this)
+        hideBars()
         // The app (Compose) and the 3D layer share one frame. The 3D layer sits on top for effects,
         // or underneath for full-screen scenes (town, intro, wheel...) shown through see-through screens.
         val root = FrameLayout(this).apply { setBackgroundColor(android.graphics.Color.BLACK) }
@@ -58,6 +73,13 @@ class MainActivity : ComponentActivity() {
         val web = FxWebView(this)
         root.addView(compose, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         root.addView(web, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+        // Keep the game out of the camera cutout and any visible system bar (hidden bars give 0, so it stays full screen).
+        // The black frame fills the area behind them.
+        ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
+            val i = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+            v.setPadding(i.left, i.top, i.right, i.bottom)
+            WindowInsetsCompat.CONSUMED
+        }
         setContentView(root)
         runCatching { Fx.attach(web) }
         checkForUpdate()

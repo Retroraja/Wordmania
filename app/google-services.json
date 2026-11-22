@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "961433360813",
+    "project_id": "wordnoid",
+    "storage_bucket": "wordnoid.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:961433360813:android:de897a4872781d4d722924",
+        "android_client_info": {
+          "package_name": "com.retroraja.wordnoid"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBEFHPtz9qqd_oB2bNxh4Au8l0BQBtVvfg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

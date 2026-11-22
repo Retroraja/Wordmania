@@ -735,10 +735,9 @@ SCENES.gift=function(w,o){const scene=w.scene,cam=w.cam;document.body.style.back
   for(const s of[-1,1]){const bw=new THREE.Mesh(new THREE.TorusGeometry(.3,.1,10,20),gold);bw.position.set(s*.3,.45,0);bw.rotation.y=Math.PI/2;bw.rotation.x=s*.5;lid.add(bw)}const k=new THREE.Mesh(new THREE.SphereGeometry(.14,12,10),gold);k.position.y=.35;lid.add(k);
   lid.position.y=1.6;scene.add(rich(lid));if(opened)lid.visible=false;tiko=makeTiko();tiko.scale.setScalar(1.2);tiko.position.set(2.4,0,.6);tiko.rotation.y=-.5;scene.add(tiko);
   function open(d){if(opened)return;opened=true;const Bx=box,L=lid;[0,1].forEach(i=>wait(i*.25,()=>{snd('clack');tween(.3,(e,k2)=>{const a=Math.sin(k2*Math.PI*6)*(.05+i*.04);Bx.rotation.z=a;L.rotation.z=a;const s=1+Math.sin(k2*Math.PI)*.06*(i+1);Bx.scale.set(s,1/s,s)},{ease:E.lin})}));
-    wait(.6,()=>{sfx.blast();sfx.fanfare();shake=.06;addPart(lid,scene,{v:v3(1.5,7,1.5),av:v3(3,5,6),g:9,life:2.5});lid=null;
-      beam=new THREE.Mesh(new THREE.CylinderGeometry(1.2,.75,5,32,1,true),new THREE.MeshBasicMaterial({color:'#fff2a0',transparent:true,opacity:0,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,depthWrite:false}));beam.position.y=3.9;scene.add(beam);
-      tween(.3,e=>beam.material.opacity=.22*e);const gl=sprite(glowTex,0xffe080,2.2);gl.material.opacity=.6;gl.position.y=1.8;scene.add(gl);extras.push(gl);confettiAt(v3(0,1.6,.5),50,1.5);cheer=T;
-      wait(.9,()=>{const b0=beam;tween(.5,e=>{if(b0)b0.material.opacity=.22*(1-e);gl.material.opacity=.6*(1-e)})});
+    wait(.6,()=>{sfx.blast();sfx.fanfare();addPart(lid,scene,{v:v3(1.5,7,1.5),av:v3(3,5,6),g:9,life:2.5});lid=null;
+      // Live release: no bright light beam, glow or shake (they washed the screen out); a little confetti only.
+      confettiAt(v3(0,1.6,.5),30,1.2);cheer=T;
       const stack=new THREE.Group();for(let i=0;i<5;i++){const c=coinMesh();c.children[0].rotation.x=Math.PI/2;c.position.y=i*.08;stack.add(c)}stack.position.set(-.45,1.3,0);scene.add(stack);extras.push(stack);
       const card=mkCard(cardTex(d.emoji||'🎁',d.name||'Gift',false));card.position.set(.5,1.3,0);card.scale.setScalar(.6);scene.add(card);extras.push(card);
       tween(.7,(e,k2)=>{stack.position.y=1.3+e*1.6;card.position.y=1.3+e*2.0;card.rotation.y=k2*Math.PI*2;stack.rotation.y=k2*4},{ease:E.outBack});

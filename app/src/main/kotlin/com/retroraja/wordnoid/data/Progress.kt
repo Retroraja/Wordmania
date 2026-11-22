@@ -57,17 +57,34 @@ class Progress(context: Context) {
         if (from >= SAVE_VERSION) return
         val e = prefs.edit()
         if (from < 3) upgradeTo11(e)
-        if (from >= 2) { e.putInt("save_version", SAVE_VERSION).apply(); return }
         val oldLevels = mapOf(Booster.FREE_MOVE to 49, Booster.DOUBLE to 52, Booster.LETTER_RAIN to 55)
-        if (prefs.contains("unlocked")) for ((b, old) in oldLevels) {
+        if (from < 2 && prefs.contains("unlocked")) for ((b, old) in oldLevels) {
             if (unlocked > b.introLevel && unlocked <= old) {
                 boosters[b] = count(b) + 1
                 e.putInt("b_${b.name}", count(b))
                 e.putBoolean("seen_intro_b_${b.name}", true)
             }
         }
+        if (from < 4) capBoosters(e)
         e.putInt("save_version", SAVE_VERSION).apply()
     }
+
+    /**
+     * First live release save upgrade (runs once): boosters are capped at [MAX_BOOSTER] of each.
+     * Extras are turned into coins ([Rewards.BOOSTER_COINS] each), so nothing is lost. Shown once on a welcome card.
+     */
+    private fun capBoosters(e: android.content.SharedPreferences.Editor) {
+        var extra = 0
+        for (b in Booster.entries) {
+            val n = count(b)
+            if (n > MAX_BOOSTER) { extra += n - MAX_BOOSTER; boosters[b] = MAX_BOOSTER; e.putInt("b_${b.name}", MAX_BOOSTER) }
+        }
+        if (extra > 0) { coins += extra * Rewards.BOOSTER_COINS; e.putInt("coins", coins); e.putInt("upgrade_cap_coins", extra * Rewards.BOOSTER_COINS) }
+    }
+
+    /** Coins paid by the booster-cap save upgrade (shown once), 0 if none. */
+    val capUpgradeCoins: Int get() = prefs.getInt("upgrade_cap_coins", 0)
+    fun clearCapUpgradeCoins() { prefs.edit().remove("upgrade_cap_coins").apply() }
 
     /**
      * Update 1.1 save upgrade (runs once, for every player wherever they are).
@@ -136,7 +153,7 @@ class Progress(context: Context) {
     fun levelWon(level: Int, bricks: Int) {
         val e = prefs.edit()
         if (bricks > bricks(level)) e.putInt("stars_$level", bricks)
-        if (level + 1 > unlocked) { unlocked = level + 1; e.putInt("unlocked", unlocked) }
+        if (level + 1 > unlocked) { unlocked = level + 1; e.putInt("unlocked", unlocked); Analytics.setLevel(unlocked) }
         e.putInt("fails_$level", 0)
         e.putInt("levels_since_ad", prefs.getInt("levels_since_ad", 0) + 1)
         e.apply()
@@ -178,9 +195,21 @@ class Progress(context: Context) {
 
     fun count(b: Booster): Int = boosters[b] ?: 0
 
-    fun addBooster(b: Booster, n: Int = 1) {
-        boosters[b] = count(b) + n
-        prefs.edit().putInt("b_${b.name}", count(b)).apply()
+    /** True when the player already has the most of [b] allowed ([MAX_BOOSTER]). */
+    fun boosterFull(b: Booster): Boolean = count(b) >= MAX_BOOSTER
+
+    /**
+     * Adds boosters, up to [MAX_BOOSTER] of each. Any extra is turned into coins ([Rewards.BOOSTER_COINS] each).
+     * Returns the coins given for extras (0 when all fit).
+     */
+    fun addBooster(b: Booster, n: Int = 1): Int {
+        val total = count(b) + n
+        val keep = minOf(total, maxOf(MAX_BOOSTER, count(b)))
+        val extra = total - keep
+        boosters[b] = keep
+        prefs.edit().putInt("b_${b.name}", keep).apply()
+        if (extra > 0) addCoins(extra * Rewards.BOOSTER_COINS)
+        return extra * Rewards.BOOSTER_COINS
     }
 
     /** Uses one booster (free use first, then owned). False if none. */
@@ -297,6 +326,8 @@ class Progress(context: Context) {
         return prefs.getInt("daily_count", 0) % 7 + 1
     }
     val dailyStreakDay: Int get() = prefs.getInt("daily_count", 0) % 7
+    /** The calendar day (1-7) the player is on: today's gift to open, or the one already opened today. */
+    val dailyShownDay: Int get() = dailyGiftDay().takeIf { it > 0 } ?: ((prefs.getInt("daily_count", 1) - 1).coerceAtLeast(0) % 7 + 1)
 
     fun claimDaily() {
         prefs.edit().putLong("daily_last", today()).putInt("daily_count", prefs.getInt("daily_count", 0) + 1).apply()
@@ -360,7 +391,9 @@ class Progress(context: Context) {
     companion object {
         const val BRICK_TRADE_COINS = 20
         const val STARTING_COINS = 200
-        const val SAVE_VERSION = 3
+        const val SAVE_VERSION = 4
+        /** First live release: at most this many of each booster (extras become coins). */
+        const val MAX_BOOSTER = 3
         const val CHEST_SLOTS = 5
         /** Continue after running out of moves. */
         const val CONTINUE_PRICE = 300

@@ -201,6 +201,7 @@ class GameController(
 
     /** Called once the intro card is closed. */
     fun begin() {
+        com.retroraja.wordnoid.data.Analytics.levelStart(level.number, level.boss)
         // Free first use of the boosters this level teaches.
         for (b in level.introBoosters) if (!progress.seen("intro_b_${b.name}")) {
             progress.markSeen("intro_b_${b.name}")
@@ -543,6 +544,7 @@ class GameController(
     fun buy(b: Booster) {
         buyAsk = null
         val price = Rewards.price(b, progress.unlocked)
+        if (progress.boosterFull(b)) { say("You have ${Progress.MAX_BOOSTER} ${b.title} already. Use one first!"); return }
         if (progress.spend(price)) {
             progress.addBooster(b)
             sounds.play("cash")
@@ -635,6 +637,7 @@ class GameController(
     }
 
     private fun consume(b: Booster) {
+        com.retroraja.wordnoid.data.Analytics.booster(b.name, level.number)
         // A free one for this level: nothing is taken from the bag.
         if (levelFree.remove(b)) { if (b == Booster.SHUFFLE) stuckShuffle = false; return }
         val wasFree = progress.hasFreeUse(b)
@@ -993,6 +996,7 @@ class GameController(
 
     private suspend fun win(r: MoveResult) {
         idleJob?.cancel()
+        com.retroraja.wordnoid.data.Analytics.levelWin(level.number, game.stars(), game.movesLeft)
         val auto = level.number <= AUTO_TOWN_LEVELS && progress.bricks(level.number) == 0
         tutorial = null
         hintWords = emptyList()
@@ -1073,6 +1077,7 @@ class GameController(
     }
 
     private suspend fun lose() {
+        com.retroraja.wordnoid.data.Analytics.levelLose(level.number, progress.fails(level.number))
         idleJob?.cancel()
         delay(500)
         sounds.play("lose")
@@ -1093,13 +1098,14 @@ class GameController(
     fun continueForCoins(): Boolean {
         val moves = if (level.boss) 5 else Progress.continueMoves(progress.fails(level.number))
         if (!progress.spend(Progress.CONTINUE_PRICE)) { sounds.play("nope"); return false }
+        com.retroraja.wordnoid.data.Analytics.continued(level.number, "coins")
         sounds.play("cash")
         addMoves(moves)
         return true
     }
 
     /** Continue after a rewarded video: +5 moves. */
-    fun continueForAd() { addMoves(5) }
+    fun continueForAd() { com.retroraja.wordnoid.data.Analytics.continued(level.number, "video"); addMoves(5) }
 
     private fun addMoves(n: Int) {
         game.continueWith(n)
@@ -1123,7 +1129,10 @@ class GameController(
     }
 
     /** Leaving a level that isn't won (map, home, restart) counts as a loss for the streak. */
-    fun quit() { if (status != GameStatus.WON && !streakKept) progress.streakLost() }
+    fun quit() {
+        if (status != GameStatus.WON) com.retroraja.wordnoid.data.Analytics.levelQuit(level.number)
+        if (status != GameStatus.WON && !streakKept) progress.streakLost()
+    }
 
     /** Lose screen: a video keeps the streak (once a day). The player still has to win or try again. */
     var streakKept by mutableStateOf(false); private set
@@ -1152,7 +1161,8 @@ class GameController(
     }
 
     fun mysteryPicked(b: Booster) {
-        progress.addBooster(b)
+        val extra = progress.addBooster(b)
+        if (extra > 0) scope.launch { delay(900); toast("Max ${Progress.MAX_BOOSTER} ${b.emoji}: +$extra 🪙 instead", center(), Palette.gold, big = true) }
         sounds.play("sparkle")
         lastMystery = b
     }

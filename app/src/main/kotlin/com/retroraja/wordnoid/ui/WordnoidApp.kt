@@ -6,7 +6,16 @@ import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -248,6 +257,16 @@ fun WordnoidApp() {
             }
         }
         if (leaveAsk && screen == Screen.Town) LeaveDialog(onYes = { activity.finish() }, onNo = { leaveAsk = false })
+        // First live release: boosters are now max 3 of each. Players who had more got coins for the extras (told once).
+        var capCoins by remember { mutableIntStateOf(progress.capUpgradeCoins) }
+        if (capCoins > 0 && screen == Screen.Town) DimBox {
+            Column(Modifier.width(420.dp).arcadePanel().padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                ArcadeText("New rule!", 26.sp, Palette.gold)
+                Text("You can keep up to ${Progress.MAX_BOOSTER} of each booster.\nYour extra boosters became coins:", color = Color.White, fontSize = 15.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Text("🪙 +$capCoins", color = Palette.gold, fontSize = 30.sp, fontWeight = Heavy)
+                ArcadeButton("Great!") { progress.clearCapUpgradeCoins(); capCoins = 0 }
+            }
+        }
     }
 
 }

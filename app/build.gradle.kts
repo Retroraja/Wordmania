@@ -2,6 +2,8 @@ plugins {
     id("com.android.application")
     kotlin("android")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("com.google.gms.google-services")
+    id("com.google.firebase.crashlytics")
 }
 
 android {
@@ -14,7 +16,7 @@ android {
         targetSdk = 36
         // Play needs a bigger number for every upload: the CI run number (+100 so it is above all old test builds).
         versionCode = 100 + (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
-        versionName = "1.3.${System.getenv("GITHUB_RUN_NUMBER") ?: "0"}" // Update 1.3
+        versionName = "1.4.${System.getenv("GITHUB_RUN_NUMBER") ?: "0"}" // First live (production) release
     }
 
     signingConfigs {
@@ -45,7 +47,7 @@ android {
             buildConfigField("boolean", "REAL_ADS", "false")
         }
         release {
-            manifestPlaceholders["admobAppId"] = "ca-app-pub-3867331045861180~6000389333"
+            manifestPlaceholders["admobAppId"] = "ca-app-pub-[REDACTED-PAN]~2192058149"
             buildConfigField("boolean", "REAL_ADS", "true")
             isMinifyEnabled = false
             signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
@@ -73,7 +75,7 @@ dependencies {
     implementation("androidx.compose.animation:animation")
     implementation("androidx.compose.material3:material3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
-    // Ads (test ids until the AdMob account exists) and the consent form.
+    // Ads (real ids in the Play bundle, test ids in the test APK) and the consent form.
     implementation("com.google.android.gms:play-services-ads:23.6.0")
     implementation("com.google.android.ump:user-messaging-platform:3.1.0")
     // The ads/consent libraries pull in the old androidx.fragment 1.1.0 (Play Console warning): use a current one.
@@ -82,6 +84,10 @@ dependencies {
     implementation("com.google.android.play:review-ktx:2.0.2")
     // In-game "Update available" (Google Play in-app updates, Update 1.3).
     implementation("com.google.android.play:app-update-ktx:2.1.0")
+    // Firebase Analytics + Crashlytics (first live release).
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+    implementation("com.google.firebase:firebase-analytics")
+    implementation("com.google.firebase:firebase-crashlytics")
     // Friendly daily reminders.
     implementation("androidx.work:work-runtime-ktx:2.10.0")
 }

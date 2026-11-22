@@ -23,7 +23,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import com.retroraja.wordnoid.ads.Ads
 import com.retroraja.wordnoid.audio.SoundFx
 import com.retroraja.wordnoid.data.MiniGames
 import com.retroraja.wordnoid.data.Progress
@@ -50,11 +49,6 @@ fun MiniGamesScreen(progress: Progress, sounds: SoundFx, won: Int, onBack: () ->
                 MiniGames.LAUNCHED.forEach { g -> GameCard(g, progress, sounds, activity, Modifier.weight(1f).fillMaxHeight(), onPlay) }
             }
             Spacer(Modifier.height(6.dp))
-            val adLeft = !progress.miniAdUsed && Ads.spotAvailable(Ads.Spot.MINI_PLAY)
-            Text(
-                "🎬 Extra play: after a free play is used, a short video gives one more play of any game. " + if (adLeft) "1 left today." else "Used today, back tomorrow!",
-                color = Palette.cream, fontSize = 12.sp, textAlign = TextAlign.Center,
-            )
             Text("Coming soon: " + MiniGames.COMING.joinToString(" · "), color = Color(0xFFCFD8FF), fontSize = 11.sp, textAlign = TextAlign.Center)
         }
     }
@@ -91,9 +85,6 @@ private fun GameCard(g: MiniGames.Game, progress: Progress, sounds: SoundFx, act
                 "free" -> ArcadeButton("▶ FREE PLAY", textSize = 15.sp) {
                     sounds.play("pop"); progress.useMiniFree(g.id); progress.markSeen("mg_played_${g.id}"); onPlay(g)
                 }
-                "ad" -> if (Ads.spotAvailable(Ads.Spot.MINI_PLAY)) ArcadeButton("🎬 Video: play", color = Palette.royal, textSize = 14.sp) {
-                    Ads.showRewarded(activity, Ads.Spot.MINI_PLAY, onReward = { note = null; progress.useMiniAd(); progress.markSeen("mg_played_${g.id}"); onPlay(g) }, onFail = { note = it })
-                } else ArcadeButton("Back tomorrow", color = Palette.slate, enabled = false, textSize = 14.sp) {}
                 else -> ArcadeButton("Back tomorrow", color = Palette.slate, enabled = false, textSize = 14.sp) {}
             }
             note?.let { Text(it, color = Palette.red, fontSize = 10.sp) }
@@ -148,12 +139,8 @@ fun MiniPlayScreen(game: MiniGames.Game, progress: Progress, sounds: SoundFx, on
                         runCatching { ctx.assets.open("play_words.txt").use { String(it.readBytes()) } }.getOrDefault("")
                     @JavascriptInterface fun sfx(name: String) { main.post { sounds.play(name) } }
                     @JavascriptInterface fun ad(kind: String) {
-                        main.post {
-                            val spot = if (kind == "hearts") Ads.Spot.MINI_HEARTS else Ads.Spot.MINI_HINT
-                            val reply = { ok: Boolean -> evaluateJavascript("adDone('${if (kind == "hearts") "hearts" else "hint"}',$ok)", null) }
-                            if (!Ads.spotAvailable(spot)) reply(false)
-                            else Ads.showRewarded(activity, spot, onReward = { if (kind != "hearts") progress.useMiniHint(game.id); reply(true) }, onFail = { reply(false) })
-                        }
+                        // Live release: no ads inside mini games.
+                        main.post { evaluateJavascript("adDone('${if (kind == "hearts") "hearts" else "hint"}',false)", null) }
                     }
                     @JavascriptInterface fun finish(coins: Int, score: Int) {
                         main.post {
@@ -162,6 +149,7 @@ fun MiniPlayScreen(game: MiniGames.Game, progress: Progress, sounds: SoundFx, on
                             val n = coins.coerceIn(0, 200)
                             if (n > 0) { progress.addCoins(n); CoinFly.holdCoins(n) }
                             progress.setMiniBest(game.id, score.coerceIn(0, 200))
+                            com.retroraja.wordnoid.data.Analytics.miniGame(game.id, n)
                             done(n)
                         }
                     }

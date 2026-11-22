@@ -42,7 +42,6 @@ object MiniGames {
     /** Can [g] be played now, and how: "free", "ad" (a video gives the play) or null (come back tomorrow). */
     fun howToPlay(p: Progress, g: Game): String? = when {
         !p.miniFreeUsed(g.id) -> "free"
-        !p.miniAdUsed -> "ad"
         else -> null
     }
 

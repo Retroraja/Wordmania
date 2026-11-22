@@ -20,8 +20,8 @@ html,body{margin:0;height:100%;width:100%;overflow:hidden;background:#1a1f5c;col
 .sp{flex:1}
 .pill{display:flex;align-items:center;gap:8px;background:linear-gradient(#3657c9,#24379a);border:3px solid var(--gold);border-radius:50px;padding:4px 16px 4px 5px;font-family:var(--display);font-size:26px;color:#fff}
 .coin{width:30px;height:30px;border-radius:50%;background:radial-gradient(circle at 38% 32%,#fff6b0,#ffc93c 55%,#d18a00);box-shadow:inset 0 0 0 3px #b8730a;display:inline-block;flex:none}
-.say{position:absolute;background:rgba(255,255,255,.97);color:var(--navy);border-radius:18px;padding:10px 18px 12px;font-weight:800;font-size:19px;line-height:1.25;box-shadow:0 10px 25px rgba(10,14,40,.3);max-width:300px;z-index:6;transition:opacity .3s,transform .3s cubic-bezier(.2,1.3,.4,1);transform-origin:left bottom;pointer-events:none}
-.sayx{position:absolute;right:-10px;top:-12px;width:32px;height:32px;border-radius:50%;border:3px solid #fff;background:#e5533d;color:#fff;font-size:15px;font-weight:900;padding:0;line-height:1;box-shadow:0 3px 8px rgba(0,0,0,.3)}
+.say{position:absolute;background:rgba(255,255,255,.97);color:var(--navy);border-radius:18px;padding:10px 18px 12px;font-weight:800;font-size:19px;line-height:1.25;box-shadow:0 10px 25px rgba(10,14,40,.3);max-width:250px;font-size:16px;z-index:6;transition:opacity .3s,transform .3s cubic-bezier(.2,1.3,.4,1);transform-origin:left bottom;pointer-events:none}
+.sayx{pointer-events:auto;cursor:pointer;position:absolute;right:-10px;top:-12px;width:32px;height:32px;border-radius:50%;border:3px solid #fff;background:#e5533d;color:#fff;font-size:15px;font-weight:900;padding:0;line-height:1;box-shadow:0 3px 8px rgba(0,0,0,.3)}
 .overx{position:absolute;right:10px;top:10px;width:40px;height:40px;border-radius:50%;border:3px solid #fff;background:#e5533d;color:#fff;font-size:18px;font-weight:900;padding:0}
 .card{position:relative}
 .say b{display:block;font-family:var(--display);font-weight:400;font-size:14px;letter-spacing:.08em;color:#7b4dff;text-transform:uppercase}
@@ -283,7 +283,7 @@ function lwBind(){const wheelEl=$('#lwwheel');
   wheelEl.addEventListener('pointerup',lwUp);wheelEl.addEventListener('pointercancel',lwUp);
   $('#lwshuf').onclick=()=>{if(lw.done)return;sfx('shuffle');lw.order=shuffle(lw.order);lwWheel();lwCur()};
   $('#lwhint').onclick=()=>{if(lw.done)return;
-    if(lw.hints<=0){askAd('hint',ok=>{if(ok){lw.hints++;hintBadge($('#lwhn'),lw.hints);lwHint()}else toast('#lwtoast','No video right now',true)});return}
+    if(lw.hints<=0){toast('#lwtoast','No pencils left',true);return}
     lwHint()}}
 function lwHint(){for(const k in lw.cells){const cell=lw.cells[k];if(!cell.filled&&!cell.hinted){cell.hinted=true;cell.el.innerHTML=`<span class="hintl">${cell.ch}</span>`;lw.hints--;hintBadge($('#lwhn'),lw.hints);sfx('sparkle');mood('wave',.8);return}}}
 function lwCheck(word){const P=lw.P,wi=P.words.findIndex(w=>w[0]===word);
@@ -404,15 +404,14 @@ function phFound(){const o=ph.list[ph.sel];o.on=true;ph.filled++;const won=4+o.n
 function phWin(){const bonus=ph.hearts*2;ph.coins+=bonus;$('#phcoins').textContent=ph.coins;
   endCard('SCENE COMPLETE!',`${ph.list.length} pictures found · ${ph.hearts} hearts left (+${bonus})`,ph.coins)}
 function phLose(){mood('sad',2);sfx('lose');
-  const o=overlay(`<h2 style="color:#fff">OUT OF HEARTS</h2><p>You keep the ${ph.coins} coins you found.</p><div class="row"><button class="big blue">🎬 Video: 3 hearts</button><button class="big">Collect</button></div>`);
-  const [ad,ok]=o.querySelectorAll('button');
-  ad.onclick=()=>askAd('hearts',got=>{if(got){o.remove();ph.done=false;ph.hearts=3;phHearts();mood('wave',1);sfx('sparkle')}else{ad.textContent='No video right now';ad.disabled=true}});
+  const o=overlay(`<h2 style="color:#fff">OUT OF HEARTS</h2><p>You keep the ${ph.coins} coins you found.</p><div class="row"><button class="big">Collect</button></div>`);
+  const [ok]=o.querySelectorAll('button');
   ok.onclick=()=>{sfx('cash');ok.disabled=true;finish(ph.coins)}}
 function phBind(){$('#phcv').addEventListener('pointerdown',e=>{if(ph.done)return;const r=e.currentTarget.getBoundingClientRect(),px=(e.clientX-r.left)/r.width*1600,py=(e.clientY-r.top)/r.height*900;
     let best=-1;ph.list.forEach((o,i)=>{if(o.on)return;const b=BOX[o.n],l=o.x+b[0]*o.s,t=o.y+b[1]*o.s;if(px>=l-20&&px<=l+b[2]*o.s+20&&py>=t-20&&py<=t+b[3]*o.s+20)best=i});
     if(best>=0&&best!==ph.sel){ph.sel=best;sfx('pop');phPaint();phPanel();hush();mood('wave',.8)}});
   $('#phhint').onclick=()=>{if(ph.done||ph.sel<0){toast('#phtoast','Tap a shadow first');return}
-    if(ph.hints<=0){askAd('hint',ok=>{if(ok){ph.hints++;phHint()}else toast('#phtoast','No video right now',true)});return}
+    if(ph.hints<=0){toast('#phtoast','No pencils left',true);return}
     phHint()}}
 function phHint(){if(ph.sel<0)return;const ch=ph.list[ph.sel].n[ph.pos];const b=[...$('#phletters').children].find(e=>!e.classList.contains('used')&&e.textContent===ch);if(b)b.classList.add('used');
   ph.hints--;hintBadge($('#phhn'),ph.hints);sfx('sparkle');phPlace(ch)}

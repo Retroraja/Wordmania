@@ -431,12 +431,15 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
         return best!!
     }
 
-    /** Chance that a drop after the player's word is a lucky drop (new letters may form words). */
+    /**
+     * Chance that a drop after the player's word is a lucky drop (new letters may form one long word).
+     * First live release: much rarer than 1.3 (was 1/2 easy, 1/3 normal, 1/6 boss): a lucky word is a rare surprise.
+     */
     private val luckyRate: Double get() = when {
         level.number <= 3 -> 0.0
-        level.boss -> 1.0 / 6
-        level.number <= EASY_UNTIL -> 1.0 / 2
-        else -> 1.0 / 3
+        level.boss -> 1.0 / 14
+        level.number <= EASY_UNTIL -> 1.0 / 4
+        else -> 1.0 / 8
     }
 
     /** How many swaps make a word on [b] (counting stops at [cap]). */
@@ -878,7 +881,7 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
         const val POWER_FROM_LEVEL = 4
         /** Smart refill keeps at least this many word-making swaps on the board. */
         const val MIN_WORD_SWAPS = 3
-        const val REFILL_TRIES = 12
+        const val REFILL_TRIES = 20
         /** Levels up to here are easy (medium starts at 6). */
         const val EASY_UNTIL = 5
         /** At most this many free (unplanned) words burst with the player's word, and only long ones. */

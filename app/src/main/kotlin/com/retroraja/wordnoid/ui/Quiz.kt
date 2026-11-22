@@ -105,7 +105,7 @@ fun QuizScreen(world: Int?, slot: Int, progress: Progress, dict: Dictionary?, so
                     Tiko(Modifier.size(70.dp))
                     ArcadeText("$right / 3 right!", 28.sp, Palette.gold)
                     Text(
-                        when (right) { 3 -> "Perfect! You're a word wizard!"; 2 -> "Great job!"; else -> "Good try! Want another go?" },
+                        when (right) { 3 -> "Perfect! You're a word wizard!"; 2 -> "Great job!"; else -> "Good try!" },
                         color = Color.White, fontSize = 16.sp,
                     )
                     if (reward.isNotEmpty()) Text(reward, color = Palette.gold, fontSize = 18.sp, fontWeight = Heavy)

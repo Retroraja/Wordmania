@@ -69,7 +69,6 @@ fun LevelMapScreen(
                     }
                 }
             }
-            Ads.Banner()
         }
     }
 }
@@ -156,7 +155,6 @@ fun WorldScreen(world: Int, progress: Progress, sounds: SoundFx, onBack: () -> U
                 }
             }
             Spacer(Modifier.weight(1f))
-            Ads.Banner()
         }
     }
 }

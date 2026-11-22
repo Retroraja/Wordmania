@@ -227,7 +227,8 @@ fun ShopScreen(progress: Progress, sounds: SoundFx, onBack: () -> Unit) {
                                 Text(b.title, color = Color.White, fontSize = 12.sp, fontWeight = Heavy, textAlign = TextAlign.Center)
                                 Text(if (unlocked) "You have ${progress.count(b)}" else "🔒 Level ${b.introLevel}", color = Palette.cream, fontSize = 10.sp)
                                 if (b == today && unlocked) Text("½ PRICE TODAY", color = Palette.gold, fontSize = 10.sp, fontWeight = Heavy)
-                                if (unlocked) ArcadeButton("🪙$price", textSize = 13.sp, enabled = progress.coins >= price) {
+                                if (unlocked && progress.boosterFull(b)) ArcadeButton("Max ${Progress.MAX_BOOSTER}", textSize = 13.sp, enabled = false) {}
+                                else if (unlocked) ArcadeButton("🪙$price", textSize = 13.sp, enabled = progress.coins >= price) {
                                     if (progress.spend(price)) {
                                         progress.addBooster(b); sounds.play("cash"); bought = "+1 ${b.emoji} ${b.title}"
                                         itemAt[b]?.let { at -> Fx.call("shopBuy", Fx.at(at, Fx.obj("k" to b.name, "name" to b.title))) }
