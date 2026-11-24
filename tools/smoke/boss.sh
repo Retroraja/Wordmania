@@ -29,7 +29,7 @@ PY
 }
 texts() { dump; grep -o 'text="[^"]*"' $OUT/ui.xml | head -30; }
 
-for L in 10 20 50; do
+for L in 10 20 30 40 50; do
   adb shell am force-stop $PKG
   adb logcat -c
   cat > $OUT/p$L.xml <<XML
@@ -63,7 +63,7 @@ XML
   tap_text "▶ PLAY"; sleep 1; shot L$L-0s; sleep 3; shot L$L-intro
   texts
   for k in 1 2 3; do tap_text "Let's go!"; sleep 3; done
-  shot L$L-board
+  sleep 6; shot L$L-board
   sleep 5; shot L$L-board-later
   texts
   adb logcat -d > $OUT/logcat$L.txt
