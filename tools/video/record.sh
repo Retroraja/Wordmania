@@ -55,7 +55,7 @@ cat > $OUT/prefs.xml <<XML
 <map>
     <int name="unlocked" value="$LV" />
     <int name="coins" value="1250" />
-    <int name="meter" value="5" />
+    <int name="meter" value="0" />
     <int name="birth_year" value="1990" />
     <int name="save_version" value="4" />
     <boolean name="seen_first_time" value="true" />
@@ -93,7 +93,9 @@ for LV in $LEVELS; do
   tap_text "▶ PLAY Level $LV"; ev TAP play; sleep 2.5
   tap_text "Let's go!"; ev TAP letsgo
   N=0
+  LSTART=$(date +%s)
   for i in $(seq 1 45); do
+    [ $(( $(date +%s) - LSTART )) -gt 170 ] && break
     S=$(wait_ready 10); echo "state: $S"
     case "$S" in
       MOVE*)
@@ -114,9 +116,11 @@ for LV in $LEVELS; do
         ;;
       CARDS)
         sleep 1.5; ev CARDS
-        adb shell input tap 640 400; sleep 2.5
-        [ "$(st)" = CARDS ] && { adb shell input tap 640 330; sleep 2; }
-        [ "$(st)" = CARDS ] && { tap_text "Pick"; sleep 2; }
+        for y in 380 330 430 300; do
+          adb shell input tap 640 $y; sleep 2.2
+          tap_text "Collect!"; sleep 1.5
+          [ "$(st)" = CARDS ] || break
+        done
         ;;
       "END WON") ev WIN $LV; sleep 11; break;;
       "END LOST") ev LOSE $LV; sleep 3; break;;
