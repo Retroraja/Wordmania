@@ -2,6 +2,7 @@ name: Build APK
 
 on:
   push:
+    paths-ignore: ['recordings/**', 'tools/video/**', '.github/workflows/video.yml']
   workflow_dispatch:
 
 permissions:

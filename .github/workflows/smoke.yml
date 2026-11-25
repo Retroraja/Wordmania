@@ -3,6 +3,7 @@ name: Emulator smoke test
 on:
   workflow_dispatch:
   push:
+    paths-ignore: ['recordings/**', 'tools/video/**', '.github/workflows/video.yml']
     branches: ['claude/**']
 
 jobs:
