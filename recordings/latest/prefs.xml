@@ -1,0 +1,73 @@
+<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
+<map>
+    <int name="unlocked" value="10" />
+    <int name="coins" value="1250" />
+    <int name="meter" value="5" />
+    <int name="birth_year" value="1990" />
+    <int name="save_version" value="4" />
+    <boolean name="seen_first_time" value="true" />
+    <boolean name="seen_town_build_tut" value="true" />
+    <boolean name="seen_intro_gift" value="true" />
+    <boolean name="seen_intro_minigames" value="true" />
+    <boolean name="seen_intro_spin" value="true" />
+    <boolean name="seen_intro_challenges" value="true" />
+    <boolean name="seen_mystery_first" value="true" />
+    <boolean name="seen_mystery_voice" value="true" />
+    <boolean name="seen_meter_voice" value="true" />
+    <boolean name="seen_power_tip" value="true" />
+    <boolean name="seen_twin_tip" value="true" />
+    <boolean name="seen_ice_swapped" value="true" />
+    <boolean name="seen_prelevel_free" value="true" />
+    <boolean name="seen_lock_tut" value="true" />
+    <boolean name="seen_welcome_update11" value="true" />
+    <boolean name="seen_quiz_intro" value="true" />
+    <boolean name="seen_story_prize_0" value="true" />
+    <boolean name="seen_story_prize_1" value="true" />
+    <boolean name="seen_story_intro_0" value="true" />
+    <boolean name="seen_story_intro_1" value="true" />
+    <boolean name="seen_story_boss_0" value="true" />
+    <boolean name="seen_story_boss_1" value="true" />
+    <boolean name="seen_intro_level_1" value="true" />
+    <boolean name="seen_intro_level_2" value="true" />
+    <boolean name="seen_intro_level_3" value="true" />
+    <boolean name="seen_intro_level_4" value="true" />
+    <boolean name="seen_intro_level_5" value="true" />
+    <boolean name="seen_intro_level_6" value="true" />
+    <boolean name="seen_intro_level_7" value="true" />
+    <boolean name="seen_intro_level_8" value="true" />
+    <boolean name="seen_intro_level_9" value="true" />
+    <boolean name="seen_intro_level_10" value="true" />
+    <int name="b_HINT" value="3" /><boolean name="seen_intro_b_HINT" value="true" />
+    <int name="b_HAMMER" value="3" /><boolean name="seen_intro_b_HAMMER" value="true" />
+    <int name="b_MAGIC_SWAP" value="3" /><boolean name="seen_intro_b_MAGIC_SWAP" value="true" />
+    <int name="b_JOKER" value="3" /><boolean name="seen_intro_b_JOKER" value="true" />
+    <int name="b_UNDO" value="3" /><boolean name="seen_intro_b_UNDO" value="true" />
+    <int name="b_SHUFFLE" value="3" /><boolean name="seen_intro_b_SHUFFLE" value="true" />
+    <int name="b_PAINT" value="3" /><boolean name="seen_intro_b_PAINT" value="true" />
+    <int name="b_FREE_MOVE" value="3" /><boolean name="seen_intro_b_FREE_MOVE" value="true" />
+    <int name="b_PLUS_MOVES" value="3" /><boolean name="seen_intro_b_PLUS_MOVES" value="true" />
+    <int name="b_SPIN" value="3" /><boolean name="seen_intro_b_SPIN" value="true" />
+    <int name="b_ROW_SLIDE" value="3" /><boolean name="seen_intro_b_ROW_SLIDE" value="true" />
+    <int name="b_COLUMN_SLIDE" value="3" /><boolean name="seen_intro_b_COLUMN_SLIDE" value="true" />
+    <int name="b_VOWEL_FLIP" value="3" /><boolean name="seen_intro_b_VOWEL_FLIP" value="true" />
+    <int name="b_DICE" value="3" /><boolean name="seen_intro_b_DICE" value="true" />
+    <int name="b_SCANNER" value="3" /><boolean name="seen_intro_b_SCANNER" value="true" />
+    <int name="b_AXE" value="3" /><boolean name="seen_intro_b_AXE" value="true" />
+    <int name="b_LOCK" value="3" /><boolean name="seen_intro_b_LOCK" value="true" />
+    <int name="b_DOUBLE" value="3" /><boolean name="seen_intro_b_DOUBLE" value="true" />
+    <int name="b_MAGNET" value="3" /><boolean name="seen_intro_b_MAGNET" value="true" />
+    <int name="b_LETTER_RAIN" value="3" /><boolean name="seen_intro_b_LETTER_RAIN" value="true" />
+    <int name="stars_1" value="3" />
+    <int name="stars_2" value="3" />
+    <int name="stars_3" value="3" />
+    <int name="stars_4" value="3" />
+    <int name="stars_5" value="3" />
+    <int name="stars_6" value="3" />
+    <int name="stars_7" value="3" />
+    <int name="stars_8" value="3" />
+    <int name="stars_9" value="3" />
+    <boolean name="task_0_0" value="true" />
+    <boolean name="task_0_1" value="true" />
+    <boolean name="task_0_2" value="true" />
+    <int name="gift_day" value="20782" />
+</map>
