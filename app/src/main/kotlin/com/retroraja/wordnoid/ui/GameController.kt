@@ -69,6 +69,7 @@ class GameController(
     val game = Game(level, dict, bonusMoves).also { BlockStyle.thread = BlockStyle.isThread(level.number) }
     val particles = ParticleField()
 
+
     var board by mutableStateOf(game.board); private set
     var movesLeft by mutableIntStateOf(game.movesLeft); private set
     var stats by mutableStateOf(Stats()); private set
@@ -1219,6 +1220,31 @@ class GameController(
     /** Goal progress straight from the game (before the screen catches up). */
     private val liveProgress: Float
         get() = level.targets.sumOf { minOf(it.count, it.progress(game.stats)) }.toFloat() / level.targets.sumOf { it.count }.coerceAtLeast(1)
+
+    // Debug builds only: tells the gameplay-video script (tools/video) what is on screen and the best swap.
+    init {
+        if (com.retroraja.wordnoid.BuildConfig.DEBUG) scope.launch {
+            var last = ""
+            var seen: Any? = null
+            var move = "NOMOVE"
+            while (true) {
+                delay(200)
+                val idle = status == GameStatus.PLAYING && mysteryCards == null && !busy && armed == null && tutorial == null && cellPx > 1f
+                if (idle && seen !== board) { seen = board; move = moveText() }
+                val s = when {
+                    status != GameStatus.PLAYING -> "END $status"
+                    mysteryCards != null -> "CARDS"
+                    busy || armed != null || tutorial != null || cellPx <= 1f -> "BUSY"
+                    else -> move
+                }
+                if (s != last) { android.util.Log.i("WNVID", s); last = s }
+            }
+        }
+    }
+    private fun moveText(): String = game.hint()?.let { (a, b) ->
+        val p = cellCenter(a); val q = cellCenter(b); val m = center()
+        "MOVE ${p.x.toInt()} ${p.y.toInt()} ${q.x.toInt()} ${q.y.toInt()} ${m.x.toInt()} ${m.y.toInt()}"
+    } ?: "NOMOVE"
 
     fun cellCenter(p: Pos): Offset = Offset(boardOrigin.x + (p.col + 0.5f) * cellPx, boardOrigin.y + (p.row + 0.5f) * cellPx)
 

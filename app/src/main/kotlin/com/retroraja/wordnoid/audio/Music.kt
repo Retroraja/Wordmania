@@ -42,6 +42,7 @@ class Music {
             // The piece most likely needed first is made first.
             for (p in listOf(Piece.HOME, Piece.MAP, Piece.LEVEL)) {
                 val data = compose(p)
+                if (com.retroraja.wordnoid.BuildConfig.DEBUG) runCatching { debugWav(java.io.File("/data/user/0/com.retroraja.wordnoid/cache/music_${p.name}.wav"), data) }
                 val t = runCatching { makeTrack(data) }.getOrNull() ?: continue
                 synchronized(tracks) { tracks[p] = t }
                 if (wanted == p && current != p && !paused) launch(Dispatchers.Main) { play(p) }
@@ -51,6 +52,7 @@ class Music {
 
     fun play(piece: Piece) {
         wanted = piece
+        if (com.retroraja.wordnoid.BuildConfig.DEBUG) android.util.Log.i("WNSND", "MUSIC $piece")
         if (!enabled || paused || current == piece) return
         val next = synchronized(tracks) { tracks[piece] } ?: return
         val old = current?.let { synchronized(tracks) { tracks[it] } }
@@ -91,6 +93,16 @@ class Music {
     fun release() {
         stopNow()
         synchronized(tracks) { tracks.values.forEach { runCatching { it.release() } }; tracks.clear() }
+    }
+
+    /** Debug builds only: the composed piece as a WAV file, for the gameplay video soundtrack. */
+    private fun debugWav(file: java.io.File, data: ShortArray) {
+        val b = java.nio.ByteBuffer.allocate(44 + data.size * 2).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        b.put("RIFF".toByteArray()).putInt(36 + data.size * 2).put("WAVE".toByteArray())
+        b.put("fmt ".toByteArray()).putInt(16).putShort(1).putShort(1).putInt(rate).putInt(rate * 2).putShort(2).putShort(16)
+        b.put("data".toByteArray()).putInt(data.size * 2)
+        for (v in data) b.putShort(v)
+        file.writeBytes(b.array())
     }
 
     private fun makeTrack(data: ShortArray): AudioTrack {

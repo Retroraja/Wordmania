@@ -77,6 +77,7 @@ class SoundFx(context: Context) {
     var voice: Voice? = null
 
     fun play(name: String) {
+        if (com.retroraja.wordnoid.BuildConfig.DEBUG) android.util.Log.i("WNSND", "SFX $name")
         if (name == "wordnoid") { voice?.say(Voice.WORDNOID); return }
         if (name.startsWith("say:")) { voice?.say(name.removePrefix("say:")); return }
         if (name.startsWith("calm:")) { voice?.sayCalm(name.removePrefix("calm:")); return }
