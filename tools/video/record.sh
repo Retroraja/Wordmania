@@ -35,7 +35,8 @@ PY
 }
 has_text() { dump; grep -q "text=\"[^\"]*$1" $OUT/ui.xml; }
 
-st() { grep ' WNVID' $OUT/wn.log | tail -n1 | sed 's/.*WNVID *: //'; }
+FROM=0
+st() { tail -n +$FROM $OUT/wn.log | grep ' WNVID' | tail -n1 | sed 's/.*WNVID *: //'; }
 # Wait until the game is ready for a move (or ended / shows cards). Up to $1 seconds.
 wait_ready() { for k in $(seq 1 $(( $1 * 5 ))); do S=$(st); case "$S" in MOVE*|END*|CARDS|NOMOVE) echo "$S"; return;; esac; sleep 0.2; done; echo "$S"; }
 tap_above() { dump; python3 - "$1" <<'PY'
@@ -86,6 +87,7 @@ for LV in $LEVELS; do
   adb shell am start -n $PKG/.MainActivity
   sleep 20
   for t in "Let's go!" "Got it" "OK" "Close"; do tap_text "$t"; sleep 1; done
+  FROM=$(( $(wc -l < $OUT/wn.log) + 1 ))
   adb shell screenrecord --bit-rate 10000000 --time-limit 180 /sdcard/rec-$LV.mp4 &
   REC=$!
   ev REC_START $LV
@@ -128,7 +130,9 @@ for LV in $LEVELS; do
         for t in "Let's go!" "Got it" "Nice" "OK"; do tap_text "$t"; done; sleep 1;;
     esac
   done
-  adb shell pkill -INT screenrecord; sleep 3; kill $REC 2>/dev/null
+  adb shell pkill -INT screenrecord
+  for k in 1 2 3 4 5 6 7 8; do sleep 1; [ -z "$(adb shell pidof screenrecord)" ] && break; done
+  adb shell pkill -9 screenrecord; sleep 1; kill $REC 2>/dev/null
   ev REC_END $LV
   adb pull /sdcard/rec-$LV.mp4 $OUT/rec-$LV.mp4
 done

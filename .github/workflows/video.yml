@@ -45,7 +45,7 @@ jobs:
         if: always()
         run: |
           cd video-out
-          for f in rec-*.mp4; do [ -f "$f" ] && ffmpeg -y -loglevel error -i "$f" -c:v libx264 -crf 17 -preset veryfast -pix_fmt yuv420p "c-$f" && mv "c-$f" "$f"; done
+          for f in rec-*.mp4; do [ -f "$f" ] && ffmpeg -y -loglevel error -i "$f" -fps_mode passthrough -c:v libx264 -crf 17 -preset veryfast -pix_fmt yuv420p "c-$f" && mv "c-$f" "$f"; done
           for f in *.mp4; do ffprobe -v error -show_entries stream=width,height,r_frame_rate,avg_frame_rate,nb_frames:format=duration -of compact "$f"; done
           ls -la
           cd ..
