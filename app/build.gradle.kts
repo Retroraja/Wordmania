@@ -6,9 +6,9 @@ plugins {
     id("com.google.firebase.crashlytics")
 }
 
-// The AdMob publisher number (16 digits) comes from the ADMOB_PUB_ID secret, never from this file:
+// The AdMob publisher number (16 digits). The ADMOB_PUB_ID secret can override it. The build checks it:
 // written here it was once blanked out by a filter, and the Play build crashed on start (1.4.81 rejected).
-val admobPub: String = Regex("\\d{16}").find(System.getenv("ADMOB_PUB_ID") ?: "")?.value ?: ""
+val admobPub: String = Regex("\\d{16}").find(System.getenv("ADMOB_PUB_ID") ?: "")?.value ?: "2669470259590353" // AdMob → Payments → AdSense pub id (same as the AdMob publisher id)
 val buildingRelease = gradle.startParameter.taskNames.any { it.contains("Release", ignoreCase = true) }
 if (buildingRelease && !Regex("\\d{16}").matches(admobPub)) {
     throw GradleException("ADMOB_PUB_ID secret is missing or not 16 digits: the release build would crash on start.")
