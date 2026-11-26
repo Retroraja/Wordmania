@@ -29,6 +29,8 @@ jobs:
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
       - name: Build release APK
+        env:
+          ADMOB_PUB_ID: ${{ secrets.ADMOB_PUB_ID }}
         run: |
           for i in 1 2 3; do ./gradlew :app:assembleRelease --no-daemon && break; sleep 40; done
           cp app/build/outputs/apk/release/app-release.apk Wordnoid-release.apk

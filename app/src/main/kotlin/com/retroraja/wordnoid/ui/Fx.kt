@@ -72,7 +72,18 @@ object Fx {
         v.settings.javaScriptEnabled = true
         v.settings.allowFileAccess = true
         v.settings.mediaPlaybackRequiresUserGesture = true
-        v.webViewClient = WebViewClient()
+        v.webViewClient = object : WebViewClient() {
+            // If the 3D page's helper process crashes or is killed (low memory, GPU driver bug), Android would
+            // close the whole game unless we say we handled it. The game then simply keeps its flat 2D effects.
+            override fun onRenderProcessGone(view: WebView?, detail: android.webkit.RenderProcessGoneDetail?): Boolean {
+                runCatching {
+                    (view?.parent as? android.view.ViewGroup)?.removeView(view)
+                    view?.destroy()
+                }
+                if (web === view) { web = null; loaded = false; ok = false; scene = null; front = true; queue.clear() }
+                return true
+            }
+        }
         v.addJavascriptInterface(Bridge, "WN")
         v.loadUrl("file:///android_asset/fx/fx.html")
     }
@@ -109,7 +120,8 @@ object Fx {
     fun call(fn: String, data: JSONObject = JSONObject()) {
         val js = "window.FX&&FX.$fn(${JSONObject.quote(data.toString())})"
         main.post {
-            if (!loaded) { queue.add(js); return@post }
+            if (web == null) return@post
+            if (!loaded) { if (queue.size < 500) queue.add(js); return@post }
             if (ok) web?.evaluateJavascript(js, null)
         }
     }

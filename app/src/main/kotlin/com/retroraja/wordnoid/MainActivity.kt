@@ -70,9 +70,10 @@ class MainActivity : ComponentActivity() {
         // or underneath for full-screen scenes (town, intro, wheel...) shown through see-through screens.
         val root = FrameLayout(this).apply { setBackgroundColor(android.graphics.Color.BLACK) }
         val compose = ComposeView(this).apply { setContent { WordnoidApp() } }
-        val web = FxWebView(this)
+        // Some phones have no working WebView (missing, disabled or updating): then the game runs without the 3D layer.
+        val web = runCatching { FxWebView(this) }.getOrNull()
         root.addView(compose, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
-        root.addView(web, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+        if (web != null) root.addView(web, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         // Keep the game out of the camera cutout and any visible system bar (hidden bars give 0, so it stays full screen).
         // The black frame fills the area behind them.
         ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
@@ -81,11 +82,11 @@ class MainActivity : ComponentActivity() {
             WindowInsetsCompat.CONSUMED
         }
         setContentView(root)
-        runCatching { Fx.attach(web) }
+        if (web != null) runCatching { Fx.attach(web) }
         checkForUpdate()
         lifecycleScope.launch {
             snapshotFlow { Fx.front }.collect { onTop ->
-                web.z = if (onTop) 1f else -1f
+                web?.z = if (onTop) 1f else -1f
                 compose.z = 0f
             }
         }

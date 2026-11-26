@@ -34,8 +34,8 @@ import com.retroraja.wordnoid.data.Progress
 object Ads {
     // Real AdMob units in the Play bundle; Google's test units in the test APK (safe to tap).
     private val REAL = com.retroraja.wordnoid.BuildConfig.REAL_ADS
-    private val REWARDED = if (REAL) "ca-app-pub-[REDACTED-PAN]/7049119807" else "ca-app-pub-3940256099942544/5224354917"
-    private val INTERSTITIAL = if (REAL) "ca-app-pub-[REDACTED-PAN]/5345669244" else "ca-app-pub-3940256099942544/1033173712"
+    private val REWARDED = if (REAL) "ca-app-pub-${com.retroraja.wordnoid.BuildConfig.ADMOB_PUB}/7049119807" else "ca-app-pub-3940256099942544/5224354917"
+    private val INTERSTITIAL = if (REAL) "ca-app-pub-${com.retroraja.wordnoid.BuildConfig.ADMOB_PUB}/5345669244" else "ca-app-pub-3940256099942544/1033173712"
     /** Automatic ads: never before level 4, and at least this long apart. */
     const val FIRST_AUTO_LEVEL = 4
     const val AUTO_GAP_MS = 3 * 60_000L

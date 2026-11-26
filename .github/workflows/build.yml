@@ -38,6 +38,7 @@ jobs:
       - name: Build Play Store bundle
         env:
           UPLOAD_KEY: ${{ secrets.UPLOAD_KEY }}
+          ADMOB_PUB_ID: ${{ secrets.ADMOB_PUB_ID }}
         run: |
           if [ -z "$UPLOAD_KEY" ]; then echo "No UPLOAD_KEY secret yet: skipping the .aab"; exit 0; fi
           echo "${UPLOAD_KEY#*:}" | base64 -d > upload.jks
@@ -57,7 +58,7 @@ jobs:
       # Publish a download page. main -> "latest", claude/first-playable -> "preview" (test builds).
       # Work-in-progress branches only build, so the player's download link never gets a half-done build.
       - name: Publish download
-        if: github.ref_name == 'main' || github.ref_name == 'claude/first-playable' || github.ref_name == 'claude/project-thread-c3w5yi'
+        if: github.ref_name == 'main' || github.ref_name == 'claude/first-playable' || github.ref_name == 'claude/project-thread-c3w5yi' || github.ref_name == 'claude/project-thread-y8763m'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

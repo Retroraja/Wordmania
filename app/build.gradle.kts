@@ -6,6 +6,14 @@ plugins {
     id("com.google.firebase.crashlytics")
 }
 
+// The AdMob publisher number (16 digits) comes from the ADMOB_PUB_ID secret, never from this file:
+// written here it was once blanked out by a filter, and the Play build crashed on start (1.4.81 rejected).
+val admobPub: String = Regex("\\d{16}").find(System.getenv("ADMOB_PUB_ID") ?: "")?.value ?: ""
+val buildingRelease = gradle.startParameter.taskNames.any { it.contains("Release", ignoreCase = true) }
+if (buildingRelease && !Regex("\\d{16}").matches(admobPub)) {
+    throw GradleException("ADMOB_PUB_ID secret is missing or not 16 digits: the release build would crash on start.")
+}
+
 android {
     namespace = "com.retroraja.wordnoid"
     compileSdk = 36
@@ -15,8 +23,8 @@ android {
         minSdk = 26
         targetSdk = 36
         // Play needs a bigger number for every upload: the CI run number (+100 so it is above all old test builds).
-        versionCode = 100 + (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
-        versionName = "1.4.${System.getenv("GITHUB_RUN_NUMBER") ?: "0"}" // First live (production) release
+        versionCode = 182
+        versionName = "1.4.82" // 1.4.82: fixes the start-up crash of 1.4.81
     }
 
     signingConfigs {
@@ -45,10 +53,12 @@ android {
             signingConfig = signingConfigs.getByName("debug")
             manifestPlaceholders["admobAppId"] = "ca-app-pub-3940256099942544~3347511713"
             buildConfigField("boolean", "REAL_ADS", "false")
+            buildConfigField("String", "ADMOB_PUB", "\"\"")
         }
         release {
-            manifestPlaceholders["admobAppId"] = "ca-app-pub-[REDACTED-PAN]~2192058149"
+            manifestPlaceholders["admobAppId"] = "ca-app-pub-$admobPub~2192058149"
             buildConfigField("boolean", "REAL_ADS", "true")
+            buildConfigField("String", "ADMOB_PUB", "\"$admobPub\"")
             isMinifyEnabled = false
             signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
