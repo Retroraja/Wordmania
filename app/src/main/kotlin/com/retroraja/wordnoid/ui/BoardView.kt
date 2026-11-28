@@ -67,6 +67,13 @@ fun BoardView(c: GameController, cell: Dp, modifier: Modifier = Modifier) {
         }
     }
     val armed = c.armed
+    // A wrong word: the picked tiles shake side to side.
+    val shake = remember { Animatable(0f) }
+    LaunchedEffect(c.wrongKey) {
+        if (c.wrongKey > 0) {
+            for (x in listOf(-1f, 1f, -0.8f, 0.8f, -0.4f, 0f)) shake.animateTo(x, tween(55))
+        }
+    }
     Box(
         modifier
             .graphicsLayer { rotationY = wobble.value; cameraDistance = 14f * density.density }
@@ -90,7 +97,8 @@ fun BoardView(c: GameController, cell: Dp, modifier: Modifier = Modifier) {
                         val ch = event.changes.firstOrNull() ?: break
                         val d = ch.position - start
                         // A quick flick may only report where the finger lifted, so the lift counts too.
-                        if (!swiped && (abs(d.x) > cellPx * 0.35f || abs(d.y) > cellPx * 0.35f)) {
+                        // Select + Match: half a tile, so a tap with a big finger never turns into a swap by mistake.
+                        if (!swiped && (abs(d.x) > cellPx * 0.5f || abs(d.y) > cellPx * 0.5f)) {
                             swiped = true
                             val to = if (abs(d.x) > abs(d.y)) Pos(from.row, from.col + if (d.x > 0) 1 else -1)
                             else Pos(from.row + if (d.y > 0) 1 else -1, from.col)
@@ -150,13 +158,16 @@ fun BoardView(c: GameController, cell: Dp, modifier: Modifier = Modifier) {
                 LaunchedEffect(flipping, lifted) {
                     if (flipping || lifted) { flip.snapTo(0f); flip.animateTo(360f, tween(if (lifted) 420 else 520)) }
                 }
-                val isSelected = c.selected == p || c.aimFirst == p
+                val pickIndex = c.picked.indexOf(p)
+                val isSelected = c.selected == p || c.aimFirst == p || pickIndex >= 0
+                val shaking = p in c.wrongCells && shake.value != 0f
                 val sel by animateFloatAsState(if (isSelected) 1f else 0f, spring(dampingRatio = 0.5f), label = "sel")
                 val inHint = c.hint?.let { it.first == p || it.second == p } == true
                 val inScan = p in c.scan
                 val inTut = p in (tut?.cells ?: emptyList()) || p in handCells
                 val glow = when {
                     tile.id in c.glowing -> Palette.gold
+                    pickIndex >= 0 -> Color(0xFF4FB3FF)
                     isSelected -> Palette.green
                     inTut -> Color.White.copy(alpha = 0.4f + 0.6f * pulse)
                     // Hint: the two tiles pulse gold (the soft auto hint glows gently).
@@ -175,6 +186,7 @@ fun BoardView(c: GameController, cell: Dp, modifier: Modifier = Modifier) {
                         .graphicsLayer {
                             val s = 1f + 0.22f * lift + 0.1f * sel + (if (inTut) 0.06f * pulse else 0f) + (if (inScan) 0.08f + 0.05f * pulse else 0f)
                             scaleX = s; scaleY = s
+                            translationX = if (shaking) shake.value * cellPx * 0.12f else 0f
                             translationY = -cellPx * 0.18f * lift - cellPx * 0.06f * sel - (if (inScan) cellPx * 0.08f else 0f)
                             rotationX = if (lifted) flip.value else 0f
                             rotationY = if (!lifted && flipping) flip.value else 0f
@@ -185,6 +197,18 @@ fun BoardView(c: GameController, cell: Dp, modifier: Modifier = Modifier) {
                     glow = glow,
                     dim = dim,
                 )
+                // Select + Match: the number badge (1, 2, 3...) on each picked letter.
+                if (pickIndex >= 0) {
+                    val bs = cellPx * 0.36f
+                    Box(
+                        Modifier
+                            .offset { IntOffset((pos.value.x + cellPx - bs * 0.95f).roundToInt(), (pos.value.y - bs * 0.15f).roundToInt()) }
+                            .size(with(density) { bs.toDp() })
+                            .background(Color.White, androidx.compose.foundation.shape.CircleShape)
+                            .border(2.dp, Color(0xFF1E6FD9), androidx.compose.foundation.shape.CircleShape),
+                        contentAlignment = androidx.compose.ui.Alignment.Center,
+                    ) { Text("${pickIndex + 1}", color = Color(0xFF0D4F8A), fontFamily = ArcadeFont, style = TextStyle(fontSize = (cell.value * 0.22f).sp)) }
+                }
             }
         }
         // Treasure Finder: a sparkle and a gem on each glowing tile, so it's clear where to dig.
@@ -278,8 +302,15 @@ fun BoardView(c: GameController, cell: Dp, modifier: Modifier = Modifier) {
             Text("👆", Modifier.offset { IntOffset(x.roundToInt(), y.roundToInt()) }, style = TextStyle(fontSize = (cell.value * 0.6f).sp))
         }
         // Booster tutorial: a hand taps the tile to use it on (the second tile once the first is picked).
-        if (tut != null && tut.swap == null && tut.cells.isNotEmpty()) {
-            val p = if (c.aimFirst != null && tut.cells.size > 1) tut.cells[1] else tut.cells[0]
+        // Select + Match tutorial: the hand taps the next letter of the word.
+        val tutTap = when {
+            tut == null || tut.swap != null || tut.cells.isEmpty() -> null
+            tut.match -> tut.cells.getOrNull(c.picked.size)
+            c.aimFirst != null && tut.cells.size > 1 -> tut.cells[1]
+            else -> tut.cells[0]
+        }
+        if (tutTap != null) {
+            val p = tutTap
             val tapT by anim.animateFloat(0f, 1f, infiniteRepeatable(tween(550), RepeatMode.Reverse), label = "tap")
             val x = (p.col + 0.4f) * cellPx
             val y = (p.row + 0.45f + 0.18f * tapT) * cellPx

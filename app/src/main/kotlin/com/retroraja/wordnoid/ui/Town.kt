@@ -110,7 +110,7 @@ val DISTRICTS = listOf(
             TownTask("Build the cloud steps", 3, 4, "Tiko: \"Soft as cotton candy.\"", 35, Booster.HAMMER),
             TownTask("Paint the rainbow", 3, 1, "Tiko: \"Seven colours, all in order.\"", 40),
             TownTask("Hang the wind chimes", 3, 5, "Tiko: \"Ding, ding!\"", 40),
-            TownTask("Open the star shop", 4, 2, "Tiko: \"Catch a falling star!\"", 45, Booster.FREE_MOVE),
+            TownTask("Open the star shop", 4, 2, "Tiko: \"Catch a falling star!\"", 45, Booster.JOKER),
             TownTask("Light the sky lamps", 3, 6, "Tiko: \"Bright even in a storm.\"", 45),
             TownTask("Ring the bell tower", 4, 3, "Tiko: \"Everyone, come and see!\"", 50),
             TownTask("Build the balloon port", 4, 7, "Tiko: \"Up, up and away!\"", 50, Booster.PLUS_MOVES),
@@ -222,7 +222,7 @@ fun TownScreen(
             if (canBuildNow(progress, current)) {
                 guideBuild = true
                 tasksOpen = true
-                sounds.play("say:Tap Build to fix my town!")
+                // No explaining voice (Select + Match update): the text bubble shows it.
             } else showNext = true
         }
         val scroll = rememberScrollState()

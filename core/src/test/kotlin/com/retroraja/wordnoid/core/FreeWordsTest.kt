@@ -31,7 +31,7 @@ class FreeWordsTest {
                 if (g.stuck) { g.useBooster(Booster.SHUFFLE); continue }
                 val (a, b) = Solver.chooseSwap(g, dict, 0.7, rng)
                 if (!g.canSwap(a, b)) break
-                val words = g.swap(a, b).effects.words
+                val words = g.play(a, b).effects.words
                 assertTrue(words.size <= 1 + Game.MAX_FREE_WORDS, "Level ${level.number}: ${words.size} words in one move")
                 words.drop(1).forEach { assertTrue(it.length >= Game.FREE_WORD_MIN, "Level ${level.number}: short free word ${it.word}") }
                 free += maxOf(0, words.size - 1)

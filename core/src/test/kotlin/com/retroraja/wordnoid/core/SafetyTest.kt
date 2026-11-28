@@ -22,7 +22,7 @@ class SafetyTest {
                 if (game.status != GameStatus.PLAYING) return@repeat
                 if (game.stuck) { game.useBooster(Booster.SHUFFLE); return@repeat }
                 val (a, b) = Solver.chooseSwap(game, dict, 0.6, rng)
-                val r = game.swap(a, b)
+                val r = game.play(a, b)
                 assertNull(r.shuffled, "Level ${level.number}: the board shuffled by itself")
                 r.effects.words.forEach { w ->
                     assertTrue(a in w.cells || b in w.cells, "Level ${level.number}: ${w.word} was not made by the moved tiles")

@@ -48,6 +48,8 @@ data class Tutorial(
     val cells: List<Pos> = emptyList(),
     val swap: Pair<Pos, Pos>? = null,
     val dismissible: Boolean = false,
+    /** Select + Match step: tap the glowing [cells] in order, then MATCH. */
+    val match: Boolean = false,
 )
 
 data class LetterPick(val booster: Booster, val pos: Pos, val letters: List<Char>)
@@ -79,6 +81,13 @@ class GameController(
     var status by mutableStateOf(GameStatus.PLAYING); private set
     var busy by mutableStateOf(false); private set
     var selected by mutableStateOf<Pos?>(null); private set
+    /** Select + Match: the letters the player tapped, in order (they show number badges 1, 2, 3...). */
+    val picked = mutableStateListOf<Pos>()
+    /** A wrong word: these tiles shake (key changes each time). */
+    var wrongKey by mutableIntStateOf(0); private set
+    var wrongCells by mutableStateOf<List<Pos>>(emptyList()); private set
+    /** No moves left, but words are still on the board: MATCH them, or give up. */
+    var noMovesLeft by mutableStateOf(false); private set
     var popping = mutableStateListOf<Long>()
     var flipping = mutableStateListOf<Long>()
     var glowing = mutableStateListOf<Long>()
@@ -185,7 +194,7 @@ class GameController(
 
     /** The text in Tiko's strip right now. */
     val stripText: String
-        get() = tutorial?.text ?: message ?: (if (hintWords.isNotEmpty()) "💡 Swap the glowing tiles to spell ${hintWords.first()}!" + (if (hintWords.size > 1) " Or try: " + hintWords.drop(1).joinToString(", ") else "") else lockText() ?: tikoSay)
+        get() = tutorial?.text ?: message ?: (if (hintWords.isNotEmpty()) "💡 Swap the glowing tiles, then tap ${hintWords.first()} and MATCH!" + (if (hintWords.size > 1) " Or try: " + hintWords.drop(1).joinToString(", ") else "") else lockText() ?: tikoSay)
 
     /** Locked letters on the board right now. */
     val lockedCells: List<Pos> get() = board.positions().filter { board[it].locked }
@@ -261,7 +270,7 @@ class GameController(
 
     private fun startTutorial() {
         if (level.number == 1 && level.tutorialSwap != null) {
-            tutorial = Tutorial("Swap these 2 glowing tiles! 👆", swap = level.tutorialSwap)
+            tutorial = Tutorial("Swipe one glowing tile onto the other to swap them! 👆", swap = level.tutorialSwap)
             return
         }
         val b = level.introBoosters.firstOrNull()
@@ -276,9 +285,16 @@ class GameController(
     }
 
     private fun afterWordTutorial() {
-        if (tutorial?.swap != null) {
+        if (tutorial?.swap != null || tutorial?.match == true) {
             tutorial = null
         }
+    }
+
+    /** After the tutorial swap (or a word-making booster): glow the new word and teach tap + MATCH. */
+    private fun matchTutorial(through: Collection<Pos>) {
+        val w = game.bestWordThrough(through) ?: return
+        picked.clear()
+        tutorial = Tutorial("Now tap the glowing letters one by one (1, 2, 3...), then press MATCH!", cells = w.cells, match = true)
     }
 
     // ---------------------------------------------------------------- input
@@ -288,22 +304,72 @@ class GameController(
         armIdleHint()
         val b = armed
         if (b != null) { aim(b, p); return }
-        val ask = unlockAsk
         unlockAsk = null
-        val s = selected
-        // Tapping a locked letter (with nothing picked) opens the Unlock bubble. It is also picked, so it can still be swapped.
-        if (s == null && board[p].locked && ask != p) {
-            unlockAsk = p
-            selected = p
+        selected = null
+        val t = tutorial
+        if (t != null && !t.dismissible && t.swap != null) {
+            sounds.play("nope")
+            say("First swipe one glowing tile onto the other 👆", 1500)
+            return
+        }
+        // Tap a picked letter again: it (and any after it) is taken back.
+        val i = picked.indexOf(p)
+        if (i >= 0) {
+            while (picked.size > i) picked.removeAt(picked.size - 1)
             sounds.play("tick")
             return
         }
-        when {
-            s == null -> { if (board[p].swappable) { selected = p; sounds.play("tick"); if (board[p].isIce) iceTip() } else notMovable(p) }
-            s == p -> selected = null
-            s.isNeighbour(p) -> { selected = null; trySwap(s, p) }
-            else -> selected = if (board[p].swappable) p else null
+        if (!board[p].hasLetter || board[p].locked) { notMovable(p); return }
+        if (!game.canPick(picked, p)) {
+            // Not next to the last letter in the same line: start a new word here.
+            picked.clear()
         }
+        picked.add(p)
+        sounds.play("note${(picked.size - 1).coerceAtMost(9)}")
+        haptics.tap()
+        if (picked.size == 3 && !progress.seen("match_ready")) { progress.markSeen("match_ready"); say("3 letters! Press MATCH to check the word.", 2600) }
+    }
+
+    /** MATCH: the picked letters burst if they spell a word (free). A wrong word shakes and the picks reset. */
+    fun matchTapped() {
+        if (busy || status != GameStatus.PLAYING || armed != null) return
+        armIdleHint()
+        val cells = picked.toList()
+        if (cells.size < 3) {
+            sounds.play("nope")
+            say(if (cells.isEmpty()) "Tap 3 or more letters in a row or column, then MATCH." else "Pick at least 3 letters.", 2000)
+            return
+        }
+        val r = game.match(cells)
+        picked.clear()
+        if (r == null) {
+            wrongCells = cells
+            wrongKey++
+            sounds.play("nope")
+            haptics.tap()
+            say("Not a word. Try again!", 1600)
+            return
+        }
+        hint = null
+        autoHint = false
+        hintWords = emptyList()
+        scan = emptySet()
+        nudge = null
+        dryMoves = 0
+        combo++
+        if (combo >= 2) comboShow = combo
+        busy = true
+        scope.launch { playResult(r, null) }
+    }
+
+    /** Out of moves with words still on the board: the player chose to stop. */
+    fun giveUpNoMoves() {
+        if (busy || !noMovesLeft) return
+        noMovesLeft = false
+        game.giveUp()
+        picked.clear()
+        status = game.status
+        scope.launch { lose() }
     }
 
     fun drag(from: Pos, to: Pos) {
@@ -312,6 +378,9 @@ class GameController(
         selected = null
         unlockAsk = null
         armIdleHint()
+        val t = tutorial
+        if (t != null && t.match) { sounds.play("nope"); say("Tap the glowing letters, then press MATCH 👆", 1600); return }
+        picked.clear()
         trySwap(from, to)
     }
 
@@ -401,13 +470,13 @@ class GameController(
             val r = game.swap(a, b)
             board = r.changedBoard
             delay(200)
-            if (r.effects.words.isEmpty()) {
-                sounds.play("clack")
-                dryMoves++
-                combo = 0
-                if (dryMoves >= 3) suggestBooster()
-            } else { dryMoves = 0; combo++; if (combo >= 2) comboShow = combo }
+            // Select + Match: a swap never clears anything. Three swaps with no word: a booster glows.
+            dryMoves++
+            combo = 0
+            if (dryMoves >= 4) suggestBooster()
+            val tut = t?.swap != null
             playResult(r, null)
+            if (tut) matchTutorial(listOf(a, b))
         }
     }
 
@@ -728,6 +797,16 @@ class GameController(
             delay(250)
             flipping.clear()
             playResult(r, b)
+            // Select + Match: a booster never clears the word by itself.
+            val made = r.madeWord
+            if (made != null) {
+                picked.clear(); picked.addAll(made)
+                say("${b.emoji} A word is ready! Press MATCH.", 3000)
+            } else if (b in WORD_TOOLS && b in level.introBoosters) {
+                matchTutorial(listOfNotNull(a, second))
+            } else if (b in WORD_TOOLS && game.bestWordThrough(listOfNotNull(a, second)) != null) {
+                say("Now tap the word's letters and press MATCH!", 2600)
+            }
         }
     }
 
@@ -761,6 +840,7 @@ class GameController(
         treasureGlow = game.treasureGlow
         movesLeft = game.movesLeft
         stats = game.stats
+        if (status == GameStatus.PLAYING && !game.outOfMoves) noMovesLeft = false
         score = game.score
         freeMoves = game.freeMoves
         doubleNext = game.doubleNext
@@ -804,11 +884,15 @@ class GameController(
             say("No words left! Tap the FREE 🔀 Shuffle to mix the letters.", 5000)
         }
         when (r.status) {
-            GameStatus.WON -> win(r)
-            GameStatus.LOST -> lose()
+            GameStatus.WON -> { noMovesLeft = false; win(r) }
+            GameStatus.LOST -> { noMovesLeft = false; lose() }
             GameStatus.PLAYING -> {}
         }
         status = r.status
+        if (status == GameStatus.PLAYING && game.outOfMoves && !noMovesLeft) {
+            noMovesLeft = true
+            say("No moves left! MATCH the words on the board, or tap Give up.", 5000)
+        } else if (!game.outOfMoves) noMovesLeft = false
         busy = false
         if (fx0.words.isNotEmpty() && nudge != Booster.SHUFFLE) nudge = null
         checkLowMoves()
@@ -1153,10 +1237,6 @@ class GameController(
         // The first time (Level 5) the cards are the three boosters the player has just learned.
         mysteryCards = if (!progress.seen("mystery_first")) { progress.markSeen("mystery_first"); listOf(Booster.HAMMER, Booster.JOKER, Booster.MAGIC_SWAP) }
         else Rewards.mysteryCards(progress.unlocked.coerceAtLeast(level.number), random)
-        if (!progress.seen("meter_voice")) {
-            progress.markSeen("meter_voice")
-            sounds.play("say:Power Meter full! Pick a card for a free booster!")
-        } else if (!meterSaid) sounds.play("say:Pick a card!")
         meterSaid = true
     }
 
@@ -1177,7 +1257,6 @@ class GameController(
             glowBooster = b
             val line = "It's yours! Use ${b.emoji} ${b.title} in any level when you're stuck."
             say(line, 4500)
-            if (!progress.seen("mystery_voice")) { progress.markSeen("mystery_voice"); sounds.play("say:It's yours! Use it in any level when you're stuck.") }
             scope.launch { delay(3500); if (glowBooster == b) glowBooster = null }
         }
         lastMystery = null
@@ -1247,6 +1326,8 @@ class GameController(
         /** Boosters whose first try is guided step by step (the player must use it). */
         val GUIDED = setOf(Booster.HAMMER, Booster.JOKER, Booster.MAGIC_SWAP)
         /** Boosters with no aim that still change letters (so they could make a word): never used at the start by themselves. */
+        /** Boosters that change letters so the player can make a word, then MATCH it. */
+        val WORD_TOOLS = setOf(Booster.MAGIC_SWAP, Booster.JOKER, Booster.PAINT, Booster.DICE)
         val WORD_MAKERS = setOf(Booster.SHUFFLE, Booster.VOWEL_FLIP, Booster.LETTER_RAIN, Booster.TREASURE_FINDER)
     }
 }

@@ -58,7 +58,7 @@ jobs:
       # Publish a download page. main -> "latest", claude/first-playable -> "preview" (test builds).
       # Work-in-progress branches only build, so the player's download link never gets a half-done build.
       - name: Publish download
-        if: github.ref_name == 'main' || github.ref_name == 'claude/first-playable' || github.ref_name == 'claude/project-thread-c3w5yi' || github.ref_name == 'claude/project-thread-y8763m'
+        if: github.ref_name == 'main' || github.ref_name == 'claude/first-playable' || github.ref_name == 'claude/project-thread-c3w5yi' || github.ref_name == 'claude/project-thread-y8763m' || github.ref_name == 'claude/project-thread-48lz8b'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

@@ -129,9 +129,8 @@ fun GameScreen(
                         TikoStrip(c.stripText, highlight = c.tutorial != null || c.message != null)
                     }
                 }
-                // Level 1 has no boosters yet: no panel.
-                if (panelBoosters(c).isEmpty()) Spacer(Modifier.width(rightW))
-                else RightPanel(c, covered = covered || c.showWin || c.bigWin || c.showLose, modifier = Modifier.width(rightW).fillMaxHeight().onGloballyPositioned { c.panelAnchor = it.positionInRoot() + Offset(it.size.width / 2f, it.size.height / 2f) }, onMore = { more = true })
+                // The panel always shows: the MATCH button lives there (Level 1 has no boosters yet).
+                RightPanel(c, covered = covered || c.showWin || c.bigWin || c.showLose, modifier = Modifier.width(rightW).fillMaxHeight().onGloballyPositioned { c.panelAnchor = it.positionInRoot() + Offset(it.size.width / 2f, it.size.height / 2f) }, onMore = { more = true })
             }
             ParticleLayer(c.particles)
             Overlays(c)
@@ -336,18 +335,35 @@ private fun PowerMeter(meter: Int) {
 // ---------------------------------------------------------------- right panel
 
 /**
- * The 6 booster slots: boosters you own first (biggest count first), then the ones this level teaches,
- * then unlocked boosters you don't own yet (they show a coin price: tap to buy and use).
+ * Select + Match update: 4 booster buttons that stay in the same place on every level: Joker, Hammer, Magic Swap, Hint.
+ * On a gold level the Magnet takes a slot, on a treasure level the Treasure Finder, on a box/ice/chain/balloon level the Axe.
+ * The booster this level teaches and free ones for this level (streak gifts, a stuck Shuffle) also take a slot.
+ * Everything else is under More.
  */
 fun panelBoosters(c: GameController): List<Booster> {
-    val unlocked = Booster.unlockedAt(c.level.number)
-    val intro = c.level.introBoosters.filter { c.progress.hasFreeUse(it) }
-    // Free ones for this level (streak gifts, a pre-level Joker, a Shuffle when stuck) always show first.
-    val free = c.levelFree.distinct()
-    val owned = unlocked.filter { c.progress.count(it) > 0 }.sortedByDescending { c.progress.count(it) }
-    val rest = unlocked.filter { it !in owned }.sortedBy { it.price }
-    return (free + intro + owned + rest).distinct().take(6)
+    val n = c.level.number
+    val usable = { b: Booster -> b.introLevel <= n || b in c.levelFree }
+    val base = PANEL_BASE.filter(usable).toMutableList()
+    val t = c.level.targets
+    val levelTools = buildList {
+        if (t.any { it is Objective.Gold }) add(Booster.MAGNET)
+        if (t.any { it is Objective.Treasure }) add(Booster.TREASURE_FINDER)
+        if (t.any { it is Objective.Crates || it is Objective.IronCrates || it is Objective.Ice || it is Objective.Chains || it is Objective.Balloons }) add(Booster.AXE)
+    }
+    val specials = (c.level.introBoosters + c.levelFree + levelTools).distinct().filter(usable).filter { it !in base }
+    val special = HashSet<Booster>()
+    for (b in specials) {
+        if (base.size < PANEL_SLOTS) { base.add(b); special.add(b); continue }
+        // Replace the last plain slot (Hint first, then Magic Swap...).
+        val i = base.indices.lastOrNull { base[it] !in special } ?: break
+        base[i] = b
+        special.add(b)
+    }
+    return base.take(PANEL_SLOTS)
 }
+
+private val PANEL_BASE = listOf(Booster.JOKER, Booster.HAMMER, Booster.MAGIC_SWAP, Booster.HINT)
+private const val PANEL_SLOTS = 4
 
 @Composable
 private fun RightPanel(c: GameController, modifier: Modifier, covered: Boolean, onMore: () -> Unit) {
@@ -355,15 +371,63 @@ private fun RightPanel(c: GameController, modifier: Modifier, covered: Boolean, 
     // Each tool lives inside its own button: it bobs and sways, and jumps and spins when tapped.
     LaunchedEffect(Unit) { if (Fx.ok) Fx.call("panelHide") }
     Column(
-        modifier.skinPanel().padding(6.dp),
+        modifier.skinPanel().padding(horizontal = 6.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.SpaceEvenly,
     ) {
-        Text("Boosters", fontSize = 12.sp, color = Look.skin.ink, fontWeight = Heavy)
-        for (row in list.chunked(2)) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            for (b in row) BoosterButton(b, c, 56.dp, showName = true, animated = true)
+        if (list.isNotEmpty()) {
+            Text("Boosters", fontSize = 12.sp, color = Look.skin.ink, fontWeight = Heavy)
+            Spacer(Modifier.height(4.dp))
+            // 2 x 2 with wide gaps, so a big finger never hits the wrong one.
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                for (row in list.chunked(2)) Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    for (b in row) BoosterButton(b, c, 50.dp, showName = true, animated = true)
+                }
+            }
+            if (Booster.unlockedAt(c.level.number).any { it !in list }) {
+                Spacer(Modifier.height(6.dp))
+                RoundButton("⋯", 28.dp, label = "More", onClick = onMore)
+            }
         }
-        if (Booster.unlockedAt(c.level.number).size > 6) RoundButton("⋯", 32.dp, label = "More", onClick = onMore)
+        Spacer(Modifier.weight(1f))
+        MatchButton(c)
+    }
+}
+
+/** The big MATCH button: lights up at 3+ picked letters. Out of moves (with words left), a small Give up shows under it. */
+@Composable
+private fun MatchButton(c: GameController) {
+    val ready = c.picked.size >= 3 && c.armed == null
+    val anim = rememberInfiniteTransition(label = "match")
+    val pulse by anim.animateFloat(1f, 1.06f, infiniteRepeatable(tween(500), RepeatMode.Reverse), label = "mp")
+    val k = if (ready) pulse else 1f
+    val handHere = c.tutorial?.match == true && c.tutorial?.cells?.size == c.picked.size
+    Box(contentAlignment = Alignment.Center) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(62.dp)
+                .graphicsLayer { scaleX = k; scaleY = k }
+                .background(
+                    if (ready) Brush.verticalGradient(listOf(Color(0xFF8CFFA8), Color(0xFF1FAE56)))
+                    else Brush.verticalGradient(listOf(Color(0xFF8A93A8), Color(0xFF5B6478))),
+                    RoundedCornerShape(18.dp),
+                )
+                .border(3.dp, if (ready) Color.White else Color(0x88FFFFFF), RoundedCornerShape(18.dp))
+                .clickable(remember { MutableInteractionSource() }, null) { c.matchTapped() },
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("MATCH", fontFamily = ArcadeFont, fontSize = 22.sp, color = if (ready) Color(0xFF063B1B) else Color(0xFFDDE2EE))
+                if (c.picked.isNotEmpty()) Text(c.picked.joinToString("") { c.board[it].letter.uppercaseChar().toString() },
+                    fontSize = 11.sp, color = if (ready) Color(0xFF063B1B) else Color.White, fontWeight = Heavy, maxLines = 1)
+            }
+        }
+        if (handHere) Text("👆", Modifier.offset(x = 20.dp, y = 22.dp), fontSize = 26.sp)
+    }
+    if (c.noMovesLeft) {
+        Spacer(Modifier.height(6.dp))
+        Text("Give up", Modifier.background(Color(0x66000000), RoundedCornerShape(12.dp)).clickable { c.giveUpNoMoves() }.padding(horizontal = 12.dp, vertical = 6.dp),
+            color = Color.White, fontSize = 13.sp, fontWeight = Heavy)
     }
 }
 
@@ -496,7 +560,7 @@ fun introsFor(level: Level, progress: Progress): List<IntroInfo> {
     progress.markSeen(key)
     val out = ArrayList<IntroInfo>()
     when (level.number) {
-        1 -> out += IntroInfo("How to play", "🔤", "Swap 2 tiles next to each other to spell a word.\nWords can go across or down.")
+        1 -> out += IntroInfo("How to play", "🔤", "Swipe a tile to swap it (1 move).\nTap the letters of a word in a line, then press MATCH (free).")
         2 -> out += IntroInfo("Long words give moves", "📏", "3 and 4 letter words are fine, but 5-letter words give +1 move and 6+ letters give +2 moves. Plan bigger words to go further!")
         GameController.METER_LEVEL -> {
             progress.primeMeter(Game.METER_SIZE - 1)

@@ -58,7 +58,7 @@ class Progress(context: Context) {
         val e = prefs.edit()
         if (from < 3) upgradeTo11(e)
         val oldLevels = mapOf(Booster.FREE_MOVE to 49, Booster.DOUBLE to 52, Booster.LETTER_RAIN to 55)
-        if (from < 2 && prefs.contains("unlocked")) for ((b, old) in oldLevels) {
+        if (from < 2 && prefs.contains("unlocked")) for ((b, old) in oldLevels) if (b.introLevel <= 50) {
             if (unlocked > b.introLevel && unlocked <= old) {
                 boosters[b] = count(b) + 1
                 e.putInt("b_${b.name}", count(b))
@@ -66,8 +66,46 @@ class Progress(context: Context) {
             }
         }
         if (from < 4) capBoosters(e)
+        if (from < 5) upgradeSelectMatch(e)
         e.putInt("save_version", SAVE_VERSION).apply()
     }
+
+    /**
+     * Select + Match update save upgrade (runs once, wherever the player is).
+     * 1. Removed boosters (Double Points, Spin, Lock, Dice, Word Scanner) and the ones saved for later (Free Move,
+     *    Vowel Rain, Letter Rain) can't be used any more: each one owned becomes [Rewards.BOOSTER_COINS] coins.
+     * 2. Boosters now arrive at new levels. A player already past a booster's new level, who had not met it yet
+     *    (e.g. Magnet, now Level 20), gets one to try. Nothing that was unlocked before is ever taken away.
+     * The coins are shown once on the "New rules" card.
+     */
+    private fun upgradeSelectMatch(e: android.content.SharedPreferences.Editor) {
+        if (!prefs.contains("unlocked")) return
+        var gone = 0
+        for (b in Booster.entries) if (b.introLevel > 50) {
+            val n = count(b)
+            if (n > 0) { gone += n; boosters[b] = 0; e.putInt("b_${b.name}", 0) }
+            e.putBoolean("free_${b.name}", false)
+        }
+        val coinsBack = gone * Rewards.BOOSTER_COINS
+        if (coinsBack > 0) { coins += coinsBack; e.putInt("coins", coins) }
+        // Old intro levels (1.4): Hammer 2, Joker 3, Magic Swap 4, Hint 11, Undo 14, Shuffle 16, +3 Moves 19, Paintbrush 22,
+        // Row/Column Slide 28, Treasure Finder 32, Axe 37, Magnet 47.
+        val old = mapOf(Booster.HAMMER to 2, Booster.JOKER to 3, Booster.MAGIC_SWAP to 4, Booster.HINT to 11, Booster.UNDO to 14,
+            Booster.SHUFFLE to 16, Booster.PLUS_MOVES to 19, Booster.PAINT to 22, Booster.ROW_SLIDE to 28, Booster.COLUMN_SLIDE to 28,
+            Booster.TREASURE_FINDER to 32, Booster.AXE to 37, Booster.MAGNET to 47)
+        for ((b, was) in old) if (unlocked > b.introLevel && unlocked <= was && count(b) == 0) {
+            boosters[b] = 1
+            e.putInt("b_${b.name}", 1)
+            e.putBoolean("seen_intro_b_${b.name}", true)
+        }
+        e.putInt("upgrade_sm_coins", coinsBack)
+        e.putBoolean("upgrade_sm_card", true)
+    }
+
+    /** The Select + Match "New rules" card shows once after the update (with any coins paid for removed boosters). */
+    val selectMatchCard: Boolean get() { @Suppress("UNUSED_VARIABLE") val v = version; return prefs.getBoolean("upgrade_sm_card", false) }
+    val selectMatchCoins: Int get() = prefs.getInt("upgrade_sm_coins", 0)
+    fun clearSelectMatchCard() { prefs.edit().putBoolean("upgrade_sm_card", false).apply(); bump() }
 
     /**
      * First live release save upgrade (runs once): boosters are capped at [MAX_BOOSTER] of each.
@@ -391,7 +429,7 @@ class Progress(context: Context) {
     companion object {
         const val BRICK_TRADE_COINS = 20
         const val STARTING_COINS = 200
-        const val SAVE_VERSION = 4
+        const val SAVE_VERSION = 5
         /** First live release: at most this many of each booster (extras become coins). */
         const val MAX_BOOSTER = 3
         const val CHEST_SLOTS = 5

@@ -76,10 +76,16 @@ class SoundFx(context: Context) {
     /** Voice lines; "wordnoid" and "say:..." names go to it. */
     var voice: Voice? = null
 
+    /** A short cheer (at most 3 words), not an instruction. */
+    private fun isReaction(t: String): Boolean = t.trim().split(Regex("\\s+")).size <= 3 &&
+        listOf("tap", "pick", "use", "swap", "build").none { t.lowercase().contains(it) }
+
     fun play(name: String) {
         if (name == "wordnoid") { voice?.say(Voice.WORDNOID); return }
-        if (name.startsWith("say:")) { voice?.say(name.removePrefix("say:")); return }
-        if (name.startsWith("calm:")) { voice?.sayCalm(name.removePrefix("calm:")); return }
+        if (name.startsWith("say:")) { val t = name.removePrefix("say:"); if (isReaction(t)) voice?.say(t); return }
+        // Select + Match update (user 2026-11-28): no explaining voice lines (daily gift, power meter, build, tutorials, tips).
+        // Only short in-game reactions ("Great!", "Wow!", "Wordnoid!") are spoken.
+        if (name.startsWith("calm:")) return
         if (!enabled) return
         val id = ids[name] ?: return
         runCatching { pool.play(id, 1f, 1f, 1, 0, 1f) }

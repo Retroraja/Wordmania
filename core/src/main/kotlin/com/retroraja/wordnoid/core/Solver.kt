@@ -19,7 +19,7 @@ object Solver {
             if (game.stuck) { game.useBooster(Booster.SHUFFLE); continue }
             val (a, b) = chooseSwap(game, dict, skill, rng)
             if (!game.canSwap(a, b)) break
-            game.swap(a, b)
+            game.play(a, b)
         }
         return Result(game.status == GameStatus.WON, game.movesLeft, game.found.size, game.movesUsed)
     }
@@ -46,7 +46,7 @@ object Solver {
             var bestValue = 0.0
             for (first in pairs) {
                 val g = game.copy()
-                g.swap(first.first, first.second)
+                g.play(first.first, first.second)
                 if (g.status != GameStatus.PLAYING) { if (g.status == GameStatus.WON) return first else continue }
                 val now = g.previewGainNow()
                 val v = now + game.previewGain(first.first, first.second) * 0.5

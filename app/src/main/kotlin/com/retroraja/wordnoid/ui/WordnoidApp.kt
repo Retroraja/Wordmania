@@ -6,6 +6,7 @@ import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -265,6 +266,20 @@ fun WordnoidApp() {
                 Text("You can keep up to ${Progress.MAX_BOOSTER} of each booster.\nYour extra boosters became coins:", color = Color.White, fontSize = 15.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 Text("🪙 +$capCoins", color = Palette.gold, fontSize = 30.sp, fontWeight = Heavy)
                 ArcadeButton("Great!") { progress.clearCapUpgradeCoins(); capCoins = 0 }
+            }
+        }
+        // Select + Match update: the new way to make words, told once to players who had the old game.
+        if (capCoins <= 0 && progress.selectMatchCard && screen == Screen.Town) DimBox {
+            Column(Modifier.width(440.dp).arcadePanel().padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                ArcadeText("New way to play!", 26.sp, Palette.gold)
+                Text("Words don't match by themselves any more.\nSwipe to swap tiles. Then tap the letters of a word\nand press MATCH. Matching is free!",
+                    color = Color.White, fontSize = 15.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                val c = progress.selectMatchCoins
+                if (c > 0) {
+                    Text("Some boosters left the game. They became coins:", color = Color.White, fontSize = 14.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    Text("🪙 +$c", color = Palette.gold, fontSize = 28.sp, fontWeight = Heavy)
+                }
+                ArcadeButton("Let's play!") { progress.clearSelectMatchCard() }
             }
         }
     }

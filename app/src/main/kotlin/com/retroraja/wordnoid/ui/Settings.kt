@@ -218,7 +218,7 @@ fun FirstTimeScreen(progress: Progress, onDone: () -> Unit) {
 @Composable
 fun HowToPlayScreen(progress: Progress, onBack: () -> Unit) {
     val items = listOf(
-        "🔤" to "Swap two neighbouring tiles to spell a word: left to right, right to left, up or down. Only words made with the tile you moved count.",
+        "🔤" to "Swipe a tile to swap it with its neighbour (costs 1 move). Then tap the letters of a word one by one, in a row or a column (forwards or backwards), and press MATCH. Matching is free. Nothing matches by itself.",
         "📏" to "5-letter words give +1 move, 6+ letters give +2 moves.",
         "🎯" to "Each level has goals (shown on the left with a progress bar). Finish them before the moves run out.",
         "🎁" to "Make a word right next to a box to break it. Boxes hide prizes.",

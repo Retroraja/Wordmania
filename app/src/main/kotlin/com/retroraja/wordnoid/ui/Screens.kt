@@ -90,7 +90,7 @@ fun ScreenTop(title: String, progress: Progress, onBack: () -> Unit, coinAt: ((a
 @Composable
 fun LevelStartCard(level: Level, progress: Progress, sounds: SoundFx, onPlay: (List<Booster>) -> Unit, onClose: () -> Unit) {
     if (Fx.ok) { LevelStartBig(level, progress, sounds, onPlay, onClose); return }
-    val options = listOf(Booster.PLUS_MOVES, Booster.JOKER, Booster.FREE_MOVE).filter { it.introLevel <= maxOf(level.number, 8) }
+    val options = listOf(Booster.PLUS_MOVES, Booster.JOKER, Booster.HAMMER).filter { it.introLevel <= maxOf(level.number, 8) }
     val chosen = remember { mutableStateListOf<Booster>() }
     val canPick = level.number >= 8
     val firstFree = canPick && !progress.seen("prelevel_free")
@@ -340,7 +340,7 @@ fun ThemeHelp(th: com.retroraja.wordnoid.core.Themes.Theme, letters: String) {
  */
 @Composable
 private fun LevelStartBig(level: Level, progress: Progress, sounds: SoundFx, onPlay: (List<Booster>) -> Unit, onClose: () -> Unit) {
-    val options = listOf(Booster.PLUS_MOVES, Booster.JOKER, Booster.FREE_MOVE).filter { it.introLevel <= maxOf(level.number, 8) }
+    val options = listOf(Booster.PLUS_MOVES, Booster.JOKER, Booster.HAMMER).filter { it.introLevel <= maxOf(level.number, 8) }
     val chosen = remember { mutableStateListOf<Booster>() }
     val canPick = level.number >= 8
     val firstFree = canPick && !progress.seen("prelevel_free")
@@ -459,7 +459,7 @@ private fun LevelStartBig(level: Level, progress: Progress, sounds: SoundFx, onP
                 val tip = when {
                     level.boss -> "Beat ${world.villain} before the moves run out!"
                     level.introBoosters.isNotEmpty() -> "A new booster is waiting: ${level.introBoosters.first().emoji} ${level.introBoosters.first().title}!"
-                    level.number <= 3 -> "Swap tiles to make words. You can do it!"
+                    level.number <= 3 -> "Swipe to swap, tap the letters, press MATCH!"
                     else -> "Long words give extra moves!"
                 }
                 Row(Modifier.weight(1f).background(Color.White, RoundedCornerShape(18.dp)).padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {

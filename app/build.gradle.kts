@@ -23,8 +23,8 @@ android {
         minSdk = 26
         targetSdk = 36
         // Play needs a bigger number for every upload: the CI run number (+100 so it is above all old test builds).
-        versionCode = 182
-        versionName = "1.4.82" // 1.4.82: fixes the start-up crash of 1.4.81
+        versionCode = 190
+        versionName = "1.5.90" // 1.5: Select + Match (tap letters, MATCH), fewer boosters, smoother on slow phones
     }
 
     signingConfigs {

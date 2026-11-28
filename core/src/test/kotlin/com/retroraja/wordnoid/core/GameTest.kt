@@ -16,7 +16,7 @@ class GameTest {
 
     @Test fun swapMakesWordAndClears() {
         val g = Game(level, dict)
-        val r = g.swap(Pos(0, 1), Pos(0, 2))
+        val r = g.play(Pos(0, 1), Pos(0, 2))
         assertEquals("CAT", r.effects.words.first().word)
         assertEquals(GameStatus.WON, r.status)
         assertTrue(r.leftoverBonus > 0)
@@ -24,7 +24,7 @@ class GameTest {
 
     @Test fun swapWithoutWordStillCostsAMove() {
         val g = Game(level.copy(targets = listOf(Objective.Words(5))), dict)
-        g.swap(Pos(3, 0), Pos(3, 1))
+        g.play(Pos(3, 0), Pos(3, 1))
         assertEquals(9, g.movesLeft)
         assertEquals(GameStatus.PLAYING, g.status)
     }
@@ -33,7 +33,7 @@ class GameTest {
         // DOG sits on the board already; moving tiles elsewhere doesn't score it.
         val l = level.copy(start = listOf("DOGQJ", "QJQZQ", "JZQJZ", "QJZQJ"), targets = listOf(Objective.Words(5)))
         val g = Game(l, dict)
-        val r = g.swap(Pos(3, 3), Pos(3, 4))
+        val r = g.play(Pos(3, 3), Pos(3, 4))
         assertTrue(r.effects.words.isEmpty())
     }
 
@@ -44,7 +44,7 @@ class GameTest {
             cratePrizes = listOf(Prize(PrizeKind.COINS, 25)),
         )
         val g = Game(l, dict)
-        val r = g.swap(Pos(0, 1), Pos(0, 2))
+        val r = g.play(Pos(0, 1), Pos(0, 2))
         assertTrue(r.effects.crateHits.single().broken)
         assertTrue(r.effects.coins >= 25)
         assertEquals(GameStatus.WON, r.status)
@@ -58,7 +58,7 @@ class GameTest {
         )
         val g = Game(l, dict)
         assertTrue(!g.canSwap(Pos(1, 1), Pos(1, 2)), "chained tile can't move")
-        val r = g.swap(Pos(0, 1), Pos(0, 2))
+        val r = g.play(Pos(0, 1), Pos(0, 2))
         assertEquals(1, r.effects.gold.size)
         assertEquals(1, r.effects.chainsBroken.size)
         assertEquals(GameStatus.WON, r.status)
@@ -88,7 +88,7 @@ class GameTest {
         val g = Game(level.copy(start = listOf("CTAQJ", "DGOQJ", "JZQJZ", "QJZQJ"), targets = listOf(Objective.Words(2))), dict)
         // Lock the A, move it next to C and T: no word while locked, the swap still costs a move.
         assertNotNull(g.useBooster(Booster.LOCK, Pos(0, 2)))
-        val r = g.swap(Pos(0, 1), Pos(0, 2))
+        val r = g.play(Pos(0, 1), Pos(0, 2))
         assertTrue(r.effects.words.isEmpty())
         assertEquals(9, g.movesLeft)
         assertEquals(listOf(Pos(0, 1)), g.lockedCells)
@@ -122,7 +122,7 @@ class GameTest {
         fun run(): String {
             val g = Game(level.copy(targets = listOf(Objective.Words(50)), moves = 30), dict)
             val rng = Rng(3)
-            repeat(15) { if (g.status == GameStatus.PLAYING) { val (a, b) = Solver.chooseSwap(g, dict, 0.8, rng); g.swap(a, b) } }
+            repeat(15) { if (g.status == GameStatus.PLAYING) { val (a, b) = Solver.chooseSwap(g, dict, 0.8, rng); g.play(a, b) } }
             return g.board.toString()
         }
         assertEquals(run(), run())
@@ -156,7 +156,7 @@ class GameTest {
     @Test fun wordNextToBalloonPopsIt() {
         val l = level.copy(marks = listOf(".....", ".b...", ".....", "....."), targets = listOf(Objective.Balloons(1)))
         val g = Game(l, dict)
-        val r = g.swap(Pos(0, 1), Pos(0, 2))
+        val r = g.play(Pos(0, 1), Pos(0, 2))
         assertEquals(1, r.effects.balloons.size)
         assertEquals(GameStatus.WON, r.status)
     }
@@ -167,7 +167,7 @@ class GameTest {
             rows = 2, start = listOf("Q@JZQ", "CTAQJ"), targets = listOf(Objective.Rescue(1)),
         )
         val g = Game(l, dict)
-        val r = g.swap(Pos(1, 1), Pos(1, 2))
+        val r = g.play(Pos(1, 1), Pos(1, 2))
         assertEquals(1, r.rescued)
         assertEquals(GameStatus.WON, r.status)
     }
@@ -175,7 +175,7 @@ class GameTest {
     @Test fun treasureIsDugOut() {
         val l = level.copy(treasure = listOf(".tt..", ".....", ".....", "....."), targets = listOf(Objective.Treasure(1)))
         val g = Game(l, dict)
-        val r = g.swap(Pos(0, 1), Pos(0, 2))
+        val r = g.play(Pos(0, 1), Pos(0, 2))
         assertEquals(listOf(0), r.chestsFound)
         assertEquals(GameStatus.WON, r.status)
         val g2 = Game(l, dict)
@@ -184,7 +184,7 @@ class GameTest {
         assertEquals(GameStatus.PLAYING, g2.status)
         assertEquals(setOf(Pos(0, 1), Pos(0, 2)), g2.treasureGlow)
         assertEquals(null, g2.useBooster(Booster.TREASURE_FINDER))
-        assertEquals(listOf(0), g2.swap(Pos(0, 1), Pos(0, 2)).chestsFound)
+        assertEquals(listOf(0), g2.play(Pos(0, 1), Pos(0, 2)).chestsFound)
         assertEquals(emptySet(), g2.treasureGlow)
     }
 
@@ -193,13 +193,13 @@ class GameTest {
         val g = Game(l, dict)
         var attack: BossAttack? = null
         val pairs = listOf(Pos(3, 0) to Pos(3, 1), Pos(3, 0) to Pos(3, 1), Pos(3, 0) to Pos(3, 1), Pos(3, 0) to Pos(3, 1))
-        for ((a, b) in pairs) attack = g.swap(a, b).bossAttack ?: attack
+        for ((a, b) in pairs) attack = g.play(a, b).bossAttack ?: attack
         assertNotNull(attack)
     }
 
     @Test fun wordsGiveNoCoinsButLongWordsGiveMoves() {
         val g = Game(level.copy(targets = listOf(Objective.Words(5))), dict)
-        val r = g.swap(Pos(0, 1), Pos(0, 2))
+        val r = g.play(Pos(0, 1), Pos(0, 2))
         assertEquals(0, r.effects.coins)
         assertEquals(0, r.effects.bonusMoves)
         assertEquals(1, level.movesForWord(5)); assertEquals(2, level.movesForWord(6)); assertEquals(0, level.movesForWord(4))
@@ -209,7 +209,7 @@ class GameTest {
         // C A T with the A frozen at (0,2): swap A (ice) left with T to... instead freeze T and spell CAT.
         val g = Game(level.copy(start = listOf("CTAQJ", "QJQZQ", "JZQJZ", "QJZQJ"), marks = listOf("..i..", ".....", ".....", "....."), targets = listOf(Objective.Ice(1))), dict)
         assertEquals(2, g.swapCost(Pos(0, 1), Pos(0, 2)))
-        val r = g.swap(Pos(0, 1), Pos(0, 2))
+        val r = g.play(Pos(0, 1), Pos(0, 2))
         assertEquals("CAT", r.effects.words.first().word)
         assertEquals(1, r.effects.iceMelted.size)
         assertEquals(8, g.movesLeft)
@@ -218,7 +218,7 @@ class GameTest {
     @Test fun ironCratesAreTheirOwnGoal() {
         // An iron crate (%) under the T: two words next to it break it.
         val g = Game(level.copy(start = listOf("CTAQJ", "Q%QZQ", "JZQJZ", "QJZQJ"), targets = listOf(Objective.IronCrates(1), Objective.Words(5))), dict)
-        val r = g.swap(Pos(0, 1), Pos(0, 2))
+        val r = g.play(Pos(0, 1), Pos(0, 2))
         assertEquals(1, r.effects.crateHits.size)
         assertTrue(!r.effects.crateHits.first().broken, "first hit only snaps the bands")
         assertEquals(0, g.stats.ironCrates)
@@ -229,14 +229,14 @@ class GameTest {
         // Swapping makes FIGS; the fruit theme word FIG must count instead.
         val lv = level.copy(cols = 6, start = listOf("FGISQJ", "QJQZQJ", "JZQJZQ", "QJZQJZ"), targets = listOf(Objective.Theme("Fruits", 1)))
         val g = Game(lv, dict)
-        val r = g.swap(Pos(0, 1), Pos(0, 2))
+        val r = g.play(Pos(0, 1), Pos(0, 2))
         assertEquals("FIG", r.effects.words.first().word)
     }
 
     @Test fun longWordLeavesAPowerTileThatClearsItsRow() {
         val lv = level.copy(number = 20, cols = 6, start = listOf("PLNAET", "QJQZQJ", "JZQJZQ", "QJZQJZ"), targets = listOf(Objective.Words(9)))
         val g = Game(lv, dict)
-        val r = g.swap(Pos(0, 2), Pos(0, 3))
+        val r = g.play(Pos(0, 2), Pos(0, 3))
         assertEquals("PLANET", r.effects.words.first().word)
         assertEquals(1, r.effects.powerMade.size)
         assertTrue(g.board.tiles().count { it.isPower } == 1)

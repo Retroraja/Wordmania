@@ -62,6 +62,8 @@ data class MoveResult(
     val bossAttack: BossAttack? = null,
     /** No swap makes a word any more. Nothing moves by itself: the player gets a free Shuffle to tap. */
     val stuck: Boolean = false,
+    /** Row/Column Slide made this word (cells in reading order): the app selects it so the player just taps MATCH. */
+    val madeWord: List<Pos>? = null,
 )
 
 /** The rules of one level being played. Has no screen code, so it can be tested and used by the level maker. */
@@ -143,7 +145,8 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
         undo = s.deep()
         s = if (s.freeMoves > 0) s.copy(freeMoves = s.freeMoves - 1) else s.copy(movesLeft = s.movesLeft - board.swapCost(a, b))
         s = s.copy(movesUsed = s.movesUsed + 1, board = board.swap(a, b))
-        val r = act(listOf(a, b), fromSwap = true)
+        // Select + Match update: a swap never clears anything by itself. The player taps the letters and MATCH.
+        val r = finish(board, Effects())
         return if (level.boss && r.status == GameStatus.PLAYING && s.movesUsed % BOSS_EVERY == 0) bossAttack(r) else r
     }
 
@@ -166,12 +169,71 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
     /** Locked letters on the board (Lock booster). */
     val lockedCells: List<Pos> get() = board.positions().filter { board[it].locked }
 
-    /** Unlocks a locked letter (free, no move) and checks for words through it right away. */
+    /** Unlocks a locked letter (free, no move). Nothing is matched by itself. */
     fun unlock(p: Pos): MoveResult? {
         if (s.status != GameStatus.PLAYING || !board.contains(p) || !board[p].locked) return null
         undo = s.deep()
         s = s.copy(board = board.with(p, board[p].copy(locked = false)))
-        return act(listOf(p))
+        return finish(board, Effects())
+    }
+
+    // ---------------------------------------------------------------- select + match
+
+    /**
+     * The word the player picked ([cells] in tap order: neighbours in one row or column), read forwards or backwards.
+     * Null if the tiles aren't in a line or don't spell a word.
+     */
+    fun wordAt(cells: List<Pos>): FoundWord? {
+        if (cells.size < Dictionary.MIN_LENGTH || cells.distinct().size != cells.size || !isLine(cells)) return null
+        if (!cells.all { board.contains(it) && board[it].hasLetter && !board[it].locked }) return null
+        val pattern = String(CharArray(cells.size) { board[cells[it]].letter.lowercaseChar() })
+        WordFinder.resolve(pattern, dict)?.let { return FoundWord(it.uppercase(), cells) }
+        WordFinder.resolve(pattern.reversed(), dict)?.let { return FoundWord(it.uppercase(), cells.reversed()) }
+        return null
+    }
+
+    /** True if [p] can be picked after [picked] (it must keep the line straight and touch the last tile). */
+    fun canPick(picked: List<Pos>, p: Pos): Boolean {
+        if (!board.contains(p) || !board[p].hasLetter || board[p].locked || p in picked) return false
+        if (picked.isEmpty()) return true
+        return isLine(picked + p)
+    }
+
+    /**
+     * MATCH: the picked tiles burst if they spell a word (free, no move). Null if they don't (nothing changes).
+     * A 5+ letter word leaves a power tile where the last letter was tapped.
+     */
+    fun match(cells: List<Pos>): MoveResult? {
+        if (s.status != GameStatus.PLAYING) return null
+        val w = wordAt(cells) ?: return null
+        undo = s.deep()
+        val b = board
+        val fx = effectsOf(b, listOf(w), emptySet(), power = powerSpots(b, listOf(w), listOf(cells.last())))
+        return apply(b, fx)
+    }
+
+    /** Words already spelled on the board (the player can MATCH them without a swap). */
+    fun readyWords(b: Board = board): List<FoundWord> = WordFinder.findAll(b, dict)
+
+    /** The best word through [cells] right now (theme, gold, goal, then longest), or null. */
+    fun bestWordThrough(cells: Collection<Pos>): FoundWord? {
+        val b = board
+        val words = WordFinder.wordsThrough(b, cells, dict, rankFor(b))
+        if (words.isEmpty()) return null
+        val rank = rankFor(b)
+        return words.maxWith(compareBy<FoundWord> { rank.of(it.word, it.cells) }.thenBy { it.length })
+    }
+
+    /**
+     * Computer players (level maker, tests): swap, then match the best word the swap made (like a player who
+     * taps it right away). Returns the match when there is one, otherwise the swap.
+     */
+    fun play(a: Pos, b: Pos): MoveResult {
+        val r = swap(a, b)
+        if (r.status != GameStatus.PLAYING) return r
+        val w = bestWordThrough(listOf(a, b)) ?: return r
+        val m = match(w.cells) ?: return r
+        return m.copy(changedBoard = r.changedBoard, bossAttack = r.bossAttack)
     }
 
     /** "+N moves" from the out-of-moves screen. Keeps the board as it is. */
@@ -208,29 +270,6 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
                 else -> 0
             }
         }
-    }
-
-    private fun act(changed: Collection<Pos>, fromSwap: Boolean = false): MoveResult {
-        val changedBoard = board
-        val moved = changed.filter { changedBoard[it].hasLetter }
-        val words = limitWords(changedBoard, WordFinder.wordsThrough(changedBoard, moved, dict, rankFor(changedBoard)))
-        val fx = if (words.isEmpty()) Effects() else effectsOf(changedBoard, words, emptySet(), power = if (fromSwap) powerSpots(changedBoard, words, moved) else emptyMap())
-        return apply(changedBoard, fx)
-    }
-
-    /**
-     * Update 1.3, the fix for "words match on their own": one move bursts the word the player made (the best one:
-     * theme, gold, goal, then longest) plus at most [MAX_FREE_WORDS] lucky extra word, and only a long one
-     * ([FREE_WORD_MIN]+ letters). Before, every word through both moved tiles in all 4 directions burst, so one
-     * swap often cleared 2-3 words the player never planned. Other words just stay on the board.
-     */
-    private fun limitWords(b: Board, words: List<FoundWord>): List<FoundWord> {
-        if (words.size <= 1) return words
-        val rank = rankFor(b)
-        val sorted = words.sortedWith(compareByDescending<FoundWord> { rank.of(it.word, it.cells) }.thenByDescending { it.length })
-        val main = sorted.first()
-        val extra = sorted.drop(1).filter { it.length >= FREE_WORD_MIN }.take(MAX_FREE_WORDS)
-        return listOf(main) + extra
     }
 
     /**
@@ -450,7 +489,13 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
     }
 
     /** True when no swap makes a word: the player should tap Shuffle (given free). */
-    val stuck: Boolean get() = s.status == GameStatus.PLAYING && !hasWordMove(board)
+    val stuck: Boolean get() = s.status == GameStatus.PLAYING && !hasWordMove(board) && readyWords().isEmpty()
+
+    /** Out of moves but words are still on the board to MATCH: the player can match them, or give up. */
+    val outOfMoves: Boolean get() = s.status == GameStatus.PLAYING && s.movesLeft <= 0 && s.freeMoves <= 0
+
+    /** The player gives up with no moves left (words were still on the board). */
+    fun giveUp() { if (outOfMoves) s = s.copy(status = GameStatus.LOST) }
 
     private fun finish(changedBoard: Board, fx: Effects): MoveResult {
         var leftover = 0
@@ -458,7 +503,8 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
         var stuck = false
         val status = when {
             goalMet -> GameStatus.WON
-            s.movesLeft <= 0 && s.freeMoves <= 0 -> GameStatus.LOST
+            // Out of moves: the level is lost once no word is left to MATCH (matching is free).
+            s.movesLeft <= 0 && s.freeMoves <= 0 && readyWords().isEmpty() -> GameStatus.LOST
             else -> GameStatus.PLAYING
         }
         s = s.copy(status = status)
@@ -467,7 +513,7 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
             leftoverCoins = minOf(s.movesLeft * LEFTOVER_MOVE_COINS, LEFTOVER_COINS_MAX)
             s = s.copy(score = s.score + leftover, coins = s.coins + leftoverCoins)
             undo = null
-        } else if (status == GameStatus.PLAYING && !hasWordMove(board)) {
+        } else if (status == GameStatus.PLAYING && !hasWordMove(board) && readyWords().isEmpty()) {
             // Never shuffled by itself (Update 1.1): the app gives a free Shuffle for the player to tap.
             stuck = true
         }
@@ -517,11 +563,11 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
             Booster.MAGNET -> if (!ok(a) || !bd[a!!].isGold) null else smash(setOf(a), fullBreak = false)
             Booster.MAGIC_SWAP -> {
                 if (!ok(a) || !ok(b) || a == b || !bd[a!!].movable || !bd[b!!].movable) null
-                else { s = s.copy(board = bd.swap(a, b)); act(listOf(a, b)) }
+                else { s = s.copy(board = bd.swap(a, b)); finish(board, Effects()) }
             }
             Booster.JOKER -> {
                 if (!ok(a) || !bd[a!!].movable || bd[a].isJoker) null
-                else { s = s.copy(board = bd.with(a, bd[a].copy(letter = JOKER_CHAR, kind = TileKind.JOKER))); act(listOf(a)) }
+                else { s = s.copy(board = bd.with(a, bd[a].copy(letter = JOKER_CHAR, kind = TileKind.JOKER))); finish(board, Effects()) }
             }
             Booster.VOWEL_FLIP -> rain(bd, 4 + s.rng.nextInt(2), "AEIOU")
             Booster.PAINT, Booster.DICE -> {
@@ -531,7 +577,7 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
                     val t = bd[a]
                     val kind = if (t.isJoker) TileKind.NORMAL else t.kind
                     s = s.copy(board = bd.with(a, t.copy(letter = l, kind = kind)))
-                    act(listOf(a))
+                    finish(board, Effects())
                 }
             }
             Booster.SPIN -> {
@@ -539,15 +585,21 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
                     val tl = a!!; val cells = listOf(tl, Pos(tl.row, tl.col + 1), Pos(tl.row + 1, tl.col + 1), Pos(tl.row + 1, tl.col))
                     if (!cells.all { bd.contains(it) && bd[it].movable }) null else {
                         val nb = bestSpin(bd, cells)
-                        if (nb == null) null else { s = s.copy(board = nb); act(cells) }
+                        if (nb == null) null else { s = s.copy(board = nb); finish(board, Effects()) }
                     }
                 }
             }
             Booster.ROW_SLIDE, Booster.COLUMN_SLIDE -> {
                 if (!ok(a)) null else {
                     val line = if (booster == Booster.ROW_SLIDE) WordFinder.rowLine(bd, a!!.row) else WordFinder.colLine(bd, a!!.col)
-                    val nb = arrangeLine(bd, line)
-                    if (nb == null) null else { s = s.copy(board = nb); act(line.filter { nb[it].movable }) }
+                    val made = arrangeLine(bd, line)
+                    if (made == null) null else {
+                        val (nb, window) = made
+                        s = s.copy(board = nb)
+                        // The new word is selected for the player, who taps MATCH (Select + Match update).
+                        val cells = WordFinder.wordsThrough(nb, window, dict).firstOrNull { it.cells.toSet() == window.toSet() }?.cells ?: window
+                        finish(board, Effects()).copy(madeWord = cells)
+                    }
                 }
             }
             Booster.UNDO -> {
@@ -611,7 +663,7 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
      * Row / Column Slide: rearranges the movable letters of [line] so that the longest possible word is spelled in order,
      * moving as few letters as possible. Crates, ice and chains stay where they are. Null if no word can be made.
      */
-    private fun arrangeLine(bd: Board, line: List<Pos>): Board? {
+    private fun arrangeLine(bd: Board, line: List<Pos>): Pair<Board, List<Pos>>? {
         val movable = line.filter { bd[it].movable }
         if (movable.size < 3) return null
         val pool = movable.map { bd[it] }
@@ -649,8 +701,8 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
                 for (p in movable) if (p !in place) { place[p] = left.removeAt(0) }
                 var nb = bd
                 for ((p, t) in place) nb = nb.with(p, t)
-                if (WordFinder.wordsThrough(nb, window, dict).isEmpty()) continue
-                return nb
+                if (WordFinder.wordsThrough(nb, window, dict).none { it.cells.toSet() == window.toSet() }) continue
+                return nb to window
             }
         }
         return null
@@ -898,6 +950,16 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
                 b = b.with(p, b[p].copy(prize = prize))
             }
             return b
+        }
+
+        /** Neighbouring tiles in one row or one column, one after another (either way). */
+        fun isLine(cells: List<Pos>): Boolean {
+            if (cells.size < 2) return true
+            val dr = cells[1].row - cells[0].row
+            val dc = cells[1].col - cells[0].col
+            if (kotlin.math.abs(dr) + kotlin.math.abs(dc) != 1) return false
+            for (i in 1 until cells.size) if (cells[i].row - cells[i - 1].row != dr || cells[i].col - cells[i - 1].col != dc) return false
+            return true
         }
 
         fun wordsForSwap(board: Board, a: Pos, b: Pos, dict: Dictionary): List<FoundWord> =

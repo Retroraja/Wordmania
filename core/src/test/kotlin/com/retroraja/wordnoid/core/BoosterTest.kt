@@ -19,7 +19,7 @@ class BoosterTest {
             val pairs = g.board.swappablePairs()
             if (pairs.isEmpty()) return null
             val (a, b) = pairs[r.nextInt(pairs.size)]
-            g.swap(a, b)
+            g.play(a, b)
         }
         return g.takeIf { it.status == GameStatus.PLAYING }
     }
@@ -34,7 +34,7 @@ class BoosterTest {
         for (b in Booster.entries) {
             val level = Levels.get(b.introLevel)!!
             val g = Game(level, dict)
-            if (b == Booster.UNDO) g.swap(g.board.swappablePairs().first().first, g.board.swappablePairs().first().second)
+            if (b == Booster.UNDO) g.play(g.board.swappablePairs().first().first, g.board.swappablePairs().first().second)
             assertTrue(g.canUseNow(b), "${b.title} can't be used on level ${b.introLevel}, the level that teaches it")
         }
     }
