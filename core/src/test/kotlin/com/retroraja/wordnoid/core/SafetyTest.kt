@@ -21,6 +21,7 @@ class SafetyTest {
             repeat(12) {
                 if (game.status != GameStatus.PLAYING) return@repeat
                 if (game.stuck) { game.useBooster(Booster.SHUFFLE); return@repeat }
+                if (game.outOfMoves) return@repeat
                 val (a, b) = Solver.chooseSwap(game, dict, 0.6, rng)
                 val r = game.play(a, b)
                 assertNull(r.shuffled, "Level ${level.number}: the board shuffled by itself")

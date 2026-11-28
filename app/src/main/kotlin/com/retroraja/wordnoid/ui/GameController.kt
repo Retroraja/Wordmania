@@ -1048,7 +1048,8 @@ class GameController(
         // 3. Coins (from boxes) fly to the counter; moves and boosters are handed out.
         if (fx0.coins > 0) {
             val from = fx0.words.firstOrNull()?.cells?.let { cellCenter(it[it.size / 2]) } ?: center()
-            if (fx3) Fx.call("coins", Fx.at(from, Fx.obj("n" to fx0.coins.coerceAtMost(8)))) else particles.coins(from, coinAnchor, fx0.coins)
+            // 1.5: coins fly as light 2D pictures (the 3D coins were slow on cheaper phones).
+            particles.coins(from, coinAnchor, fx0.coins.coerceAtMost(8))
             progress.addCoins(fx0.coins)
             scope.launch { delay(700); sounds.play("coin") }
         }

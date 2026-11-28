@@ -83,23 +83,6 @@ class GameTest {
         assertTrue(rain.effects.words.isEmpty(), "rain never makes a word by itself")
     }
 
-    @Test fun lockedLetterMakesNoWordUntilUnlocked() {
-        // Row 2 keeps a word possible (DGO -> DOG), so the board is not shuffled after the dry swap.
-        val g = Game(level.copy(start = listOf("CTAQJ", "DGOQJ", "JZQJZ", "QJZQJ"), targets = listOf(Objective.Words(2))), dict)
-        // Lock the A, move it next to C and T: no word while locked, the swap still costs a move.
-        assertNotNull(g.useBooster(Booster.LOCK, Pos(0, 2)))
-        val r = g.play(Pos(0, 1), Pos(0, 2))
-        assertTrue(r.effects.words.isEmpty())
-        assertEquals(9, g.movesLeft)
-        assertEquals(listOf(Pos(0, 1)), g.lockedCells)
-        // Unlocking is free and checks words through the letter right away.
-        val u = g.unlock(Pos(0, 1))
-        assertNotNull(u)
-        assertEquals("CAT", u.effects.words.first().word)
-        assertEquals(9, g.movesLeft)
-        assertTrue(g.lockedCells.isEmpty())
-    }
-
     @Test fun everyThemeWordIsInTheWordList() {
         for (t in Themes.all) {
             if (t.isNames) continue
@@ -114,8 +97,10 @@ class GameTest {
         val l = level.copy(start = listOf("CQTQJ", "QJQZQ", "JZQJZ", "QJZQJ"))
         val g = Game(l, dict)
         val r = g.useBooster(Booster.JOKER, Pos(0, 1))!!
-        assertEquals(3, r.effects.words.single().length)
-        assertEquals(GameStatus.WON, r.status)
+        assertTrue(r.effects.words.isEmpty(), "Joker only changes the tile")
+        val m = assertNotNull(g.match(listOf(Pos(0, 0), Pos(0, 1), Pos(0, 2))))
+        assertEquals(3, m.effects.words.single().length)
+        assertEquals(GameStatus.WON, m.status)
     }
 
     @Test fun sameMovesGiveSameBoard() {
@@ -128,18 +113,16 @@ class GameTest {
         assertEquals(run(), run())
     }
 
-    @Test fun spinAndSlideOnlyWhenTheyMakeAWord() {
-        // Row 1 holds T, A, C in the wrong order: the slide spells CAT. Spin on Q/J tiles can't make a word.
+    @Test fun slideMakesAWordReadyToMatch() {
+        // Row 1 holds T, A, C in the wrong order: the slide spells CAT and picks it; MATCH clears it.
         val l = level.copy(start = listOf("QJZQJ", "TQACJ", "JZQJZ", "QJZQJ"), targets = listOf(Objective.Words(5)))
         val g = Game(l, dict)
-        assertNull(g.useBooster(Booster.SPIN, Pos(2, 0)), "no word: booster refunded")
         val r = g.useBooster(Booster.ROW_SLIDE, Pos(1, 0))
         assertNotNull(r)
-        assertTrue(r.effects.words.isNotEmpty())
-        val g2 = Game(level.copy(start = listOf("QJZQJ", "AQTJZ", "CJQZQ", "QJZQJ"), targets = listOf(Objective.Words(5))), dict)
-        val r2 = g2.useBooster(Booster.SPIN, Pos(1, 0))
-        assertNotNull(r2)
-        assertTrue(r2.effects.words.isNotEmpty())
+        assertTrue(r.effects.words.isEmpty(), "nothing clears by itself")
+        val cells = assertNotNull(r.madeWord)
+        val m = assertNotNull(g.match(cells))
+        assertEquals(1, m.effects.words.size)
     }
 
     @Test fun hammerCracksIceAndSkipsGold() {

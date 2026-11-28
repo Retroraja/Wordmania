@@ -229,6 +229,12 @@ class Game private constructor(val level: Level, private val baseDict: Dictionar
      * taps it right away). Returns the match when there is one, otherwise the swap.
      */
     fun play(a: Pos, b: Pos): MoveResult {
+        if (outOfMoves) {
+            // No moves left: MATCH a word still on the board (free), or give up.
+            readyWords().firstOrNull()?.let { w -> match(w.cells)?.let { return it } }
+            giveUp()
+            return MoveResult(board, Effects(), board, null, s.status, 0, 0)
+        }
         val r = swap(a, b)
         if (r.status != GameStatus.PLAYING) return r
         val w = bestWordThrough(listOf(a, b)) ?: return r

@@ -17,6 +17,10 @@ object Solver {
         while (game.status == GameStatus.PLAYING && guard++ < 400) {
             // No word left: the game gives a free Shuffle, which the player taps.
             if (game.stuck) { game.useBooster(Booster.SHUFFLE); continue }
+            if (game.outOfMoves) { game.play(Pos(0, 0), Pos(0, 0)); continue }
+            // A word already on the board: tap it and MATCH (free), like a player would.
+            val ready = game.readyWords().firstOrNull()
+            if (ready != null && game.match(ready.cells) != null) continue
             val (a, b) = chooseSwap(game, dict, skill, rng)
             if (!game.canSwap(a, b)) break
             game.play(a, b)
@@ -45,6 +49,7 @@ object Solver {
             var best: Pair<Pos, Pos>? = null
             var bestValue = 0.0
             for (first in pairs) {
+                if (!game.canSwap(first.first, first.second)) continue
                 val g = game.copy()
                 g.play(first.first, first.second)
                 if (g.status != GameStatus.PLAYING) { if (g.status == GameStatus.WON) return first else continue }

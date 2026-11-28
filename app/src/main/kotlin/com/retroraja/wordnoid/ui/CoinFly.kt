@@ -1,6 +1,8 @@
 package com.retroraja.wordnoid.ui
 
+import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -51,13 +53,22 @@ object CoinFly {
         main.launch { fly(sounds, n, true, from) }
     }
 
+    /** 1.5: coins and bricks fly as light 2D pictures (drawn by [CoinFlyLayer]); the 3D ones were slow on cheaper phones. */
+    data class Flight(val id: Int, val from: Offset, val to: Offset, val n: Int, val brick: Boolean)
+    val flights = androidx.compose.runtime.mutableStateListOf<Flight>()
+    private var ids = 0
+    fun flight(from: Offset, to: Offset, n: Int, brick: Boolean) {
+        val f = Flight(++ids, from, to, n.coerceIn(1, 8), brick)
+        flights.add(f)
+        main.launch { delay(1400); flights.remove(f) }
+    }
+
     private suspend fun fly(sounds: SoundFx, n: Int, brick: Boolean, from: Offset?) {
         val dm = android.content.res.Resources.getSystem().displayMetrics
         val start = from ?: Offset(maxOf(dm.widthPixels, dm.heightPixels) / 2f, minOf(dm.widthPixels, dm.heightPixels) * 0.5f)
         val to = if (brick) brickAt else coinAt
-        if (Fx.ok && to != Offset.Zero) {
-            Fx.call("fly", Fx.obj("x" to Fx.dp(start.x), "y" to Fx.dp(start.y), "n" to (if (brick) n.coerceAtMost(6) else (n / 12 + 3).coerceAtMost(8)),
-                "brick" to brick, "to" to Fx.xy(to)))
+        if (to != Offset.Zero) {
+            flight(start, to, if (brick) n.coerceAtMost(6) else (n / 12 + 3).coerceAtMost(8), brick)
             delay(950)
         } else delay(250)
         val steps = if (brick) n.coerceIn(1, 8) else 10
@@ -67,6 +78,37 @@ object CoinFly {
             landed++
             sounds.play(if (brick) "clack" else "coin")
             delay(if (brick) 120 else 55)
+        }
+    }
+}
+
+/** Draws the flying coins and bricks over everything (2D pictures on an arc, each a little later than the last). */
+@androidx.compose.runtime.Composable
+fun CoinFlyLayer() {
+    for (f in CoinFly.flights) androidx.compose.runtime.key(f.id) {
+        for (i in 0 until f.n) {
+            val t = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(0f) }
+            androidx.compose.runtime.LaunchedEffect(Unit) {
+                delay(i * 70L)
+                t.animateTo(1f, androidx.compose.animation.core.tween(720, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+            }
+            val k = t.value
+            if (k > 0f && k < 1f) {
+                // A curve: out a little to the side and up, then into the counter.
+                val side = (i - f.n / 2f) * 28f
+                val mx = (f.from.x + f.to.x) / 2 + side
+                val my = minOf(f.from.y, f.to.y) - 120f
+                val x = (1 - k) * (1 - k) * f.from.x + 2 * (1 - k) * k * mx + k * k * f.to.x
+                val y = (1 - k) * (1 - k) * f.from.y + 2 * (1 - k) * k * my + k * k * f.to.y
+                val s = 1.2f - 0.5f * k
+                androidx.compose.material3.Text(
+                    if (f.brick) "🧱" else "🪙",
+                    androidx.compose.ui.Modifier
+                        .offset { androidx.compose.ui.unit.IntOffset((x - 24).toInt(), (y - 24).toInt()) }
+                        .graphicsLayer { scaleX = s; scaleY = s },
+                    fontSize = androidx.compose.ui.unit.TextUnit(24f, androidx.compose.ui.unit.TextUnitType.Sp),
+                )
+            }
         }
     }
 }

@@ -196,6 +196,8 @@ fun TownScreen(
     BoxWithConstraints(Modifier.fillMaxSize().then(if (use3d) Modifier else Modifier.background(Brush.verticalGradient(listOf(world.top, world.bottom))))) {
         val screenW = maxWidth
         val screenH = maxHeight
+        val screenWpx = constraints.maxWidth.toFloat()
+        val screenHpx = constraints.maxHeight.toFloat()
         LaunchedEffect(arrival) {
             val a = arrival ?: return@LaunchedEffect
             if (a.played) return@LaunchedEffect
@@ -204,8 +206,8 @@ fun TownScreen(
             suspend fun count(n: Int, brick: Boolean) {
                 if (n <= 0) return
                 val to = if (brick) brickAt else coinAt
-                if (Fx.ok) Fx.call("fly", Fx.obj("x" to (screenW.value / 2).toDouble(), "y" to (screenH.value * 0.45f).toDouble(), "n" to (if (brick) n else (n / 12 + 3).coerceAtMost(8)),
-                    "brick" to brick, "to" to Fx.xy(to)))
+                // 1.5: light 2D pictures fly to the counter (the 3D ones were slow on cheaper phones).
+                CoinFly.flight(androidx.compose.ui.geometry.Offset(screenWpx / 2f, screenHpx * 0.45f), to, if (brick) n.coerceAtMost(8) else (n / 12 + 3).coerceAtMost(8), brick)
                 delay(900)
                 val steps = if (brick) n else 10
                 for (i in 1..steps) {

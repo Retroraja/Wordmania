@@ -7,8 +7,11 @@
 const $=s=>document.querySelector(s);
 const canvas=$('#gl');
 let renderer=null;
-try{renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true,preserveDrawingBuffer:false})}catch(e){renderer=null}
-if(renderer){renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+/* Lite mode (1.5, for slower phones such as the Oppo A48): normal sharpness instead of double, no soft shadows,
+ * no smoothing, and at most 30 frames a second, so the 3D layer never slows the game down. */
+const LITE=/[?&]lite=1/.test(location.search);
+try{renderer=new THREE.WebGLRenderer({canvas,antialias:!LITE,alpha:true,preserveDrawingBuffer:false,powerPreference:LITE?'low-power':'default'})}catch(e){renderer=null}
+if(renderer){renderer.setPixelRatio(LITE?Math.min(window.devicePixelRatio||1,1):Math.min(window.devicePixelRatio||1,2));renderer.shadowMap.enabled=!LITE;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
   renderer.localClippingEnabled=true;renderer.autoClear=false;renderer.setClearColor(0x000000,0)}
 
 /* ---------- sounds and events go to Kotlin ---------- */
@@ -41,7 +44,8 @@ window.addEventListener('resize',resize);
 let running=false,last=0;
 function kick(){if(!running&&renderer){running=true;last=performance.now();requestAnimationFrame(loop)}}
 function ovBusy(){return ov.tweens.length||ov.parts.length||ov.scene.children.length>OV_KEEP||boss||loseTiko||panel}
-function loop(now){const dt=Math.min(.05,Math.max(0,(now-last)/1000));last=now;T+=dt;
+function loop(now){if(LITE&&now-last<30){requestAnimationFrame(loop);return}
+  const dt=Math.min(.05,Math.max(0,(now-last)/1000));last=now;T+=dt;
   try{
     renderer.clear();
     if(bd){use(bd.world);runTweens();updParts(dt);const c=bd.world.cam;bd.api.update&&bd.api.update(dt,T);

@@ -85,7 +85,20 @@ object Fx {
             }
         }
         v.addJavascriptInterface(Bridge, "WN")
-        v.loadUrl("file:///android_asset/fx/fx.html")
+        v.loadUrl("file:///android_asset/fx/fx.html" + if (isSlowPhone(v.context)) "?lite=1" else "")
+    }
+
+    /**
+     * Lite 3D (1.5): phones with less than 6 GB of memory (like the Oppo A48) draw the 3D layer at normal sharpness,
+     * with no soft shadows, at 30 frames a second. It looks almost the same and runs much smoother.
+     */
+    var lite = false; private set
+    fun isSlowPhone(ctx: android.content.Context): Boolean {
+        val am = ctx.getSystemService(android.content.Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+        val mi = android.app.ActivityManager.MemoryInfo()
+        runCatching { am.getMemoryInfo(mi) }
+        lite = am.isLowRamDevice || mi.totalMem in 1 until 6L * 1024 * 1024 * 1024 || Runtime.getRuntime().availableProcessors() <= 4
+        return lite
     }
 
     fun detach() { web?.destroy(); web = null; loaded = false; ok = false; scene = null; front = true }

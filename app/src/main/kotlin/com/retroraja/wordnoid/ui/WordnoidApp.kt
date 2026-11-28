@@ -282,6 +282,7 @@ fun WordnoidApp() {
                 ArcadeButton("Let's play!") { progress.clearSelectMatchCard() }
             }
         }
+        CoinFlyLayer()
     }
 
 }
