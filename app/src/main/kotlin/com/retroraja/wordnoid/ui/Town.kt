@@ -188,11 +188,12 @@ fun TownScreen(
     val nextLevel = progress.unlocked.coerceAtMost(Levels.all.size)
     val world = WORLDS[current]
     @Suppress("UNUSED_VARIABLE") val v = progress.version
-    val use3d = Fx.ok
-    // 3D town: one street at a time, the arrows walk to the other streets. Rebuilt after each fix.
+    // Select + Match update (lag fix): the street is pictures (made from the 3D town), not live 3D, on every phone.
+    val use3d = true
     var view by remember { mutableIntStateOf(current) }
     var rev by remember { mutableIntStateOf(0) }
-    LaunchedEffect(use3d, view, rev) { if (use3d) Fx.backdrop("town", townData(DISTRICTS[view], progress, DISTRICTS[view].world <= current)) }
+    val stage = rememberTownStage()
+    LaunchedEffect(Unit) { Fx.backdrop(null) }
     BoxWithConstraints(Modifier.fillMaxSize().then(if (use3d) Modifier else Modifier.background(Brush.verticalGradient(listOf(world.top, world.bottom))))) {
         val screenW = maxWidth
         val screenH = maxHeight
@@ -231,11 +232,14 @@ fun TownScreen(
         val density = LocalDensity.current
         LaunchedEffect(current) { scroll.scrollTo(with(density) { (screenW * current).toPx() }.toInt()) }
         if (use3d) {
-            // Drag to turn the street a little.
-            Box(Modifier.fillMaxSize().pointerInput(Unit) {
-                detectDragGestures { _, d -> Fx.act("drag", Fx.obj("dx" to (d.x / density.density).toDouble())) }
-            })
+            // Swipe left and right to look along the street.
             val vd = DISTRICTS[view]
+            val vUnlocked = vd.world <= current
+            val fixedSpots = buildSet {
+                if (vUnlocked) for (k in 0 until 8) if (spotFixed(progress, vd, k)) add(k)
+                if (vUnlocked && progress.tasksDone(vd.world) >= vd.tasks.size) add(8)
+            }
+            key(view) { TownPicture(vd.world, fixedSpots, stage, grey = !vUnlocked, modifier = Modifier.fillMaxSize()) }
             if (vd.world > current) Text(
                 "🔒 ${vd.name}\nComing after ${WORLDS[vd.world - 1].name}", Modifier.align(Alignment.Center).background(Color(0xAAFFFFFF), RoundedCornerShape(14.dp)).padding(12.dp),
                 color = Color(0xFF1B2140), fontSize = 20.sp, fontWeight = Heavy, textAlign = TextAlign.Center,
@@ -381,7 +385,7 @@ fun TownScreen(
                 if (progress.tasksDone(DISTRICTS[d].world) >= DISTRICTS[d].tasks.size && !progress.seen(Story.seenKey(d, "complete")))
                     townScope.launch { delay(1600); onLandComplete(d) }
             }
-            if (use3d) FixScene3D(DISTRICTS[d], i, sounds, last = progress.tasksDone(DISTRICTS[d].world) >= DISTRICTS[d].tasks.size, onDone = { rev++; done() })
+            if (use3d) FixScenePics(DISTRICTS[d], i, sounds, stage, last = progress.tasksDone(DISTRICTS[d].world) >= DISTRICTS[d].tasks.size, onDone = { rev++; done() })
             else FixScene(DISTRICTS[d], i, sounds, onDone = done)
         }
         // After the guided build: one big button on to the next level.
@@ -661,6 +665,42 @@ private fun FixScene3D(d: District, task: Int, sounds: SoundFx, last: Boolean, o
         // throws the bricks, the building rises out of a hologram. The last task also opens the big building.
         Fx.act("fix", Fx.obj("spot" to t.spot, "cost" to t.cost, "line" to t.story.removePrefix("Tiko: ").trim('"'), "last" to last))
         Fx.await("townFixDone", if (last) 60_000 else 30_000)
+        step = 1
+    }
+    if (step == 0) Box(Modifier.fillMaxSize().clickable(remember { MutableInteractionSource() }, null) {})
+    else DimBox(0.35f) {
+        Column(Modifier.width(440.dp).arcadePanel().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            ArcadeText(t.title, 22.sp, Palette.gold)
+            Text("+🪙${t.coins + (if (t.booster != null) Rewards.BOOSTER_COINS else 0)}", color = Palette.gold, fontSize = 18.sp, fontWeight = Heavy)
+            Spacer(Modifier.height(8.dp))
+            ArcadeButton("Yay!", onClick = onDone)
+        }
+    }
+}
+
+/** Pictures: the view slides and zooms to the spot, Tiko hops over, bricks fly in, it rises and pops. Then the reward card. */
+@Composable
+private fun FixScenePics(d: District, task: Int, sounds: SoundFx, stage: TownStage, last: Boolean, onDone: () -> Unit) {
+    val t = d.tasks[task]
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    var step by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        val pics = TownPics.load(ctx, d.world)
+        stage.buildSpot(pics, t.spot, t.cost, t.story.removePrefix("Tiko: ").trim('"'), sounds)
+        if (last) {
+            // Every task done: the big building opens.
+            stage.banner = "ALL TASKS DONE!"
+            sounds.play("sparkle")
+            delay(1500)
+            stage.banner = null
+            stage.buildSpot(pics, 8, 6, "We did it! The whole street is fixed!", sounds)
+            stage.banner = "${d.name} is fixed!"
+            sounds.play("fanfare")
+            repeat(4) { stage.burst(0.2f + it * 0.2f, 0.25f, 30, 2, 0.08f); delay(400) }
+            delay(1200)
+            stage.banner = null
+        }
+        stage.zoomOut()
         step = 1
     }
     if (step == 0) Box(Modifier.fillMaxSize().clickable(remember { MutableInteractionSource() }, null) {})

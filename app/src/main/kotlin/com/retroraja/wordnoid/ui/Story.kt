@@ -18,6 +18,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.retroraja.wordnoid.audio.SoundFx
@@ -67,21 +70,38 @@ fun StoryScreen(progress: Progress, sounds: SoundFx, land: Int, part: String, on
         }
         onDone()
     }
-    if (!Fx.ok) { LaunchedEffect(Unit) { if (part == "complete") Story.landPrize(progress, land); finish() }; return }
+    // Select + Match update (lag fix): the story is shown as pictures with a slow zoom, not live 3D.
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    var loaded by remember { mutableStateOf<List<StoryPics.Pic>?>(null) }
     LaunchedEffect(Unit) {
-        Fx.backdrop(
-            "story",
-            Fx.obj(
-                "land" to land, "part" to part, "chain" to (part == "complete"),
-                "bricks" to progress.bricksToSpend, "prize" to Story.prizeText(land),
-                "skipIntro" to (land < 4 && progress.seen(Story.seenKey(land + 1, "intro"))),
-            ),
-        )
-        // Intro ~21 s, boss ~16 s, complete + bridge + next intro ~45 s.
-        Fx.await("storyDone", if (part == "complete") 70_000 else 35_000)
+        Fx.backdrop(null) // no live 3D behind the pictures
+        val parts = buildList {
+            add("$land-$part")
+            if (part == "complete" && land < 4 && !progress.seen(Story.seenKey(land + 1, "intro"))) add("${land + 1}-intro")
+        }
+        loaded = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { parts.flatMap { StoryPics.load(ctx, it) } }
+    }
+    val pics = loaded ?: run { Box(Modifier.fillMaxSize().background(Color.Black)); return }
+    if (pics.isEmpty()) { LaunchedEffect(Unit) { if (part == "complete") Story.landPrize(progress, land); finish() }; return }
+    var index by remember { mutableStateOf(0) }
+    LaunchedEffect(pics) {
+        for (i in pics.indices) {
+            index = i
+            delay(maxOf(1800L, (pics[i].ms * 1.3f).toLong()))
+        }
         finish()
     }
-    DisposableEffect(Unit) { onDispose { Fx.backdrop(null) } }
+    Box(Modifier.fillMaxSize().background(Color.Black)) {
+        androidx.compose.animation.Crossfade(targetState = index, animationSpec = androidx.compose.animation.core.tween(450), label = "story") { i ->
+            val zoom = remember { androidx.compose.animation.core.Animatable(1f) }
+            LaunchedEffect(Unit) { zoom.animateTo(1.06f, androidx.compose.animation.core.tween(maxOf(1800, (pics[i].ms * 1.3f).toInt()) + 500, easing = androidx.compose.animation.core.LinearEasing)) }
+            androidx.compose.foundation.Image(
+                pics[i].image, null,
+                contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = zoom.value; scaleY = zoom.value },
+            )
+        }
+    }
     var canSkip by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { delay(2500); canSkip = true }
     Box(Modifier.fillMaxSize().clickable(remember { MutableInteractionSource() }, null) {}) {
@@ -92,4 +112,18 @@ fun StoryScreen(progress: Progress, sounds: SoundFx, land: Int, part: String, on
                 .padding(horizontal = 14.dp, vertical = 6.dp),
         )
     }
+}
+
+/** Story pictures (assets/story/<land>-<part>/pics.json + webp files), made from the old 3D story. */
+object StoryPics {
+    class Pic(val image: ImageBitmap, val ms: Int)
+
+    fun load(ctx: android.content.Context, name: String): List<Pic> = try {
+        val json = org.json.JSONArray(ctx.assets.open("story/$name/pics.json").bufferedReader().use { it.readText() })
+        (0 until json.length()).mapNotNull { i ->
+            val o = json.getJSONObject(i)
+            val bmp = ctx.assets.open("story/$name/${o.getString("f")}").use { android.graphics.BitmapFactory.decodeStream(it, null, android.graphics.BitmapFactory.Options().apply { inPreferredConfig = android.graphics.Bitmap.Config.RGB_565 }) } ?: return@mapNotNull null
+            Pic(bmp.asImageBitmap(), o.getInt("ms"))
+        }
+    } catch (e: Exception) { emptyList() }
 }
